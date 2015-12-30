@@ -67,7 +67,7 @@ void x86_make_text_writable (uint32_t min_address, uint32_t max_address)
 }
 
 
-void startup_x86_determiniser (void)
+void startup_x86_determiniser (uint32_t * ER)
 {
     struct sigaction sa;
     char objdump_cmd[BUFSIZ];

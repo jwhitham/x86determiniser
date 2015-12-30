@@ -3,40 +3,16 @@
 #include <string.h>
 #include <stdlib.h>
 
+
+#define _WIN32_WINNT 0x0500
+
 #include <windows.h>
+#include <excpt.h>
 
 #include "win32_offsets.h"
 
 void x86_trap_handler (uint32_t * gregs, uint32_t trapno);
 void x86_startup (const char * objdump_cmd);
-
-// landed at breakpoint / single step
-LONG WINAPI breakpoint (LPEXCEPTION_POINTERS uc)
-{
-    PEXCEPTION_RECORD er = uc->ExceptionRecord;
-    PCONTEXT cr = uc->ContextRecord;
-    uint32_t * gregs = (uint32_t *) cr;
-
-    switch (er->ExceptionCode) {
-        case EXCEPTION_BREAKPOINT:
-            // Linux: PC is now after breakpoint instruction
-            // Windows: PC is pointing at breakpoint instruction
-            // Match Linux behaviour
-            gregs[REG_EIP] ++;
-            x86_trap_handler (gregs, 3);
-            return EXCEPTION_CONTINUE_EXECUTION;
-        case EXCEPTION_SINGLE_STEP:
-            x86_trap_handler (gregs, 1);
-            return EXCEPTION_CONTINUE_EXECUTION;
-        default: // unsupported
-            printf ("Another sort of exception, code = %08x\n", (unsigned) er->ExceptionCode);
-            printf ("EIP = %08x\n", (unsigned) gregs[REG_EIP]);
-            printf ("ESP = %08x\n", (unsigned) gregs[REG_ESP]);
-            printf ("EA  = %p\n", er->ExceptionAddress);
-            x86_trap_handler (gregs, 0);
-            return EXCEPTION_CONTINUE_EXECUTION;
-    }
-}
 
 void x86_make_text_writable (uint32_t min_address, uint32_t max_address)
 {
@@ -50,14 +26,43 @@ void x86_make_text_writable (uint32_t min_address, uint32_t max_address)
     }
 }
 
+EXCEPTION_DISPOSITION __cdecl
+new_handler (PEXCEPTION_RECORD ExceptionRecord,
+			  void *EstablisherFrame,
+			  PCONTEXT ContextRecord,
+			  void *DispatcherContext)
+{
+   if (ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP) {
+      uint32_t * gregs = (uint32_t *) ContextRecord;
+      x86_trap_handler (gregs, 1);
+      return ExceptionContinueExecution;
+   } else {
+      return ExceptionContinueSearch;
+   }
+}
 
-void startup_x86_determiniser (void)
+void startup_x86_determiniser (uint32_t * ER)
 {
     char filename[BUFSIZ];
     char objdump_cmd[BUFSIZ + 128];
     unsigned rc;
+    uint32_t ptr = 0;
 
-    SetUnhandledExceptionFilter (breakpoint);
+    if (!ER) {
+        fputs ("startup_x86_determiniser must be passed an SEH "
+               "EXCEPTION_RECORD pointer\n", stderr);
+        exit (1);
+    }
+
+    // put current handler in ptr
+    asm ("mov %%fs:(0),%0" : "=r" (ptr));
+    ER[0] = (uint32_t)ptr;          /* previous handler */
+    ER[1] = (uint32_t)new_handler;  /* new handler */
+
+    /* ER is the new handler, set fs:(0) with this value */
+    ptr = (uint32_t) &ER[0];
+    asm volatile ("mov %0,%%fs:(0)": : "r" (ptr));
+
     rc = GetModuleFileName (NULL, filename, sizeof (filename));
     if (rc >= sizeof (filename)) {
         fputs ("GetModuleFileName failed\n", stderr);

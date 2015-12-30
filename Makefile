@@ -28,6 +28,9 @@ src/$(LIBNAME).so:
 src/$(LIBNAME).dll:
 	make -C src $(LIBNAME).dll
 
+example2.exe: example2.adb
+	gnatmake -o example2.exe example2.adb -largs $(LDFLAGS)
+
 clean:
 	make -C src clean
 	rm -f $(LIBNAME).so $(LIBNAME).dll example.exe example.elf

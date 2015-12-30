@@ -22,12 +22,13 @@ uint32_t function_call (void)
     return 1;
 }
 
-void startup_x86_determiniser (void);
+void startup_x86_determiniser (uint32_t * ER);
 
 int main (int argc, char ** argv)
 {
     uint32_t i, j, x, ignore;
     uint32_t start, stop;
+    uint32_t ER[2];
 
     if (argc != 2) {
         fputs ("use \"example 1\" to use libx86determiniser\n", stdout);
@@ -35,7 +36,7 @@ int main (int argc, char ** argv)
         return 1;
     }
     if (argv[1][0] == '1') {
-        startup_x86_determiniser ();
+        startup_x86_determiniser (ER);
         fputs ("\nInstruction counts (RDTSC) using libx86determiniser:\n", stdout);
     } else {
         fputs ("\nTimings (RDTSC) without libx86determiniser:\n", stdout);

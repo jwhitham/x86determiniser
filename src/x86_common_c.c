@@ -356,6 +356,9 @@ void x86_interpreter (void)
 
     // Startup: run until reaching the program
     pc = x86_other_context[REG_EIP];
+#ifdef DEBUG
+    printf ("stepping from EIP %08x\n", pc);
+#endif
     entry_flag = 1;
     x86_other_context[REG_EFL] |= FLAG_TF;
     x86_switch_to_user ((uint32_t) fake_endpoint);
