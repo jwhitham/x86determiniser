@@ -469,7 +469,7 @@ void x86_startup (const char * objdump_cmd)
         exit (1);
     }
     min_address = max_address = 0;
-    printf ("libicounter is disassembling the program...\n  %s\n", objdump_cmd);
+    printf ("libx86determiniser is disassembling the program...\n  %s\n", objdump_cmd);
 
     // read superblock boundaries
     bitmap_fd = popen (objdump_cmd, "r");
