@@ -51,7 +51,7 @@ void x86_make_text_writable (uint32_t min_address, uint32_t max_address)
 }
 
 
-void startup_counter (void)
+void startup_x86_determiniser (void)
 {
     char filename[BUFSIZ];
     char objdump_cmd[BUFSIZ + 128];

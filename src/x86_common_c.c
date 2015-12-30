@@ -14,7 +14,6 @@
 #define TRIGGER_LEVEL 0x1000000
 
 static uint32_t         entry_flag = 1;
-static uint32_t         mode = 0;
 
 static uint8_t          fake_endpoint[8];
 static uint32_t         min_address = 0;
@@ -23,6 +22,7 @@ static uint8_t *        bitmap = NULL;
 
 static uint64_t         inst_count = 0;
 
+/* These definitions are from i8086emu - see README.md */
 #define FLAG_CF  1    /* Carry-Flag */
 #define FLAG_PF  4    /* Parity-Flag */
 #define FLAG_ACF 16   /* Auxillary-Carry-Flag */
@@ -99,6 +99,7 @@ static int interpret_control_flow (void)
     uint32_t * stack = NULL;
 
     switch (pc_bytes[0]) {
+        // opcodes 0x70 - 0x7f decoding based on i8086emu - see README.md
         case 0x70: //JO
             branch = (flags & FLAG_OF);
             goto short_relative_branch;
@@ -158,6 +159,7 @@ static int interpret_control_flow (void)
         
         case 0x0f: // Two-byte instructions
             switch (pc_bytes[1]) {
+                // opcodes 0x80 - 0x8f decoding based on i8086emu - see README.md
                 case 0x80: //JO
                     branch = (flags & FLAG_OF);
                     goto long_relative_branch;
@@ -419,8 +421,8 @@ void x86_interpreter (void)
             // We're outside the program, free run until return
             pc_end = ((uint32_t *) x86_other_context[REG_ESP])[0];
             if ((pc_end < min_address) || (pc_end > max_address)) {
-                printf ("Outside of the program (at %08x) and return address is also "
-                    "outside of the program (%08x)\n", pc, pc_end);
+                printf ("exit interpreter by return to %08x: stop interpretation\n", pc);
+                x86_switch_to_user ((uint32_t) fake_endpoint);
                 exit (1);
             }
 #ifdef DEBUG
@@ -579,14 +581,7 @@ void x86_startup (const char * objdump_cmd)
     printf ("program address range: %08x .. %08x\n", min_address, max_address);
 
     x86_make_text_writable (min_address, max_address);
-
     entry_flag = 1;
-    {
-        const char * tm = getenv ("TEST_MODE");
-        if (tm) {
-            mode = atoi (tm);
-        }
-    }
 
     // save this context and launch the interpreter
     x86_begin_single_step ();

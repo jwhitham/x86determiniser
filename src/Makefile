@@ -1,23 +1,25 @@
 CC=gcc
+LIBNAME=libx86determiniser
+COMMON=x86_common_c.c x86_common_asm.S
+LINUX32=linux32_asm.S linux32_offsets.h linux32_c.c 
+WIN32=win32_asm.S win32_offsets.h win32_c.c
+CFLAGS=-g -O2 -Wall -m32
 
-linux32: libicounter.so
+$(LIBNAME).so: $(COMMON) $(LINUX32)
+	$(CC) -shared -o $(LIBNAME).so $(COMMON) $(LINUX32) -fPIC -DLINUX32 $(CFLAGS)
 
-win32: libicounter.dll
-
-libicounter.so: linux32_c.c x86_common_c.c x86_common_asm.S linux32_asm.S linux32_offsets.h
-	$(CC) -shared -o libicounter.so x86_common_c.c x86_common_asm.S linux32_c.c linux32_asm.S -g -O2 -fPIC -Wall -DLINUX32
-
-libicounter.dll: win32_c.c x86_common_c.c x86_common_asm.S win32_asm.s win32_offsets.h
-	$(CC) -shared -o libicounter.dll win32_asm.S x86_common_c.c x86_common_asm.S win32_c.c -g -O2 -Wall -DWIN32
+$(LIBNAME).dll: $(COMMON) $(WIN32)
+	$(CC) -shared -o $(LIBNAME).dll $(COMMON) $(WIN32) -DWIN32 $(CFLAGS)
 
 linux32_offsets.h: make_h.c
-	$(CC) -o linux32_make_h make_h.c -O0 -g -DLINUX32
+	$(CC) -o linux32_make_h make_h.c $(CFLAGS) -DLINUX32
 	./linux32_make_h > linux32_offsets.h
 
 win32_offsets.h: make_h.c
-	$(CC) -o win32_make_h make_h.c -O0 -g -DWIN32
-	./win32_make_h > win32_offsets.h
+	$(CC) -o win32_make_h.exe make_h.c $(CFLAGS) -DWIN32
+	./win32_make_h.exe > win32_offsets.h
 
 clean:
-	rm -f *.o libicounter.so libicounter.dll linux32_make_h win32_make_h linux32_offsets.h win32_offsets.h
+	rm -f *.o $(LIBNAME).so $(LIBNAME).dll \
+        linux32_make_h win32_make_h linux32_offsets.h win32_offsets.h
 
