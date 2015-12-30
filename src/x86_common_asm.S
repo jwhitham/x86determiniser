@@ -9,6 +9,7 @@
 #define PARAM_2 12
 
 #define CALL_SIZE 5
+#define SUPER_STACK_SIZE 0x10000
 
 .global x86_switch_to_user
 .global x86_switch_from_user
@@ -37,7 +38,7 @@ _x86_other_context:
 x86_other_context:
     .space OFF_LIMIT
 super_stack_bottom:
-    .space 8192
+    .space SUPER_STACK_SIZE
 super_stack_top:
 
 .text

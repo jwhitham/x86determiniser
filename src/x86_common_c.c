@@ -13,7 +13,7 @@
 
 #define TRIGGER_LEVEL 0x1000000
 
-static uint32_t         entry_flag = 1;
+static uint8_t          entry_flag = 1;
 
 static uint8_t          fake_endpoint[8];
 static uint32_t         min_address = 0;
@@ -69,6 +69,9 @@ void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
     }
         
     pc = gregs[REG_EIP];
+#ifdef DEBUG
+    printf ("stepping EIP %08x ESP %08x entry_flag %u\n", pc, gregs[REG_ESP], entry_flag);
+#endif
 
     if (!entry_flag) {
         // We have now stepped one instruction in the program, time to leave!
@@ -76,6 +79,9 @@ void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
         gregs[REG_ESP] -= 4;
         ((uint32_t *) gregs[REG_ESP])[0] = gregs[REG_EIP] + x86_size_of_indirect_call_instruction; 
         gregs[REG_EIP] = (uint32_t) x86_switch_from_user;
+#ifdef DEBUG
+        printf ("switch from user: new EIP %08x ESP %08x\n", gregs[REG_EIP], gregs[REG_ESP]);
+#endif
         gregs[REG_EFL] &= ~FLAG_TF;
     } else if ((pc < min_address) || (pc > max_address)) {
         // Still outside program (probably completing the switch from super -> user)
