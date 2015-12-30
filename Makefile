@@ -4,7 +4,7 @@ LDFLAGS=-L. -lx86determiniser
 CFLAGS=-m32 -Wall -O0
 
 all:
-	echo 'Use "make linux32" or "make win32"'
+	@echo 'Use "make linux32" or "make win32"'
 
 linux32: $(LIBNAME).so example.c
 	gcc -o example.elf example.c $(CFLAGS) $(LDFLAGS)
@@ -30,5 +30,5 @@ src/$(LIBNAME).dll:
 
 clean:
 	make -C src clean
-	rm -f $(LIBNAME).so $(LIBNAME).dll
+	rm -f $(LIBNAME).so $(LIBNAME).dll example.exe example.elf
 

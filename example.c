@@ -27,6 +27,7 @@ void startup_x86_determiniser (void);
 int main (int argc, char ** argv)
 {
     uint32_t i, j, x, ignore;
+    uint32_t start, stop;
 
     if (argc != 2) {
         fputs ("use \"example 1\" to use libx86determiniser\n", stdout);
@@ -35,14 +36,15 @@ int main (int argc, char ** argv)
     }
     if (argv[1][0] == '1') {
         startup_x86_determiniser ();
-        fputs ("\nTimings using libx86determiniser:\n", stdout);
+        fputs ("\nInstruction counts (RDTSC) using libx86determiniser:\n", stdout);
     } else {
-        fputs ("\nTimings without libx86determiniser:\n", stdout);
+        fputs ("\nTimings (RDTSC) without libx86determiniser:\n", stdout);
     }
 
     for (i = 0; i < N; i++) {
         asm volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
     }
+    start = count[0];
     printout ("loop");
 
     for (i = 0; i < N; i++) {
@@ -76,9 +78,10 @@ int main (int argc, char ** argv)
         asm volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
     }
     printout ("loop factorials");
+    stop = count[0];
 
 
-    fputs ("\n", stdout);
+    printf ("\nTotal count: %u\n", stop - start);
     return 0;
 }
 
