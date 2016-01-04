@@ -436,7 +436,11 @@ void x86_interpreter (void)
             }
 
             // branch taken
-            if (branch_trace) {
+            if (branch_trace
+            && (pc_end >= min_address)
+            && (pc_end <= max_address)
+            && ((uint32_t) x86_other_context[REG_EIP] >= min_address)
+            && ((uint32_t) x86_other_context[REG_EIP] <= max_address)) {
                fprintf (branch_trace, "%08x %08x\n",     // before
                      (~AFTER_FLAG) & pc_end,
                      (uint32_t) inst_count);
