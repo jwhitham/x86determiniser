@@ -20,7 +20,7 @@ static void segfault (int n, siginfo_t * si, void * _uc)
     ucontext_t * uc = (ucontext_t *) _uc;
     uint32_t * gregs = (uint32_t *) &uc->uc_mcontext.gregs[0];
 
-    printf ("EIP = %08x\n", gregs[REG_ERR]);
+    fprintf (stderr, "EIP = %08x\n", gregs[REG_ERR]);
     x86_trap_handler (gregs, 0);
 }
 

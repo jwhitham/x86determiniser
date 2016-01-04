@@ -12,13 +12,17 @@
 #endif
 
 #define TRIGGER_LEVEL 0x1000000
+#define AFTER_FLAG (1 << 31)
 
 static uint8_t          entry_flag = 1;
+uint8_t                 x86_quiet_mode = 0;
 
 static uint8_t          fake_endpoint[8];
 static uint32_t         min_address = 0;
 static uint32_t         max_address = 0;
 static uint8_t *        bitmap = NULL;
+
+static FILE *           branch_trace = NULL;
 
 static uint64_t         inst_count = 0;
 
@@ -62,7 +66,7 @@ void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
     uint32_t pc;
 
     if (trapno != 1) {
-        printf ("trapno %u not known\n", trapno);
+        fprintf (stderr, "trapno %u not known\n", trapno);
         dump_regs (gregs);
         exit (1);
         return;
@@ -352,7 +356,9 @@ void x86_interpreter (void)
 {
     uint32_t pc, pc_end, count;
 
-    printf ("interpreter startup...\n");
+    if (!x86_quiet_mode) {
+        printf ("interpreter startup...\n");
+    }
 
     // Startup: run until reaching the program
     pc = x86_other_context[REG_EIP];
@@ -369,8 +375,10 @@ void x86_interpreter (void)
         exit (1);
     }
 
-    printf ("interpreter ok, entry EIP %08x ESP %08x, program running:\n",
-                pc, x86_other_context[REG_ESP]);
+    if (!x86_quiet_mode) {
+        printf ("interpreter ok, entry EIP %08x ESP %08x, program running:\n",
+                    pc, x86_other_context[REG_ESP]);
+    }
 
     // here is the main loop
     do {
@@ -408,7 +416,7 @@ void x86_interpreter (void)
                 x86_switch_to_user (pc_end);
                 pc = (uint32_t) x86_other_context[REG_EIP];
                 if (pc_end != pc) {
-                    printf ("Unexpected PC at end of superblock: %08x\n", pc);
+                    fprintf (stderr, "Unexpected PC at end of superblock: %08x\n", pc);
                     exit (1);
                 }
             }
@@ -426,11 +434,24 @@ void x86_interpreter (void)
                 x86_switch_to_user ((uint32_t) fake_endpoint);
                 x86_other_context[REG_EFL] &= ~FLAG_TF;
             }
+
+            // branch taken
+            if (branch_trace) {
+               fprintf (branch_trace, "%08x %08x\n",     // before
+                     (~AFTER_FLAG) & pc_end,
+                     (uint32_t) inst_count);
+               fprintf (branch_trace, "%08x %08x\n",     // after
+                     AFTER_FLAG | (uint32_t) x86_other_context[REG_EIP],
+                     (uint32_t) inst_count);
+            }
+
         } else {
             // We're outside the program, free run until return
             pc_end = ((uint32_t *) x86_other_context[REG_ESP])[0];
             if ((pc_end < min_address) || (pc_end > max_address)) {
-                printf ("exit interpreter by return to %08x: stop interpretation\n", pc);
+                if (!x86_quiet_mode) {
+                    printf ("exit interpreter by return to %08x: stop interpretation\n", pc);
+                }
                 x86_switch_to_user ((uint32_t) fake_endpoint);
                 exit (1);
             }
@@ -466,13 +487,18 @@ void x86_startup (const char * objdump_cmd)
     char *      scan;
     int         text_flag = 0;
     uint32_t    bitmap_size = 0;
+    const char * tmp;
 
     if (bitmap) {
         fputs ("called startup_counter twice\n", stderr);
         exit (1);
     }
+    tmp = getenv ("X86D_QUIET_MODE");
+    x86_quiet_mode = (tmp && (atoi (tmp) != 0));
     min_address = max_address = 0;
-    printf ("libx86determiniser is disassembling the program...\n  %s\n", objdump_cmd);
+    if (!x86_quiet_mode) {
+        printf ("libx86determiniser is disassembling the program...\n  %s\n", objdump_cmd);
+    }
 
     // read superblock boundaries
     bitmap_fd = popen (objdump_cmd, "r");
@@ -587,7 +613,20 @@ void x86_startup (const char * objdump_cmd)
         exit (1);
     }
     bitmap[max_address - min_address] = 'X';
-    printf ("program address range: %08x .. %08x\n", min_address, max_address);
+    if (!x86_quiet_mode) {
+        printf ("program address range: %08x .. %08x\n", min_address, max_address);
+    }
+
+    tmp = getenv ("X86D_BRANCH_TRACE");
+    if (tmp && strlen (tmp)) {
+        if (!x86_quiet_mode) {
+            printf ("writing branch trace to: %s\n", tmp);
+        }
+        branch_trace = fopen (tmp, "wt");
+        if (!branch_trace) {
+            perror ("opening branch trace file");
+        }
+    }
 
     x86_make_text_writable (min_address, max_address);
     entry_flag = 1;
