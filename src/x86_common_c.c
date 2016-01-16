@@ -11,8 +11,10 @@
 #include "win32_offsets.h"
 #endif
 
-#define TRIGGER_LEVEL 0x1000000
-#define AFTER_FLAG (1 << 31)
+#define TRIGGER_LEVEL   0x1000000
+#define AFTER_FLAG      0x80000000U
+#define MARKER_FLAG     0x40000000U
+#define PC_MASK         0x3fffffffU
 
 static uint8_t          entry_flag = 1;
 uint8_t                 x86_quiet_mode = 0;
@@ -166,7 +168,16 @@ static int interpret_control_flow (void)
                 pc += (int8_t) pc_bytes[1];
             }
             break;
-        
+        case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
+        case 0xe7: // OUT imm8, EAX
+            pc += 2;
+            if (branch_trace) {
+               fprintf (branch_trace, "%08x %08x\n",
+                     MARKER_FLAG | (uint32_t) pc_bytes[1],
+                     (uint32_t) inst_count);
+            }
+            printf ("marker %u\n", (uint32_t) pc_bytes[1]);
+            break;
         case 0x0f: // Two-byte instructions
             switch (pc_bytes[1]) {
                 // opcodes 0x80 - 0x8f decoding based on i8086emu - see README.md
@@ -442,10 +453,10 @@ void x86_interpreter (void)
             && ((uint32_t) x86_other_context[REG_EIP] >= min_address)
             && ((uint32_t) x86_other_context[REG_EIP] <= max_address)) {
                fprintf (branch_trace, "%08x %08x\n",     // before
-                     (~AFTER_FLAG) & pc_end,
+                     PC_MASK & pc_end,
                      (uint32_t) inst_count);
                fprintf (branch_trace, "%08x %08x\n",     // after
-                     AFTER_FLAG | (uint32_t) x86_other_context[REG_EIP],
+                     AFTER_FLAG | (PC_MASK & (uint32_t) x86_other_context[REG_EIP]),
                      (uint32_t) inst_count);
             }
 
@@ -604,6 +615,11 @@ void x86_startup (const char * objdump_cmd)
                 if (startswith (scan, "ret") || startswith (scan, "repz ret")) {
                     special = 'R';
                 } else if (startswith (scan, "rdtsc")) {
+                    special = 't';
+                }
+                break;
+            case 'o':
+                if (startswith (scan, "out")) {
                     special = 't';
                 }
                 break;
