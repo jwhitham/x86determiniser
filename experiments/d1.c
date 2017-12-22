@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <Windows.h>
+#include <Psapi.h>
 
 /*
 DWORD WINAPI GetFinalPathNameByHandle(
@@ -24,6 +25,8 @@ int main(void)
    LPVOID ptr;
    CONTEXT context;
    BOOL do_single_step = FALSE;
+   size_t getprocaddress_offset = 0;
+   size_t loadlibrary_offset = 0;
 
    memset (&startupInfo, 0, sizeof (startupInfo));
    memset (&processInformation, 0, sizeof (processInformation));
@@ -49,6 +52,40 @@ int main(void)
       return 1;
    }
    printf ("Spawned %d\n", (int) processInformation.dwProcessId);
+
+   {
+      HMODULE kernel32 = LoadLibrary ("kernel32.dll");
+      MODULEINFO modinfo;
+      LPVOID pa;
+
+      if (!kernel32) {
+         printf ("LoadLibrary: error %d\n", (int) GetLastError());
+         return 1;
+      }
+      if (!GetModuleInformation
+            (GetCurrentProcess(), kernel32, &modinfo, sizeof(MODULEINFO))) {
+         printf ("GetModuleInformation: error %d\n", (int) GetLastError());
+         return 1;
+      }
+      printf ("kernel32.dll: base %p size %u\n", modinfo.lpBaseOfDll, modinfo.SizeOfImage);
+
+      pa = GetProcAddress (kernel32, "GetProcAddress");
+      if (!pa) {
+         printf ("GetProcAddress: error %d\n", (int) GetLastError());
+         return 1;
+      }
+      getprocaddress_offset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+      printf ("gpa: offset %u\n", (unsigned) getprocaddress_offset);
+
+      pa = GetProcAddress (kernel32, "LoadLibraryA");
+      if (!pa) {
+         printf ("GetProcAddress: error %d\n", (int) GetLastError());
+         return 1;
+      }
+      loadlibrary_offset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+      printf ("ll: offset %u\n", (unsigned) loadlibrary_offset);
+   }
+
 
    while (run) {
       do_single_step = FALSE;
@@ -123,6 +160,10 @@ int main(void)
             buf[len] = 0;
             printf ("LoadDll: %s at %p\n", buf, debugEvent.u.LoadDll.lpBaseOfDll);
             CloseHandle (debugEvent.u.LoadDll.hFile);
+
+            /* if buf == kernel32.dll, we have the addresses for LoadLibrary
+             * and GetProcAddress, so we can switch the process over to use
+             * the determiniser. */
             break;
          case UNLOAD_DLL_DEBUG_EVENT:
             printf ("UnloadDll: %p\n", debugEvent.u.UnloadDll.lpBaseOfDll);
@@ -175,6 +216,7 @@ int main(void)
             break;
       }
 
+#if 0
       if (do_single_step) {
          SuspendThread (processInformation.hThread);
          context.ContextFlags = CONTEXT_CONTROL;
@@ -235,7 +277,9 @@ int main(void)
          }
          ResumeThread (processInformation.hThread);
       }
+#endif
       fflush (stdout);
+
       ContinueDebugEvent
          (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
    }
