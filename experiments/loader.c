@@ -4,6 +4,8 @@
 #include <Windows.h>
 #include <Psapi.h>
 
+#include "remote_loader.h"
+
 /*
 DWORD WINAPI GetFinalPathNameByHandle(
   HANDLE hFile,
@@ -12,6 +14,93 @@ DWORD WINAPI GetFinalPathNameByHandle(
   DWORD  dwFlags
 ); */
 #define SINGLE_STEP_FLAG 0x100
+
+typedef enum {
+   AWAIT_START,
+   AWAIT_KERNEL32_LOAD,
+   AWAIT_FIRST_INSTRUCTION,
+   AWAIT_REMOTE_LOADER_BP,
+   RUNNING
+} STATE;
+
+void StartRemoteLoader
+  (size_t getProcAddressOffset,
+   size_t loadLibraryOffset,
+   void * kernel32Base,
+   HANDLE hProcess,
+   CONTEXT * context)
+{
+   ssize_t space;
+   void * remoteBuf;
+   void * restoreSP;
+   CommStruct localCs;
+
+   memset (&localCs, 0, sizeof (localCs));
+
+   space = (char *) RemoteLoaderEnd - (char *) RemoteLoaderStart;
+   if (space <= 0) {
+      printf ("No valid size for remote loader\n");
+      exit (1);
+   }
+
+   // allocates space in debugged process for executable code
+   // RemoteLoaderStart .. RemoteLoaderEnd
+   remoteBuf = VirtualAllocEx
+     (hProcess,
+      NULL,
+      (DWORD) space,
+      MEM_RESERVE | MEM_COMMIT,
+      PAGE_EXECUTE_READWRITE);
+   if (!remoteBuf) {
+      printf ("Unable to allocate %d bytes for remote loader\n", (int) space);
+      exit (1);
+   }
+
+   // writes remote loader into memory within debugged process
+   WriteProcessMemory
+     (hProcess,
+      remoteBuf,
+      RemoteLoaderStart,
+      (DWORD) space,
+      NULL);
+
+   // reserve the right amount of stack space
+   restoreSP = (void *) context->Esp;
+   context->Esp -= sizeof (localCs);
+
+   // build data structure to load into the remote stack
+   localCs.myself = (void *) context->Esp;
+   strncpy (localCs.libraryName, "example.dll", MAX_LIBRARY_NAME_SIZE);
+   strncpy (localCs.procName, "entrypoint", MAX_PROC_NAME_SIZE);
+   localCs.loadLibraryProc = 
+      (void *) ((char *) kernel32Base + loadLibraryOffset);
+   localCs.getProcAddressProc =
+      (void *) ((char *) kernel32Base + getProcAddressOffset);
+   localCs.errorProc = 
+      (void *) ((char *) remoteBuf +
+         ((char *) RemoteLoaderBP - (char *) RemoteLoaderStart));
+   localCs.continueEntry = 
+      (void *) context->Eip;
+   localCs.continueSP = 
+      (void *) restoreSP;
+
+   // fill remote stack
+   // return address is NULL (1st item in struct: don't return!!)
+   // first parameter is "myself" (2nd item in struct)
+   WriteProcessMemory
+     (hProcess,
+      localCs.myself,
+      &localCs,
+      sizeof (localCs),
+      NULL);
+
+   // run RemoteLoader procedure until breakpoint
+   context->Eip = 
+      (DWORD) ((void *) ((char *) remoteBuf +
+         ((char *) RemoteLoader - (char *) RemoteLoaderStart)));
+   context->EFlags &= ~SINGLE_STEP_FLAG;
+}
+
 
 int main(void)
 {
@@ -24,9 +113,12 @@ int main(void)
    SIZE_T len;
    LPVOID ptr;
    CONTEXT context;
-   BOOL do_single_step = FALSE;
-   size_t getprocaddress_offset = 0;
-   size_t loadlibrary_offset = 0;
+   CONTEXT startContext;
+   size_t getProcAddressOffset = 0;
+   size_t loadLibraryOffset = 0;
+   LPVOID kernel32Base = NULL;
+   LPVOID startAddress = NULL;
+   STATE state = AWAIT_START;
 
    memset (&startupInfo, 0, sizeof (startupInfo));
    memset (&processInformation, 0, sizeof (processInformation));
@@ -67,28 +159,29 @@ int main(void)
          printf ("GetModuleInformation: error %d\n", (int) GetLastError());
          return 1;
       }
-      printf ("kernel32.dll: base %p size %u\n", modinfo.lpBaseOfDll, modinfo.SizeOfImage);
+      printf ("kernel32.dll: base %p size %u\n", modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
 
       pa = GetProcAddress (kernel32, "GetProcAddress");
       if (!pa) {
          printf ("GetProcAddress: error %d\n", (int) GetLastError());
          return 1;
       }
-      getprocaddress_offset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-      printf ("gpa: offset %u\n", (unsigned) getprocaddress_offset);
+      getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+      printf ("gpa: offset %u\n", (unsigned) getProcAddressOffset);
 
       pa = GetProcAddress (kernel32, "LoadLibraryA");
       if (!pa) {
          printf ("GetProcAddress: error %d\n", (int) GetLastError());
          return 1;
       }
-      loadlibrary_offset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-      printf ("ll: offset %u\n", (unsigned) loadlibrary_offset);
+      loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+      printf ("ll: offset %u\n", (unsigned) loadLibraryOffset);
    }
 
 
    while (run) {
-      do_single_step = FALSE;
+      BOOL doDebug = FALSE;
+
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       if (!rc) {
          printf ("WaitForDebugEvent: error %d\n", (int) GetLastError());
@@ -101,55 +194,31 @@ int main(void)
                printf ("CREATE_PROCESS_DEBUG_EVENT from unexpected process\n");
                return 1;
             }
-            do_single_step = TRUE;
-            break;
-         case CREATE_THREAD_DEBUG_EVENT:
-            // create an additional thread (no single stepping in this thread, runs freely)
+            if (state == AWAIT_START) {
+               startAddress = debugEvent.u.CreateProcessInfo.lpStartAddress;
+               doDebug = TRUE;
+               state = AWAIT_KERNEL32_LOAD;
+            }
             break;
          case EXCEPTION_DEBUG_EVENT:
             if ((debugEvent.dwProcessId == processInformation.dwProcessId)
             && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_SINGLE_STEP:
-                     do_single_step = TRUE;
+                     if (state == AWAIT_FIRST_INSTRUCTION) {
+                        doDebug = TRUE;
+                     }
+                     break;
+                  case STATUS_BREAKPOINT:
+                     if (state == AWAIT_REMOTE_LOADER_BP) {
+                        doDebug = TRUE;
+                        state = REMOTE_LOADER_BP;
+                     }
                      break;
                   default:
                      break;
                }
             }
-            break;
-            
-   
-         // case CREATE_THREAD_DEBUG_EVENT:
-
-#if 0
-            // debugEvent.u.CreateProcessInfo.lpStartAddress,
-
-            // allocates space in debugged process
-            remoteBuf = VirtualAllocEx
-              (processInformation.hProcess,
-               NULL,
-               dwLength,
-               MEM_RESERVE | MEM_COMMIT,
-               PAGE_EXECUTE_READWRITE);
-            // writes stuff into memory within debugged process
-            WriteProcessMemory
-              (processInformation.hProcess,
-               remoteBuf,
-               localBuf,
-               dwLength,
-               NULL);
-            
-            // Run code in remote process
-            CreateRemoteThread
-              (processInformation.hProcess,
-               NULL,
-               /* stack size */,
-               remoteBuf,
-               /* lpParameter */,
-               /* */,
-               &dwThreadId);
-#endif
             break;
          case LOAD_DLL_DEBUG_EVENT:
             len = GetFinalPathNameByHandle
@@ -161,51 +230,20 @@ int main(void)
             printf ("LoadDll: %s at %p\n", buf, debugEvent.u.LoadDll.lpBaseOfDll);
             CloseHandle (debugEvent.u.LoadDll.hFile);
 
-            /* if buf == kernel32.dll, we have the addresses for LoadLibrary
-             * and GetProcAddress, so we can switch the process over to use
-             * the determiniser. */
+            if (state == AWAIT_KERNEL32_LOAD) {
+               /* if buf == kernel32.dll, we have the addresses for LoadLibrary
+                * and GetProcAddress, so we can switch the process over to use
+                * the determiniser. */
+
+               if (strstr (buf, "\\kernel32.dll") != NULL) {
+                  kernel32Base = debugEvent.u.LoadDll.lpBaseOfDll;
+                  state = AWAIT_FIRST_INSTRUCTION;
+                  doDebug = TRUE;
+               }
+            }
             break;
          case UNLOAD_DLL_DEBUG_EVENT:
             printf ("UnloadDll: %p\n", debugEvent.u.UnloadDll.lpBaseOfDll);
-#if 0
-            if (debugEvent.u.LoadDll.lpImageName == NULL) {
-               printf ("Process loads DLL with null name\n");
-               break;
-            } 
-            len = sizeof (ptr);
-            ptr = NULL;
-            rc = ReadProcessMemory
-              (processInformation.hProcess,
-               debugEvent.u.LoadDll.lpImageName,
-               &ptr,
-               sizeof (ptr),
-               &len);
-            if (!rc) {
-               printf ("ReadProcessMemory: error %d (2)\n", (int) GetLastError());
-               return 1;
-            }
-            if (!ptr) {
-               printf ("Process loads DLL with null name (2)\n");
-               break;
-            }
-            len = sizeof (buf);
-            rc = ReadProcessMemory
-              (processInformation.hProcess,
-               ptr,
-               buf,
-               sizeof (buf) - 1,
-               &len);
-            if (!rc) {
-               printf ("ReadProcessMemory: error %d (3)\n", (int) GetLastError());
-               return 1;
-            }
-            if (!len) {
-               printf ("Process loads DLL with null name (3)\n");
-               break;
-            }
-            buf[len - 1] = '\0';
-            printf ("process loads DLL '%s'\n", buf);
-#endif
             break;
          case EXIT_PROCESS_DEBUG_EVENT:
             printf ("Process exited! %d\n", (int) debugEvent.dwProcessId);
@@ -216,8 +254,7 @@ int main(void)
             break;
       }
 
-#if 0
-      if (do_single_step) {
+      if (doDebug) {
          SuspendThread (processInformation.hThread);
          context.ContextFlags = CONTEXT_CONTROL;
          rc = GetThreadContext (processInformation.hThread, &context);
@@ -225,51 +262,37 @@ int main(void)
             printf ("GTC: error %d\n", (int) GetLastError());
             return 1;
          }
-         unsigned char opcode = 0;
-         const DWORD current_pc = context.Eip;
-
-         if (get_classification (previous_pc) == UNKNOWN) {
-            if ((current_pc > (previous_pc + 15))
-            || (current_pc < previous_pc))
-         }
-         if (get_classification (current_pc) == UNKNOWN) {
-            rc = ReadProcessMemory
-              (processInformation.hProcess,
-               (void *) current_pc,
-               &opcode,
-               1,
-               NULL);
-            if (!rc) {
-               printf ("ReadProcessMemory: error %d\n", (int) GetLastError());
-               return 1;
-            }
-            if (opcode >= 0x70 && opcode <= 0x7f) {
-               // It's a conditional jump opcode
-               classification = CONDITIONAL_JUMP;
-               set_classification (current_pc, classification);
-            }
-         }
-
-
-         } else if (classification == FIRST_TRY) {
-            rc = ReadProcessMemory
-              (processInformation.hProcess,
-               (void *) previous_pc,
-               &opcode,
-               1,
-               NULL);
-         }
-
-               } else {
-                  set_classification (current_pc, CONDITIONAL_JUMP);
-               }
-               printf ("%02x ", v);
-
-         
-
-         previous_pc = context.Eip;
          context.ContextFlags = CONTEXT_CONTROL;
-         context.EFlags |= SINGLE_STEP_FLAG;
+
+         switch (state) {
+            case AWAIT_START:
+            case AWAIT_KERNEL32_LOAD:
+            case AWAIT_REMOTE_LOADER_BP:
+            case RUNNING:
+               // No special action
+               break;
+            case AWAIT_FIRST_INSTRUCTION:
+               if ((void *) context.Eip == startAddress) {
+                  // we have single-stepped to the start address and should
+                  // now run the RemoteLoader procedure
+                  memcpy (&startContext, &context, sizeof (CONTEXT));
+                  StartRemoteLoader
+                    (getProcAddressOffset,
+                     loadLibraryOffset,
+                     kernel32Base,
+                     processInformation.hProcess,
+                     &context);
+                  state = AWAIT_REMOTE_LOADER_BP;
+               } else {
+                  // continue single-stepping
+                  context.EFlags |= SINGLE_STEP_FLAG;
+               }
+               break;
+            case REMOTE_LOADER_BP:
+               // reached breakpoint in remote loader
+               state = RUNNING;
+               break;
+         }
          rc = SetThreadContext (processInformation.hThread, &context);
          if (!rc) {
             printf ("STC: error %d\n", (int) GetLastError());
@@ -277,7 +300,6 @@ int main(void)
          }
          ResumeThread (processInformation.hThread);
       }
-#endif
       fflush (stdout);
 
       ContinueDebugEvent
