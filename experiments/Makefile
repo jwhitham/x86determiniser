@@ -1,6 +1,7 @@
 
 
-CC=/c/TDM-GCC-64/bin/gcc
+#CC=/c/TDM-GCC-64/bin/gcc
+CC=gcc
 CFLAGS=-g -Wall -m32 -DWIN32
 
 LOADER_SRCS=loader.c remote_loader.c

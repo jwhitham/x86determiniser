@@ -29,6 +29,7 @@ void x86_make_text_writable (uint32_t min_address, uint32_t max_address)
     }
 }
 
+#if 0
 EXCEPTION_DISPOSITION __cdecl
 new_handler (PEXCEPTION_RECORD ExceptionRecord,
 			  void *EstablisherFrame,
@@ -43,12 +44,14 @@ new_handler (PEXCEPTION_RECORD ExceptionRecord,
       return ExceptionContinueSearch;
    }
 }
+#endif
 
 void single_step_handler (PCONTEXT ContextRecord)
 {
    uint32_t * gregs = (uint32_t *) ContextRecord;
    x86_trap_handler (gregs, 1);
-   asm volatile ("mov 0x102, %eax\nint3\n");
+   asm volatile ("mov %0, %%ebx\nmov $0x102, %%eax\nint3\n"
+      : : "r"(gregs) );
 }
 
 __declspec(dllexport) void startup_x86_determiniser (CommStruct * cs)
@@ -84,7 +87,7 @@ __declspec(dllexport) void startup_x86_determiniser (CommStruct * cs)
     fflush (stdout);
 
     // Now ready for the user program
-    asm volatile ("mov 0x101, %%eax\nmov %0, %%ebx\nint3\n"
+    asm volatile ("mov %0, %%ebx\nmov $0x101, %%eax\nint3\n"
       : : "r"(single_step_handler) );
 }
 

@@ -29,7 +29,7 @@ typedef enum {
 
 typedef struct SingleStepStruct {
    void * unused;
-   struct SingleStepStruct * myself;
+   PCONTEXT pcontext;
    CONTEXT context;
 } SingleStepStruct;
 
@@ -37,7 +37,7 @@ typedef struct SingleStepStruct {
 void StartSingleStepProc
   (void * singleStepProc,
    HANDLE hProcess,
-   CONTEXT * context)
+   PCONTEXT context)
 {
    SingleStepStruct localCs;
 
@@ -45,15 +45,16 @@ void StartSingleStepProc
 
    // reserve stack space for SingleStepStruct
    context->Esp -= sizeof (localCs);
-   localCs.myself = (void *) context->Esp;
+   localCs.pcontext = (void *) (context->Esp + 8);
    localCs.unused = NULL;
+   printf ("location of context: %p\n", (void *) localCs.pcontext);
 
    // fill remote stack
    // return address is NULL (1st item in struct: don't return!!)
-   // first parameter is "myself" (2nd item in struct)
+   // first parameter is "pcontext" (2nd item in struct)
    WriteProcessMemory
      (hProcess,
-      localCs.myself,
+      (void *) context->Esp,
       &localCs,
       sizeof (localCs),
       NULL);
@@ -68,7 +69,7 @@ void StartRemoteLoader
    size_t loadLibraryOffset,
    void * kernel32Base,
    HANDLE hProcess,
-   CONTEXT * context)
+   PCONTEXT context)
 {
    ssize_t space;
    void * remoteBuf;
@@ -143,7 +144,7 @@ int main(void)
    char buf[128];
    SIZE_T len;
    CONTEXT startContext;
-   CONTEXT stepContext;
+   //CONTEXT stepContext;
    size_t getProcAddressOffset = 0;
    size_t loadLibraryOffset = 0;
    LPVOID kernel32Base = NULL;
@@ -239,8 +240,8 @@ int main(void)
                      } else if (state == AWAIT_FIRST_INSTRUCTION) {
                         // ok
                      } else {
-                        printf ("single step in unexpected state\n");
-                        exit (1);
+                        //printf ("single step in unexpected state\n");
+                        //exit (1);
                      }
                      break;
                   case STATUS_BREAKPOINT:
@@ -250,12 +251,17 @@ int main(void)
                      } else if (state == AWAIT_SINGLE_STEP_BP) {
                         state = SINGLE_STEP_BP;
                         printf ("state == SINGLE_STEP_BP\n");
+                     } else if (state == AWAIT_FIRST_INSTRUCTION) {
+                        // ok
                      } else {
                         printf ("breakpoint in unexpected state\n");
-                        //exit (1);
+                        exit (1);
                      }
                      break;
                   default:
+                     printf ("unhandled debug event %d\n",
+                        (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+                     exit (1);
                      break;
                }
             }
@@ -294,7 +300,7 @@ int main(void)
             break;
       }
 
-      {
+      if (run) {
          CONTEXT context;
          memset (&context, 0, sizeof (context));
 
@@ -308,14 +314,20 @@ int main(void)
 
          switch (state) {
             case AWAIT_START:
+               // single step until started
+               //context.EFlags |= SINGLE_STEP_FLAG;
+               printf ("A %p\n", (void *) context.Eip);
+               break;
             case AWAIT_KERNEL32_LOAD:
                // single step until started
-               // context.EFlags |= SINGLE_STEP_FLAG;
+               context.EFlags |= SINGLE_STEP_FLAG;
+               printf ("B %p\n", (void *) context.Eip);
                break;
             case AWAIT_REMOTE_LOADER_BP:
             case AWAIT_SINGLE_STEP_BP:
             case RUNNING:
                // No special action
+               printf ("C %p\n", (void *) context.Eip);
                break;
             case AWAIT_FIRST_INSTRUCTION:
                // continue single-stepping
@@ -353,25 +365,33 @@ int main(void)
                break;
             case SINGLE_STEP:
                // single step event while running
-               memcpy (&stepContext, &context, sizeof (CONTEXT));
+               //memcpy (&stepContext, &context, sizeof (CONTEXT));
+               printf ("D %p\n", (void *) context.Eip);
                StartSingleStepProc
                  (singleStepProc,
                   processInformation.hProcess,
                   &context);
                state = AWAIT_SINGLE_STEP_BP;
-               printf ("state == AWAIT_SINGLE_STEP_DONE: %p\n", (void *) context.Eip);
+               //printf ("state == AWAIT_SINGLE_STEP_DONE: %p\n", (void *) context.Eip);
                break;
             case SINGLE_STEP_BP:
                // single step procedure finished
                // EAX contains an error code, or 0x102 on success
+               // EBX is pointer to context, altered by remote
                if (context.Eax != 0x102) {
                   printf ("error code %d\n", (int) context.Eax);
                   return 1;
                }
                // context restored
-               memcpy (&context, &stepContext, sizeof (CONTEXT));
+               //printf ("location of context: %p\n", (void *) context.Ebx);
+               ReadProcessMemory
+                 (processInformation.hProcess,
+                  (void *) context.Ebx,
+                  (void *) &context,
+                  sizeof (CONTEXT),
+                  NULL);
                state = RUNNING;
-               printf ("state == RUNNING: %p\n", (void *) context.Eip);
+               //printf ("state == RUNNING: %p\n", (void *) context.Eip);
                break;
          }
          context.ContextFlags = CONTEXT_FULL;
