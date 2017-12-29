@@ -1,3 +1,5 @@
+#include <windows.h>
+
 #include "remote_loader.h"
 
 void RemoteLoaderStart (void) {}
@@ -5,19 +7,26 @@ void RemoteLoaderStart (void) {}
 void RemoteLoader (CommStruct * cs)
 {
    void * hm;
-   int (* loaderProc) (CommStruct *);
+   HMODULE WINAPI (* loadLibrary) (LPCSTR lpLibFileName);
+   FARPROC WINAPI (* getProcAddress) (HMODULE hModule, LPCSTR lpProcName);
+   int (* Loader) (CommStruct *);
+   void (* Error) (int errorCode);
 
-   hm = cs->loadLibraryProc (cs->libraryName);
+   loadLibrary = cs->loadLibraryProc;
+   getProcAddress = cs->getProcAddressProc;
+   Error = cs->errorProc;
+
+   hm = loadLibrary (cs->libraryName);
    if (!hm) {
-      cs->errorProc (1);
+      Error (1);
       return;
    }
-   loaderProc = (void *) cs->getProcAddressProc (hm, cs->procName);
-   if (!loaderProc) {
-      cs->errorProc (2);
+   Loader = (void *) getProcAddress (hm, cs->procName);
+   if (!Loader) {
+      Error (2);
       return;
    }
-   cs->errorProc (loaderProc (cs));
+   Error (Loader (cs));
    return;
 }
 

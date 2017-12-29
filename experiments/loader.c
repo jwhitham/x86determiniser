@@ -20,6 +20,7 @@ typedef enum {
    AWAIT_KERNEL32_LOAD,
    AWAIT_FIRST_INSTRUCTION,
    AWAIT_REMOTE_LOADER_BP,
+   REMOTE_LOADER_BP,
    RUNNING
 } STATE;
 
@@ -70,8 +71,8 @@ void StartRemoteLoader
 
    // build data structure to load into the remote stack
    localCs.myself = (void *) context->Esp;
-   strncpy (localCs.libraryName, "example.dll", MAX_LIBRARY_NAME_SIZE);
-   strncpy (localCs.procName, "entrypoint", MAX_PROC_NAME_SIZE);
+   strncpy (localCs.libraryName, "remote.dll", MAX_LIBRARY_NAME_SIZE);
+   strncpy (localCs.procName, "startup_x86_determiniser", MAX_PROC_NAME_SIZE);
    localCs.loadLibraryProc = 
       (void *) ((char *) kernel32Base + loadLibraryOffset);
    localCs.getProcAddressProc =
@@ -111,8 +112,6 @@ int main(void)
    BOOL rc, run = TRUE;
    char buf[128];
    SIZE_T len;
-   LPVOID ptr;
-   CONTEXT context;
    CONTEXT startContext;
    size_t getProcAddressOffset = 0;
    size_t loadLibraryOffset = 0;
@@ -123,12 +122,12 @@ int main(void)
    memset (&startupInfo, 0, sizeof (startupInfo));
    memset (&processInformation, 0, sizeof (processInformation));
    memset (&debugEvent, 0, sizeof (debugEvent));
-   memset (&context, 0, sizeof (context));
+   memset (&startContext, 0, sizeof (startContext));
    startupInfo.cb = sizeof (startupInfo);
 
    dwCreationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS;
    rc = CreateProcess(
-     /* _In_opt_    LPCTSTR               */ "d0.exe",
+     /* _In_opt_    LPCTSTR               */ "target.exe",
      /* _Inout_opt_ LPTSTR                */ NULL /* lpCommandLine */,
      /* _In_opt_    LPSECURITY_ATTRIBUTES */ NULL /* lpProcessAttributes */,
      /* _In_opt_    LPSECURITY_ATTRIBUTES */ NULL /* lpThreadAttributes */,
@@ -180,8 +179,6 @@ int main(void)
 
 
    while (run) {
-      BOOL doDebug = FALSE;
-
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       if (!rc) {
          printf ("WaitForDebugEvent: error %d\n", (int) GetLastError());
@@ -196,8 +193,8 @@ int main(void)
             }
             if (state == AWAIT_START) {
                startAddress = debugEvent.u.CreateProcessInfo.lpStartAddress;
-               doDebug = TRUE;
                state = AWAIT_KERNEL32_LOAD;
+               printf ("state == AWAIT_KERNEL32_LOAD: %p\n", (void *) startAddress);
             }
             break;
          case EXCEPTION_DEBUG_EVENT:
@@ -205,14 +202,11 @@ int main(void)
             && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_SINGLE_STEP:
-                     if (state == AWAIT_FIRST_INSTRUCTION) {
-                        doDebug = TRUE;
-                     }
                      break;
                   case STATUS_BREAKPOINT:
                      if (state == AWAIT_REMOTE_LOADER_BP) {
-                        doDebug = TRUE;
                         state = REMOTE_LOADER_BP;
+                        printf ("state == REMOTE_LOADER_BP\n");
                      }
                      break;
                   default:
@@ -238,7 +232,7 @@ int main(void)
                if (strstr (buf, "\\kernel32.dll") != NULL) {
                   kernel32Base = debugEvent.u.LoadDll.lpBaseOfDll;
                   state = AWAIT_FIRST_INSTRUCTION;
-                  doDebug = TRUE;
+                  printf ("state == AWAIT_FIRST_INSTRUCTION\n");
                }
             }
             break;
@@ -254,7 +248,10 @@ int main(void)
             break;
       }
 
-      if (doDebug) {
+      if (state != RUNNING) {
+         CONTEXT context;
+         memset (&context, 0, sizeof (context));
+
          SuspendThread (processInformation.hThread);
          context.ContextFlags = CONTEXT_CONTROL;
          rc = GetThreadContext (processInformation.hThread, &context);
@@ -267,11 +264,16 @@ int main(void)
          switch (state) {
             case AWAIT_START:
             case AWAIT_KERNEL32_LOAD:
+               // single step until started
+               context.EFlags |= SINGLE_STEP_FLAG;
+               break;
             case AWAIT_REMOTE_LOADER_BP:
             case RUNNING:
                // No special action
                break;
             case AWAIT_FIRST_INSTRUCTION:
+               // continue single-stepping
+               context.EFlags |= SINGLE_STEP_FLAG;
                if ((void *) context.Eip == startAddress) {
                   // we have single-stepped to the start address and should
                   // now run the RemoteLoader procedure
@@ -283,14 +285,13 @@ int main(void)
                      processInformation.hProcess,
                      &context);
                   state = AWAIT_REMOTE_LOADER_BP;
-               } else {
-                  // continue single-stepping
-                  context.EFlags |= SINGLE_STEP_FLAG;
+                  printf ("state == AWAIT_REMOTE_LOADER_BP: %p\n", (void *) context.Eip);
                }
                break;
             case REMOTE_LOADER_BP:
                // reached breakpoint in remote loader
                state = RUNNING;
+               printf ("state == RUNNING: %p\n", (void *) context.Eip);
                break;
          }
          rc = SetThreadContext (processInformation.hThread, &context);

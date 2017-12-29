@@ -4,12 +4,15 @@
 #include <stdlib.h>
 
 
+#ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0500
+#endif
 
 #include <windows.h>
 #include <excpt.h>
 
 #include "win32_offsets.h"
+#include "remote_loader.h"
 
 void x86_trap_handler (uint32_t * gregs, uint32_t trapno);
 void x86_startup (const char * objdump_cmd);
@@ -41,18 +44,16 @@ new_handler (PEXCEPTION_RECORD ExceptionRecord,
    }
 }
 
-void startup_x86_determiniser (uint32_t * ER)
+__declspec(dllexport) __cdecl void startup_x86_determiniser (CommStruct * cs)
 {
+    uint32_t ER[2];
     char filename[BUFSIZ];
     char objdump_cmd[BUFSIZ + 128];
     unsigned rc;
     uint32_t ptr = 0;
+    void (* Entry) (void);
 
-    if (!ER) {
-        fputs ("startup_x86_determiniser must be passed an SEH "
-               "EXCEPTION_RECORD pointer\n", stderr);
-        exit (1);
-    }
+    asm volatile ("int3\n");
 
     // put current handler in ptr
     asm ("mov %%fs:(0),%0" : "=r" (ptr));
@@ -70,6 +71,9 @@ void startup_x86_determiniser (uint32_t * ER)
     }
     snprintf (objdump_cmd, sizeof (objdump_cmd), "objdump -d \"%s\"", filename);
     x86_startup (objdump_cmd);
+
+    Entry = cs->continueEntry;
+    Entry();
 }
 
 

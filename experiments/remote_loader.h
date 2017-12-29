@@ -6,10 +6,10 @@ typedef struct CommStruct {
    struct CommStruct * myself;
    char libraryName[MAX_LIBRARY_NAME_SIZE];
    char procName[MAX_PROC_NAME_SIZE];
-   void * (* loadLibraryProc) (const char *);
-   void * (* getProcAddressProc) (void *, const char *);
-   void (* errorProc) (int errorCode);
-   void (* continueEntry) (void);
+   void * loadLibraryProc;
+   void * getProcAddressProc;
+   void * errorProc;
+   void * continueEntry;
    void * continueSP;
    void * arg;
 } CommStruct;
