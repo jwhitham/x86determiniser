@@ -16,7 +16,7 @@ DWORD WINAPI GetFinalPathNameByHandle(
 #define SINGLE_STEP_FLAG 0x100
 
 typedef enum {
-   AWAIT_START,
+   AWAIT_START = 1,
    AWAIT_KERNEL32_LOAD,
    AWAIT_FIRST_INSTRUCTION,
    AWAIT_REMOTE_LOADER_BP,
@@ -47,7 +47,7 @@ void StartSingleStepProc
    context->Esp -= sizeof (localCs);
    localCs.pcontext = (void *) (context->Esp + 8);
    localCs.unused = NULL;
-   printf ("location of context: %p\n", (void *) localCs.pcontext);
+   // printf ("location of context: %p\n", (void *) localCs.pcontext);
 
    // fill remote stack
    // return address is NULL (1st item in struct: don't return!!)
@@ -237,11 +237,13 @@ int main(void)
                   case STATUS_SINGLE_STEP:
                      if (state == RUNNING) {
                         state = SINGLE_STEP;
-                     } else if (state == AWAIT_FIRST_INSTRUCTION) {
+                     } else if ((state == AWAIT_FIRST_INSTRUCTION)
+                     || (state == AWAIT_REMOTE_LOADER_BP)
+                     || (state == AWAIT_KERNEL32_LOAD)) {
                         // ok
                      } else {
-                        //printf ("single step in unexpected state\n");
-                        //exit (1);
+                        printf ("single step in unexpected state %d\n", state);
+                        exit (1);
                      }
                      break;
                   case STATUS_BREAKPOINT:
@@ -250,7 +252,7 @@ int main(void)
                         printf ("state == REMOTE_LOADER_BP\n");
                      } else if (state == AWAIT_SINGLE_STEP_BP) {
                         state = SINGLE_STEP_BP;
-                        printf ("state == SINGLE_STEP_BP\n");
+                        // printf ("state == SINGLE_STEP_BP\n");
                      } else if (state == AWAIT_FIRST_INSTRUCTION) {
                         // ok
                      } else {
