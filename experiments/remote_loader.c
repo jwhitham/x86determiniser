@@ -10,29 +10,23 @@ void RemoteLoader (CommStruct * cs)
    HMODULE WINAPI (* loadLibrary) (LPCSTR lpLibFileName);
    FARPROC WINAPI (* getProcAddress) (HMODULE hModule, LPCSTR lpProcName);
    int (* Loader) (CommStruct *);
-   void (* Error) (int errorCode);
 
    loadLibrary = cs->loadLibraryProc;
    getProcAddress = cs->getProcAddressProc;
-   Error = cs->errorProc;
 
    hm = loadLibrary (cs->libraryName);
    if (!hm) {
-      Error (1);
+      asm volatile ("mov 0x001, %eax\nint3\n");
       return;
    }
    Loader = (void *) getProcAddress (hm, cs->procName);
    if (!Loader) {
-      Error (2);
+      asm volatile ("mov 0x002, %eax\nint3\n");
       return;
    }
-   Error (Loader (cs));
+   Loader (cs);
+   asm volatile ("mov 0x003, %eax\nint3\n");
    return;
-}
-
-void RemoteLoaderBP (int errorCode)
-{
-   asm volatile ("mov %%eax, %0\nint3\n" : : "r"(errorCode) );
 }
 
 void RemoteLoaderEnd (void) {}

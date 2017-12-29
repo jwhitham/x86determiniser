@@ -44,17 +44,22 @@ new_handler (PEXCEPTION_RECORD ExceptionRecord,
    }
 }
 
-__declspec(dllexport) __cdecl void startup_x86_determiniser (CommStruct * cs)
+void single_step_handler (PCONTEXT ContextRecord)
 {
-    uint32_t ER[2];
+   uint32_t * gregs = (uint32_t *) ContextRecord;
+   x86_trap_handler (gregs, 1);
+   asm volatile ("mov 0x102, %eax\nint3\n");
+}
+
+__declspec(dllexport) void startup_x86_determiniser (CommStruct * cs)
+{
     char filename[BUFSIZ];
     char objdump_cmd[BUFSIZ + 128];
     unsigned rc;
+
+#if 0
     uint32_t ptr = 0;
-    void (* Entry) (void);
-
-    asm volatile ("int3\n");
-
+    uint32_t ER[2];
     // put current handler in ptr
     asm ("mov %%fs:(0),%0" : "=r" (ptr));
     ER[0] = (uint32_t)ptr;          /* previous handler */
@@ -63,6 +68,9 @@ __declspec(dllexport) __cdecl void startup_x86_determiniser (CommStruct * cs)
     /* ER is the new handler, set fs:(0) with this value */
     ptr = (uint32_t) &ER[0];
     asm volatile ("mov %0,%%fs:(0)": : "r" (ptr));
+#endif
+    printf ("startup_x86_determiniser\n");
+    fflush (stdout);
 
     rc = GetModuleFileName (NULL, filename, sizeof (filename));
     if (rc >= sizeof (filename)) {
@@ -72,8 +80,12 @@ __declspec(dllexport) __cdecl void startup_x86_determiniser (CommStruct * cs)
     snprintf (objdump_cmd, sizeof (objdump_cmd), "objdump -d \"%s\"", filename);
     x86_startup (objdump_cmd);
 
-    Entry = cs->continueEntry;
-    Entry();
+    printf ("hand back\n");
+    fflush (stdout);
+
+    // Now ready for the user program
+    asm volatile ("mov 0x101, %%eax\nmov %0, %%ebx\nint3\n"
+      : : "r"(single_step_handler) );
 }
 
 

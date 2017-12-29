@@ -21,8 +21,47 @@ typedef enum {
    AWAIT_FIRST_INSTRUCTION,
    AWAIT_REMOTE_LOADER_BP,
    REMOTE_LOADER_BP,
-   RUNNING
+   RUNNING,
+   SINGLE_STEP,
+   AWAIT_SINGLE_STEP_BP,
+   SINGLE_STEP_BP,
 } STATE;
+
+typedef struct SingleStepStruct {
+   void * unused;
+   struct SingleStepStruct * myself;
+   CONTEXT context;
+} SingleStepStruct;
+
+
+void StartSingleStepProc
+  (void * singleStepProc,
+   HANDLE hProcess,
+   CONTEXT * context)
+{
+   SingleStepStruct localCs;
+
+   memcpy (&localCs.context, context, sizeof (CONTEXT));
+
+   // reserve stack space for SingleStepStruct
+   context->Esp -= sizeof (localCs);
+   localCs.myself = (void *) context->Esp;
+   localCs.unused = NULL;
+
+   // fill remote stack
+   // return address is NULL (1st item in struct: don't return!!)
+   // first parameter is "myself" (2nd item in struct)
+   WriteProcessMemory
+     (hProcess,
+      localCs.myself,
+      &localCs,
+      sizeof (localCs),
+      NULL);
+
+   // run single step handler until breakpoint
+   context->Eip = (DWORD) singleStepProc;
+   context->EFlags &= ~SINGLE_STEP_FLAG;
+}
 
 void StartRemoteLoader
   (size_t getProcAddressOffset,
@@ -33,7 +72,6 @@ void StartRemoteLoader
 {
    ssize_t space;
    void * remoteBuf;
-   void * restoreSP;
    CommStruct localCs;
 
    memset (&localCs, 0, sizeof (localCs));
@@ -66,7 +104,6 @@ void StartRemoteLoader
       NULL);
 
    // reserve the right amount of stack space
-   restoreSP = (void *) context->Esp;
    context->Esp -= sizeof (localCs);
 
    // build data structure to load into the remote stack
@@ -77,13 +114,6 @@ void StartRemoteLoader
       (void *) ((char *) kernel32Base + loadLibraryOffset);
    localCs.getProcAddressProc =
       (void *) ((char *) kernel32Base + getProcAddressOffset);
-   localCs.errorProc = 
-      (void *) ((char *) remoteBuf +
-         ((char *) RemoteLoaderBP - (char *) RemoteLoaderStart));
-   localCs.continueEntry = 
-      (void *) context->Eip;
-   localCs.continueSP = 
-      (void *) restoreSP;
 
    // fill remote stack
    // return address is NULL (1st item in struct: don't return!!)
@@ -113,10 +143,12 @@ int main(void)
    char buf[128];
    SIZE_T len;
    CONTEXT startContext;
+   CONTEXT stepContext;
    size_t getProcAddressOffset = 0;
    size_t loadLibraryOffset = 0;
    LPVOID kernel32Base = NULL;
    LPVOID startAddress = NULL;
+   LPVOID singleStepProc = NULL;
    STATE state = AWAIT_START;
 
    memset (&startupInfo, 0, sizeof (startupInfo));
@@ -202,11 +234,25 @@ int main(void)
             && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_SINGLE_STEP:
+                     if (state == RUNNING) {
+                        state = SINGLE_STEP;
+                     } else if (state == AWAIT_FIRST_INSTRUCTION) {
+                        // ok
+                     } else {
+                        printf ("single step in unexpected state\n");
+                        exit (1);
+                     }
                      break;
                   case STATUS_BREAKPOINT:
                      if (state == AWAIT_REMOTE_LOADER_BP) {
                         state = REMOTE_LOADER_BP;
                         printf ("state == REMOTE_LOADER_BP\n");
+                     } else if (state == AWAIT_SINGLE_STEP_BP) {
+                        state = SINGLE_STEP_BP;
+                        printf ("state == SINGLE_STEP_BP\n");
+                     } else {
+                        printf ("breakpoint in unexpected state\n");
+                        //exit (1);
                      }
                      break;
                   default:
@@ -248,26 +294,26 @@ int main(void)
             break;
       }
 
-      if (state != RUNNING) {
+      {
          CONTEXT context;
          memset (&context, 0, sizeof (context));
 
          SuspendThread (processInformation.hThread);
-         context.ContextFlags = CONTEXT_CONTROL;
+         context.ContextFlags = CONTEXT_FULL;
          rc = GetThreadContext (processInformation.hThread, &context);
          if (!rc) {
             printf ("GTC: error %d\n", (int) GetLastError());
             return 1;
          }
-         context.ContextFlags = CONTEXT_CONTROL;
 
          switch (state) {
             case AWAIT_START:
             case AWAIT_KERNEL32_LOAD:
                // single step until started
-               context.EFlags |= SINGLE_STEP_FLAG;
+               // context.EFlags |= SINGLE_STEP_FLAG;
                break;
             case AWAIT_REMOTE_LOADER_BP:
+            case AWAIT_SINGLE_STEP_BP:
             case RUNNING:
                // No special action
                break;
@@ -290,10 +336,45 @@ int main(void)
                break;
             case REMOTE_LOADER_BP:
                // reached breakpoint in remote loader
+               // EAX contains an error code, or 0x101 on success
+               if (context.Eax != 0x101) {
+                  printf ("error code %d\n", (int) context.Eax);
+                  return 1;
+               }
+               fflush (stdout);
+
+               // EBX contains the address of the single step handler
+               singleStepProc = (void *) context.Ebx;
+               state = RUNNING;
+               printf ("state == RUNNING: %p\n", (void *) context.Eip);
+               // "reboot" into the original context
+               memcpy (&context, &startContext, sizeof (CONTEXT));
+               
+               break;
+            case SINGLE_STEP:
+               // single step event while running
+               memcpy (&stepContext, &context, sizeof (CONTEXT));
+               StartSingleStepProc
+                 (singleStepProc,
+                  processInformation.hProcess,
+                  &context);
+               state = AWAIT_SINGLE_STEP_BP;
+               printf ("state == AWAIT_SINGLE_STEP_DONE: %p\n", (void *) context.Eip);
+               break;
+            case SINGLE_STEP_BP:
+               // single step procedure finished
+               // EAX contains an error code, or 0x102 on success
+               if (context.Eax != 0x102) {
+                  printf ("error code %d\n", (int) context.Eax);
+                  return 1;
+               }
+               // context restored
+               memcpy (&context, &stepContext, sizeof (CONTEXT));
                state = RUNNING;
                printf ("state == RUNNING: %p\n", (void *) context.Eip);
                break;
          }
+         context.ContextFlags = CONTEXT_FULL;
          rc = SetThreadContext (processInformation.hThread, &context);
          if (!rc) {
             printf ("STC: error %d\n", (int) GetLastError());
