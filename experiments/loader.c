@@ -15,18 +15,6 @@ DWORD WINAPI GetFinalPathNameByHandle(
 ); */
 #define SINGLE_STEP_FLAG 0x100
 
-typedef enum {
-   AWAIT_START = 1,
-   AWAIT_KERNEL32_LOAD,
-   AWAIT_FIRST_INSTRUCTION,
-   AWAIT_REMOTE_LOADER_BP,
-   REMOTE_LOADER_BP,
-   RUNNING,
-   SINGLE_STEP,
-   AWAIT_SINGLE_STEP_BP,
-   SINGLE_STEP_BP,
-} STATE;
-
 typedef struct SingleStepStruct {
    void * unused;
    PCONTEXT pcontext;
@@ -74,12 +62,13 @@ void StartRemoteLoader
    ssize_t space;
    void * remoteBuf;
    CommStruct localCs;
+   BOOL rc;
 
    memset (&localCs, 0, sizeof (localCs));
 
    space = (char *) RemoteLoaderEnd - (char *) RemoteLoaderStart;
    if (space <= 0) {
-      printf ("No valid size for remote loader\n");
+      printf ("REMOTE_LOADER: No valid size for remote loader\n");
       exit (1);
    }
 
@@ -92,17 +81,21 @@ void StartRemoteLoader
       MEM_RESERVE | MEM_COMMIT,
       PAGE_EXECUTE_READWRITE);
    if (!remoteBuf) {
-      printf ("Unable to allocate %d bytes for remote loader\n", (int) space);
+      printf ("REMOTE_LOADER: Unable to allocate %d bytes for remote loader\n", (int) space);
       exit (1);
    }
 
    // writes remote loader into memory within debugged process
-   WriteProcessMemory
+   rc = WriteProcessMemory
      (hProcess,
       remoteBuf,
       RemoteLoaderStart,
       (DWORD) space,
       NULL);
+   if (!rc) {
+      printf ("REMOTE_LOADER: Unable to inject %d bytes\n", (int) space);
+      exit (1);
+   }
 
    // reserve the right amount of stack space
    context->Esp -= sizeof (localCs);
@@ -125,6 +118,10 @@ void StartRemoteLoader
       &localCs,
       sizeof (localCs),
       NULL);
+   if (!rc) {
+      printf ("REMOTE_LOADER: Unable to fill remote stack\n");
+      exit (1);
+   }
 
    // run RemoteLoader procedure until breakpoint
    context->Eip = 
@@ -150,7 +147,7 @@ int main(void)
    LPVOID kernel32Base = NULL;
    LPVOID startAddress = NULL;
    LPVOID singleStepProc = NULL;
-   STATE state = AWAIT_START;
+   char startInstruction = 0;
 
    memset (&startupInfo, 0, sizeof (startupInfo));
    memset (&processInformation, 0, sizeof (processInformation));
@@ -177,6 +174,8 @@ int main(void)
    }
    printf ("Spawned %d\n", (int) processInformation.dwProcessId);
 
+   // Determine offset of LoadLibrary and GetProcAddress
+   // within kernel32.dll
    {
       HMODULE kernel32 = LoadLibrary ("kernel32.dll");
       MODULEINFO modinfo;
@@ -210,58 +209,126 @@ int main(void)
       printf ("ll: offset %u\n", (unsigned) loadLibraryOffset);
    }
 
-
-   while (run) {
+   // INITIAL STAGE
+   // Wait for the child process to attach
+   // Obtain the start address for the child process executable
+   // Put a breakpoint at the start address, so we see when it's
+   // actually reached
+   while (!startAddress) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       if (!rc) {
-         printf ("WaitForDebugEvent: error %d\n", (int) GetLastError());
-         return 1;
+         printf ("INITIAL: WaitForDebugEvent: error %d\n", (int) GetLastError());
+         exit (1);
       }
       switch (debugEvent.dwDebugEventCode) {
          case CREATE_PROCESS_DEBUG_EVENT:
             if ((debugEvent.dwProcessId != processInformation.dwProcessId)
             || (debugEvent.dwThreadId != processInformation.dwThreadId)) {
-               printf ("CREATE_PROCESS_DEBUG_EVENT from unexpected process\n");
-               return 1;
+               printf ("INITIAL: CREATE_PROCESS_DEBUG_EVENT from unexpected process\n");
+               exit (1);
             }
-            if (state == AWAIT_START) {
-               startAddress = debugEvent.u.CreateProcessInfo.lpStartAddress;
-               state = AWAIT_KERNEL32_LOAD;
-               printf ("state == AWAIT_KERNEL32_LOAD: %p\n", (void *) startAddress);
+            startAddress = debugEvent.u.CreateProcessInfo.lpStartAddress;
+
+            // First instruction is saved
+            rc = ReadProcessMemory
+              (processInformation.hProcess,
+               (void *) startAddress,
+               &startInstruction,
+               1,
+               &len);
+            if ((!rc) || (len != 1)) {
+               printf ("INITIAL: Unable to read first instruction\n");
+               exit (1);
             }
+
+            // Install breakpoint
+            rc = WriteProcessMemory
+              (processInformation.hProcess,
+               (void *) startAddress,
+               "\xcc",
+               1,
+               &len);
+            if ((!rc) || (len != 1)) {
+               printf ("INITIAL: Unable to replace first instruction with breakpoint\n");
+               exit (1);
+            }
+            break;
+         default:
+            break;
+      }
+      ContinueDebugEvent
+         (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+   }
+
+   // AWAIT_FIRST STAGE
+   // Await breakpoint at first instruction
+   // Capture startContext once it's reached
+   // Also capture the kernel32.dll base address, which we should see
+   // before the first instruction
+   while (!startContext.Eip) {
+      rc = WaitForDebugEvent (&debugEvent, INFINITE);
+      if (!rc) {
+         printf ("AWAIT_FIRST: WaitForDebugEvent: error %d\n", (int) GetLastError());
+         exit (1);
+      }
+      switch (debugEvent.dwDebugEventCode) {
+         case CREATE_PROCESS_DEBUG_EVENT:
+            printf ("AWAIT_FIRST: CREATE_PROCESS_DEBUG_EVENT from unexpected process\n");
+            exit (1);
             break;
          case EXCEPTION_DEBUG_EVENT:
             if ((debugEvent.dwProcessId == processInformation.dwProcessId)
             && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
+               CONTEXT context;
+
+               startContext.ContextFlags = CONTEXT_FULL;
+               rc = GetThreadContext (processInformation.hThread, &startContext);
+               if (!rc) {
+                  printf ("AWAIT_FIRST: GetThreadContext: error %d\n",
+                     (int) GetLastError());
+                  exit (1);
+               }
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
-                  case STATUS_SINGLE_STEP:
-                     if (state == RUNNING) {
-                        state = SINGLE_STEP;
-                     } else if ((state == AWAIT_FIRST_INSTRUCTION)
-                     || (state == AWAIT_REMOTE_LOADER_BP)
-                     || (state == AWAIT_KERNEL32_LOAD)) {
-                        // ok
-                     } else {
-                        printf ("single step in unexpected state %d\n", state);
-                        exit (1);
-                     }
-                     break;
                   case STATUS_BREAKPOINT:
-                     if (state == AWAIT_REMOTE_LOADER_BP) {
-                        state = REMOTE_LOADER_BP;
-                        printf ("state == REMOTE_LOADER_BP\n");
-                     } else if (state == AWAIT_SINGLE_STEP_BP) {
-                        state = SINGLE_STEP_BP;
-                        // printf ("state == SINGLE_STEP_BP\n");
-                     } else if (state == AWAIT_FIRST_INSTRUCTION) {
-                        // ok
-                     } else {
-                        printf ("breakpoint in unexpected state\n");
+                     // Are we in the right place?
+                     if ((void *) startContext.Eip != startAddress) {
+                        printf ("AWAIT_FIRST: Reached unexpected breakpoint at %p\n",
+                           (void *) startContext.Eip);
                         exit (1);
                      }
+
+                     // REMOTE_LOADER STAGE
+                     // Remove breakpoint
+                     // Inject code needed to load the DLL and run the loader
+
+                     if (!kernel32Base) {
+                        printf ("REMOTE_LOADER: don't know the kernel32.dll base address\n");
+                        exit (1);
+                     }
+
+                     // Uninstall breakpoint
+                     rc = WriteProcessMemory
+                       (processInformation.hProcess,
+                        (void *) startAddress,
+                        &startInstruction,
+                        1,
+                        &len);
+                     if ((!rc) || (len != 1)) {
+                        printf ("REMOTE_LOADER: Unable to restore first instruction\n");
+                        exit (1);
+                     }
+
+                     memcpy (&context, &startContext, sizeof (CONTEXT));
+                     StartRemoteLoader
+                       (getProcAddressOffset,
+                        loadLibraryOffset,
+                        kernel32Base,
+                        processInformation.hProcess,
+                        &context);
+
                      break;
                   default:
-                     printf ("unhandled debug event %d\n",
+                     printf ("AWAIT_FIRST: unhandled debug event %d\n",
                         (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
                      exit (1);
                      break;
@@ -275,139 +342,231 @@ int main(void)
                sizeof (buf) - 1,
                0);
             buf[len] = 0;
-            printf ("LoadDll: %s at %p\n", buf, debugEvent.u.LoadDll.lpBaseOfDll);
             CloseHandle (debugEvent.u.LoadDll.hFile);
 
-            if (state == AWAIT_KERNEL32_LOAD) {
-               /* if buf == kernel32.dll, we have the addresses for LoadLibrary
-                * and GetProcAddress, so we can switch the process over to use
-                * the determiniser. */
+            /* if buf == kernel32.dll, we have the addresses for LoadLibrary
+             * and GetProcAddress, so we can switch the process over to use
+             * the determiniser. */
 
-               if (strstr (buf, "\\kernel32.dll") != NULL) {
-                  kernel32Base = debugEvent.u.LoadDll.lpBaseOfDll;
-                  state = AWAIT_FIRST_INSTRUCTION;
-                  printf ("state == AWAIT_FIRST_INSTRUCTION\n");
+            if (strstr (buf, "\\kernel32.dll") != NULL) {
+               kernel32Base = debugEvent.u.LoadDll.lpBaseOfDll;
+            }
+            break;
+         default:
+            break;
+      }
+      ContinueDebugEvent
+         (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+   }
+
+   // AWAIT_REMOTE_LOADER_BP STAGE
+   // Wait for the breakpoint indicating that the remote loader has finished
+   // and the x86 determiniser is ready to run. Get the address of the single step
+   // procedure.
+   while (!singleStepProc) {
+      rc = WaitForDebugEvent (&debugEvent, INFINITE);
+      if (!rc) {
+         printf ("AWAIT_REMOTE_LOADER_BP: WaitForDebugEvent: error %d\n", (int) GetLastError());
+         exit (1);
+      }
+      switch (debugEvent.dwDebugEventCode) {
+         case CREATE_PROCESS_DEBUG_EVENT:
+            printf ("AWAIT_REMOTE_LOADER_BP: CREATE_PROCESS_DEBUG_EVENT from unexpected process\n");
+            exit (1);
+            break;
+         case EXCEPTION_DEBUG_EVENT:
+            if ((debugEvent.dwProcessId == processInformation.dwProcessId)
+            && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
+               CONTEXT context;
+               context.ContextFlags = CONTEXT_FULL;
+               rc = GetThreadContext (processInformation.hThread, &context);
+               if (!rc) {
+                  printf ("AWAIT_REMOTE_LOADER_BP: GetThreadContext: error %d\n",
+                     (int) GetLastError());
+                  exit (1);
+               }
+               switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
+                  case STATUS_BREAKPOINT:
+                     // EAX contains an error code, or 0x101 on success
+                     if (context.Eax != 0x101) {
+                        printf
+                          ("AWAIT_REMOTE_LOADER_BP: Reached "
+                           "unexpected breakpoint at %p, error code %d\n",
+                           (void *) context.Eip, (int) context.Eax);
+                        exit (1);
+                     }
+                     // EBX contains the address of the single step handler
+                     singleStepProc = (void *) context.Ebx;
+
+                     // REMOTE_LOADER_BP STAGE
+                     // "reboot" into the original context and continue, initially
+                     // single stepping
+                     memcpy (&context, &startContext, sizeof (CONTEXT));
+                     context.EFlags |= SINGLE_STEP_FLAG;
+                     rc = SetThreadContext (processInformation.hThread, &context);
+                     if (!rc) {
+                        printf ("REMOTE_LOADER_BP: unable to SetThreadContext\n");
+                        exit (1);
+                     }
+
+                     break;
+                  case STATUS_SINGLE_STEP:
+                     // There is some single-stepping at the end of the loader,
+                     // this is normal, let it continue
+                     context.EFlags |= SINGLE_STEP_FLAG;
+                     SetThreadContext (processInformation.hThread, &context);
+                     break;
+                  default:
+                     printf ("AWAIT_REMOTE_LOADER_BP: unhandled debug event %d\n",
+                        (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+                     exit (1);
+                     break;
                }
             }
             break;
-         case UNLOAD_DLL_DEBUG_EVENT:
-            printf ("UnloadDll: %p\n", debugEvent.u.UnloadDll.lpBaseOfDll);
-            break;
          case EXIT_PROCESS_DEBUG_EVENT:
-            printf ("Process exited! %d\n", (int) debugEvent.dwProcessId);
-            run = FALSE;
+            if (debugEvent.dwProcessId == processInformation.dwProcessId) {
+               printf ("AWAIT_REMOTE_LOADER_BP: Process exited! %d\n", (int) debugEvent.dwProcessId);
+               exit (0);
+            }
             break;
          default:
-            printf("Event %d\n", (int) debugEvent.dwDebugEventCode);
             break;
       }
-
-      if (run) {
-         CONTEXT context;
-         memset (&context, 0, sizeof (context));
-
-         SuspendThread (processInformation.hThread);
-         context.ContextFlags = CONTEXT_FULL;
-         rc = GetThreadContext (processInformation.hThread, &context);
-         if (!rc) {
-            printf ("GTC: error %d\n", (int) GetLastError());
-            return 1;
-         }
-
-         switch (state) {
-            case AWAIT_START:
-               // single step until started
-               //context.EFlags |= SINGLE_STEP_FLAG;
-               printf ("A %p\n", (void *) context.Eip);
-               break;
-            case AWAIT_KERNEL32_LOAD:
-               // single step until started
-               context.EFlags |= SINGLE_STEP_FLAG;
-               printf ("B %p\n", (void *) context.Eip);
-               break;
-            case AWAIT_REMOTE_LOADER_BP:
-            case AWAIT_SINGLE_STEP_BP:
-            case RUNNING:
-               // No special action
-               printf ("C %p\n", (void *) context.Eip);
-               break;
-            case AWAIT_FIRST_INSTRUCTION:
-               // continue single-stepping
-               context.EFlags |= SINGLE_STEP_FLAG;
-               if ((void *) context.Eip == startAddress) {
-                  // we have single-stepped to the start address and should
-                  // now run the RemoteLoader procedure
-                  memcpy (&startContext, &context, sizeof (CONTEXT));
-                  StartRemoteLoader
-                    (getProcAddressOffset,
-                     loadLibraryOffset,
-                     kernel32Base,
-                     processInformation.hProcess,
-                     &context);
-                  state = AWAIT_REMOTE_LOADER_BP;
-                  printf ("state == AWAIT_REMOTE_LOADER_BP: %p\n", (void *) context.Eip);
-               }
-               break;
-            case REMOTE_LOADER_BP:
-               // reached breakpoint in remote loader
-               // EAX contains an error code, or 0x101 on success
-               if (context.Eax != 0x101) {
-                  printf ("error code %d\n", (int) context.Eax);
-                  return 1;
-               }
-               fflush (stdout);
-
-               // EBX contains the address of the single step handler
-               singleStepProc = (void *) context.Ebx;
-               state = RUNNING;
-               printf ("state == RUNNING: %p\n", (void *) context.Eip);
-               // "reboot" into the original context
-               memcpy (&context, &startContext, sizeof (CONTEXT));
-               
-               break;
-            case SINGLE_STEP:
-               // single step event while running
-               //memcpy (&stepContext, &context, sizeof (CONTEXT));
-               printf ("D %p\n", (void *) context.Eip);
-               StartSingleStepProc
-                 (singleStepProc,
-                  processInformation.hProcess,
-                  &context);
-               state = AWAIT_SINGLE_STEP_BP;
-               //printf ("state == AWAIT_SINGLE_STEP_DONE: %p\n", (void *) context.Eip);
-               break;
-            case SINGLE_STEP_BP:
-               // single step procedure finished
-               // EAX contains an error code, or 0x102 on success
-               // EBX is pointer to context, altered by remote
-               if (context.Eax != 0x102) {
-                  printf ("error code %d\n", (int) context.Eax);
-                  return 1;
-               }
-               // context restored
-               //printf ("location of context: %p\n", (void *) context.Ebx);
-               ReadProcessMemory
-                 (processInformation.hProcess,
-                  (void *) context.Ebx,
-                  (void *) &context,
-                  sizeof (CONTEXT),
-                  NULL);
-               state = RUNNING;
-               //printf ("state == RUNNING: %p\n", (void *) context.Eip);
-               break;
-         }
-         context.ContextFlags = CONTEXT_FULL;
-         rc = SetThreadContext (processInformation.hThread, &context);
-         if (!rc) {
-            printf ("STC: error %d\n", (int) GetLastError());
-            return 1;
-         }
-         ResumeThread (processInformation.hThread);
-      }
-      fflush (stdout);
-
       ContinueDebugEvent
          (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+   }
+
+   while (TRUE) {
+      // RUNNING STATE
+      // Child process runs within x86 determiniser.
+      // Waiting for a single-step event, or exit.
+
+      run = TRUE;
+      while (run) {
+         rc = WaitForDebugEvent (&debugEvent, INFINITE);
+         if (!rc) {
+            printf ("RUNNING: WaitForDebugEvent: error %d\n", (int) GetLastError());
+            exit (1);
+         }
+         switch (debugEvent.dwDebugEventCode) {
+            case EXCEPTION_DEBUG_EVENT:
+               if ((debugEvent.dwProcessId == processInformation.dwProcessId)
+               && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
+                  CONTEXT context;
+                  context.ContextFlags = CONTEXT_FULL;
+                  rc = GetThreadContext (processInformation.hThread, &context);
+                  if (!rc) {
+                     printf ("RUNNING: GetThreadContext: error %d\n",
+                        (int) GetLastError());
+                     exit (1);
+                  }
+                  switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
+                     case STATUS_BREAKPOINT:
+                        printf
+                          ("RUNNING: Reached "
+                           "unexpected breakpoint at %p\n",
+                           (void *) context.Eip);
+                        exit (1);
+                        break;
+                     case STATUS_SINGLE_STEP:
+                        // Reached single step; run single step handler.
+                        run = FALSE;
+                        StartSingleStepProc
+                          (singleStepProc,
+                           processInformation.hProcess,
+                           &context);
+                        context.ContextFlags = CONTEXT_FULL;
+                        SetThreadContext (processInformation.hThread, &context);
+                        break;
+                     default:
+                        printf ("RUNNING: unhandled debug event %d\n",
+                           (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+                        exit (1);
+                        break;
+                  }
+               }
+               break;
+            case EXIT_PROCESS_DEBUG_EVENT:
+               if (debugEvent.dwProcessId == processInformation.dwProcessId) {
+                  printf ("RUNNING: Process exited! %d\n", (int) debugEvent.dwProcessId);
+                  exit (0);
+               }
+               break;
+            default:
+               break;
+         }
+         ContinueDebugEvent
+            (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+      }
+
+      // SINGLE_STEP STATE
+      // Single step handler runs within x86 determiniser.
+      // Waiting for a breakpoint at the end of the handler.
+
+      while (!run) {
+         rc = WaitForDebugEvent (&debugEvent, INFINITE);
+         if (!rc) {
+            printf ("SINGLE_STEP: WaitForDebugEvent: error %d\n", (int) GetLastError());
+            exit (1);
+         }
+         switch (debugEvent.dwDebugEventCode) {
+            case EXCEPTION_DEBUG_EVENT:
+               if ((debugEvent.dwProcessId == processInformation.dwProcessId)
+               && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
+                  CONTEXT context;
+                  context.ContextFlags = CONTEXT_FULL;
+                  rc = GetThreadContext (processInformation.hThread, &context);
+                  if (!rc) {
+                     printf ("SINGLE_STEP: GetThreadContext: error %d\n",
+                        (int) GetLastError());
+                     exit (1);
+                  }
+                  switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
+                     case STATUS_SINGLE_STEP:
+                        printf ("SINGLE_STEP: unexpectedly stepped within handler\n");
+                        exit (1);
+                        break;
+                     case STATUS_BREAKPOINT:
+                        // single step procedure finished
+                        // EAX contains an error code, or 0x102 on success
+                        // EBX is pointer to context, altered by remote
+                        if (context.Eax != 0x102) {
+                           printf ("SINGLE_STEP: error code %d\n", (int) context.Eax);
+                           return 1;
+                        }
+                        // context restored
+                        //printf ("location of context: %p\n", (void *) context.Ebx);
+                        ReadProcessMemory
+                          (processInformation.hProcess,
+                           (void *) context.Ebx,
+                           (void *) &context,
+                           sizeof (CONTEXT),
+                           NULL);
+                        context.ContextFlags = CONTEXT_FULL;
+                        SetThreadContext (processInformation.hThread, &context);
+                        run = TRUE;
+                        break;
+                     default:
+                        printf ("SINGLE_STEP: unhandled debug event %d\n",
+                           (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+                        exit (1);
+                        break;
+                  }
+               }
+               break;
+            case EXIT_PROCESS_DEBUG_EVENT:
+               if (debugEvent.dwProcessId == processInformation.dwProcessId) {
+                  printf ("SINGLE_STEP: Process exited! %d\n", (int) debugEvent.dwProcessId);
+                  exit (0);
+               }
+               break;
+            default:
+               break;
+         }
+         ContinueDebugEvent
+            (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+      }
    }
    return 0;
 }
