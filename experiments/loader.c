@@ -259,6 +259,7 @@ int main(void)
       ContinueDebugEvent
          (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
    }
+   printf ("INITIAL: startAddress = %p\n", startAddress);
 
    // AWAIT_FIRST STAGE
    // Await breakpoint at first instruction
@@ -281,8 +282,8 @@ int main(void)
             && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
                CONTEXT context;
 
-               startContext.ContextFlags = CONTEXT_FULL;
-               rc = GetThreadContext (processInformation.hThread, &startContext);
+               context.ContextFlags = CONTEXT_FULL;
+               rc = GetThreadContext (processInformation.hThread, &context);
                if (!rc) {
                   printf ("AWAIT_FIRST: GetThreadContext: error %d\n",
                      (int) GetLastError());
@@ -291,15 +292,18 @@ int main(void)
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_BREAKPOINT:
                      // Are we in the right place?
-                     if ((void *) startContext.Eip != startAddress) {
+                     context.Eip --;
+                     if ((void *) context.Eip != startAddress) {
                         printf ("AWAIT_FIRST: Reached unexpected breakpoint at %p\n",
-                           (void *) startContext.Eip);
-                        exit (1);
+                           (void *) context.Eip);
+                        break;
+                        //exit (1);
                      }
 
                      // REMOTE_LOADER STAGE
                      // Remove breakpoint
                      // Inject code needed to load the DLL and run the loader
+                     memcpy (&startContext, &context, sizeof (CONTEXT));
 
                      if (!kernel32Base) {
                         printf ("REMOTE_LOADER: don't know the kernel32.dll base address\n");
@@ -318,18 +322,19 @@ int main(void)
                         exit (1);
                      }
 
-                     memcpy (&context, &startContext, sizeof (CONTEXT));
                      StartRemoteLoader
                        (getProcAddressOffset,
                         loadLibraryOffset,
                         kernel32Base,
                         processInformation.hProcess,
                         &context);
+                     SetThreadContext (processInformation.hThread, &context);
 
                      break;
                   default:
-                     printf ("AWAIT_FIRST: unhandled debug event %d\n",
-                        (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+                     printf ("AWAIT_FIRST: unhandled debug event 0x%08x EIP %p\n",
+                        (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode,
+                        (void *) context.Eip);
                      exit (1);
                      break;
                }
@@ -417,8 +422,9 @@ int main(void)
                      SetThreadContext (processInformation.hThread, &context);
                      break;
                   default:
-                     printf ("AWAIT_REMOTE_LOADER_BP: unhandled debug event %d\n",
-                        (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+                     printf ("AWAIT_REMOTE_LOADER_BP: unhandled debug event 0x%08x EIP %p\n",
+                        (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode,
+                        (void *) context.Eip);
                      exit (1);
                      break;
                }
@@ -471,6 +477,9 @@ int main(void)
                         break;
                      case STATUS_SINGLE_STEP:
                         // Reached single step; run single step handler.
+                        printf
+                          ("RUNNING: Single step at %p\n", 
+                           (void *) context.Eip);
                         run = FALSE;
                         StartSingleStepProc
                           (singleStepProc,
@@ -480,7 +489,7 @@ int main(void)
                         SetThreadContext (processInformation.hThread, &context);
                         break;
                      default:
-                        printf ("RUNNING: unhandled debug event %d\n",
+                        printf ("RUNNING: unhandled debug event 0x%08x\n",
                            (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
                         exit (1);
                         break;
@@ -548,8 +557,9 @@ int main(void)
                         run = TRUE;
                         break;
                      default:
-                        printf ("SINGLE_STEP: unhandled debug event %d\n",
-                           (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
+                        printf ("SINGLE_STEP: unhandled debug event 0x%08x EIP %p\n",
+                           (int) debugEvent.u.Exception.ExceptionRecord.ExceptionCode,
+                           (void *) context.Eip);
                         exit (1);
                         break;
                   }
