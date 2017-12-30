@@ -172,7 +172,6 @@ int main(void)
       printf ("CreateProcess: error %d\n", (int) GetLastError());
       return 1;
    }
-   printf ("Spawned %d\n", (int) processInformation.dwProcessId);
 
    // Determine offset of LoadLibrary and GetProcAddress
    // within kernel32.dll
@@ -198,7 +197,6 @@ int main(void)
          return 1;
       }
       getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-      printf ("gpa: offset %u\n", (unsigned) getProcAddressOffset);
 
       pa = GetProcAddress (kernel32, "LoadLibraryA");
       if (!pa) {
@@ -206,7 +204,6 @@ int main(void)
          return 1;
       }
       loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-      printf ("ll: offset %u\n", (unsigned) loadLibraryOffset);
    }
 
    // INITIAL STAGE
@@ -294,10 +291,9 @@ int main(void)
                      // Are we in the right place?
                      context.Eip --;
                      if ((void *) context.Eip != startAddress) {
-                        printf ("AWAIT_FIRST: Reached unexpected breakpoint at %p\n",
-                           (void *) context.Eip);
+                        // This is a breakpoint in some system code.
+                        // Its purpose is not known.
                         break;
-                        //exit (1);
                      }
 
                      // REMOTE_LOADER STAGE
