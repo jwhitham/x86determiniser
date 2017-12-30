@@ -8,6 +8,7 @@ typedef struct CommStruct {
    char procName[MAX_PROC_NAME_SIZE];
    void * loadLibraryProc;
    void * getProcAddressProc;
+   void * startAddress;
 } CommStruct;
 
 void RemoteLoaderStart (void);

@@ -495,7 +495,7 @@ static int startswith (const char * line, const char * search)
 }
 
 // entry point
-void x86_startup (const char * objdump_cmd)
+int x86_startup (size_t minPage, size_t maxPage)
 {
     FILE *      bitmap_fd;
     char        line[BUFSIZ];
@@ -510,11 +510,14 @@ void x86_startup (const char * objdump_cmd)
     }
     tmp = getenv ("X86D_QUIET_MODE");
     x86_quiet_mode = (tmp && (atoi (tmp) != 0));
+    min_address = minPage;
+    max_address = maxPage;
+
+#if 0
     min_address = max_address = 0;
     if (!x86_quiet_mode) {
         printf ("libx86determiniser is disassembling the program...\n  %s\n", objdump_cmd);
     }
-
     // read superblock boundaries
     bitmap_fd = popen (objdump_cmd, "r");
     if (bitmap_fd == NULL) {
@@ -627,6 +630,7 @@ void x86_startup (const char * objdump_cmd)
         bitmap[address - min_address] = special;
     }
     fclose (bitmap_fd);
+#endif 
 
     if ((!bitmap) || (!bitmap_size) || (min_address == max_address)) {
         fputs ("objdump read failed\n", stderr);
@@ -648,7 +652,7 @@ void x86_startup (const char * objdump_cmd)
         }
     }
 
-    x86_make_text_writable (min_address, max_address);
+    //x86_make_text_writable (min_address, max_address);
     entry_flag = 1;
 
     // save this context and launch the interpreter

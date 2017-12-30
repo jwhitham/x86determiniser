@@ -56,6 +56,7 @@ void StartRemoteLoader
   (size_t getProcAddressOffset,
    size_t loadLibraryOffset,
    void * kernel32Base,
+   void * startAddress,
    HANDLE hProcess,
    PCONTEXT context)
 {
@@ -103,11 +104,12 @@ void StartRemoteLoader
    // build data structure to load into the remote stack
    localCs.myself = (void *) context->Esp;
    strncpy (localCs.libraryName, "remote.dll", MAX_LIBRARY_NAME_SIZE);
-   strncpy (localCs.procName, "startup_x86_determiniser", MAX_PROC_NAME_SIZE);
+   strncpy (localCs.procName, "X86DeterminiserStartup", MAX_PROC_NAME_SIZE);
    localCs.loadLibraryProc = 
       (void *) ((char *) kernel32Base + loadLibraryOffset);
    localCs.getProcAddressProc =
       (void *) ((char *) kernel32Base + getProcAddressOffset);
+   localCs.startAddress = startAddress;
 
    // fill remote stack
    // return address is NULL (1st item in struct: don't return!!)
@@ -322,6 +324,7 @@ int main(void)
                        (getProcAddressOffset,
                         loadLibraryOffset,
                         kernel32Base,
+                        (void *) startAddress,
                         processInformation.hProcess,
                         &context);
                      SetThreadContext (processInformation.hThread, &context);

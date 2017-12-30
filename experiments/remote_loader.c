@@ -9,7 +9,7 @@ void RemoteLoader (CommStruct * cs)
    void * hm;
    HMODULE WINAPI (* loadLibrary) (LPCSTR lpLibFileName);
    FARPROC WINAPI (* getProcAddress) (HMODULE hModule, LPCSTR lpProcName);
-   int (* Loader) (CommStruct *);
+   void (* x86DeterminiserStartup) (CommStruct *);
 
    loadLibrary = cs->loadLibraryProc;
    getProcAddress = cs->getProcAddressProc;
@@ -19,12 +19,12 @@ void RemoteLoader (CommStruct * cs)
       asm volatile ("mov $0x001, %eax\nint3\n");
       return;
    }
-   Loader = (void *) getProcAddress (hm, cs->procName);
-   if (!Loader) {
+   x86DeterminiserStartup = (void *) getProcAddress (hm, cs->procName);
+   if (!x86DeterminiserStartup) {
       asm volatile ("mov $0x002, %eax\nint3\n");
       return;
    }
-   Loader (cs);
+   x86DeterminiserStartup (cs);
    asm volatile ("mov $0x003, %eax\nint3\n");
    return;
 }
