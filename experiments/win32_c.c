@@ -71,7 +71,7 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * cs)
    printf ("code segment %p .. %p\n", (void *) minPage, (void *) maxPage);
 
    rc = x86_startup (minPage, maxPage);
-   if (!rc) {
+   if (rc != 0) {
       // Error code EAX = rc
       goto error;
    }

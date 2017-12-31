@@ -395,7 +395,7 @@ int main(void)
                      if (context.Eax != 0x101) {
                         printf
                           ("AWAIT_REMOTE_LOADER_BP: Reached "
-                           "unexpected breakpoint at %p, error code %d\n",
+                           "unexpected breakpoint at %p, error code 0x%x\n",
                            (void *) context.Eip, (int) context.Eax);
                         exit (1);
                      }
@@ -540,7 +540,7 @@ int main(void)
                         // EAX contains an error code, or 0x102 on success
                         // EBX is pointer to context, altered by remote
                         if (context.Eax != 0x102) {
-                           printf ("SINGLE_STEP: error code %d\n", (int) context.Eax);
+                           printf ("SINGLE_STEP: error code 0x%x\n", (int) context.Eax);
                            return 1;
                         }
                         // context restored

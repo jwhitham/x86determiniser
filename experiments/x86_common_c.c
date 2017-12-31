@@ -1,9 +1,13 @@
 //#define DEBUG
+#include <config.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <ctype.h>
+
+#include <dis-asm.h>
 
 #ifdef LINUX32
 #include "linux32_offsets.h"
@@ -494,40 +498,157 @@ static int startswith (const char * line, const char * search)
     }
 }
 
+int print_insn_i386 (bfd_vma pc, disassemble_info *info);
+
+//enum bfd_architecture bfd_get_arch (bfd * x) { (void) x; return 0; }
+//unsigned long bfd_get_mach (bfd * x) { (void) x; return 0; }
+
+/* Function called to check if a SYMBOL is can be displayed to the user.
+ This is used by some ports that want to hide special symbols when
+ displaying debugging outout.  */
+static bfd_boolean symbol_is_valid (asymbol *s, struct disassemble_info *dinfo)
+{
+    (void) s;
+    (void) dinfo;
+    return FALSE;
+}
+
+/* Function called to determine if there is a symbol at the given ADDR.
+ If there is, the function returns 1, otherwise it returns 0.
+ This is used by ports which support an overlay manager where
+ the overlay number is held in the top part of an address.  In
+ some circumstances we want to include the overlay number in the
+ address, (normally because there is a symbol associated with
+ that address), but sometimes we want to mask out the overlay bits.  */
+static int symbol_at_address_func (bfd_vma addr, struct disassemble_info *dinfo)
+{
+    (void) addr;
+    (void) dinfo;
+    return 0;
+}
+
+/* Function called to print ADDR.  */
+static void print_address_func (bfd_vma addr, struct disassemble_info *dinfo)
+{
+    dinfo->fprintf_func (dinfo->stream, "%p", (void *) addr);
+}
+
+/* Function which should be called if we get an error that we can't
+ recover from.  STATUS is the errno value from read_memory_func and
+ MEMADDR is the address that we were trying to read.  INFO is a
+ pointer to this struct.  */
+static void memory_error_func (int status, bfd_vma memaddr, struct disassemble_info *dinfo)
+{
+   (void) dinfo;
+   printf ("memory_error_func status %d addr %p\n", status, (void *) memaddr);
+}
+
+/* Function used to get bytes to disassemble.  MEMADDR is the
+ address of the stuff to be disassembled, MYADDR is the address to
+ put the bytes in, and LENGTH is the number of bytes to read.
+ INFO is a pointer to this struct.
+ Returns an errno value or 0 for success.  */
+static int read_memory_func (bfd_vma memaddr, bfd_byte *myaddr, unsigned int length, struct disassemble_info *dinfo)
+{
+   unsigned i;
+   for (i = 0; (i < length) && (memaddr < max_address); i++) {
+      *myaddr = *((char *) memaddr);
+      myaddr ++;
+   }
+   for (; i < length; i++) {
+      *myaddr = 0x90;
+      myaddr ++;
+   }
+   (void) dinfo;
+   return 0;
+}
+
+typedef struct stream_struct {
+   unsigned size;
+   char data[BUFSIZ];
+} stream_struct;
+
+//typedef int (*fprintf_ftype) (void *, const char*, ...) ATTRIBUTE_FPTR_PRINTF_2;
+static int scan_printf (void *s, const char *formatstring, ...)
+{
+   va_list args;
+   stream_struct * stream = (stream_struct *) s;
+   int rc;
+   va_start (args, formatstring);
+   rc = vsnprintf (&stream->data[stream->size],
+                   BUFSIZ - stream->size,
+                   formatstring,
+                   args);
+   if (rc > 0) {
+      stream->size += rc;
+   }
+   stream->data[stream->size] = '\0';
+   return rc;
+}
+
+char * stpcpy (char * dest, const char * src)
+{
+   while (*src) {
+      *dest = *src;
+      dest ++;
+      src ++;
+   }
+   *dest = '\0';
+   return dest;
+}
+
+
 // entry point
 int x86_startup (size_t minPage, size_t maxPage)
 {
-    FILE *      bitmap_fd;
-    char        line[BUFSIZ];
-    char *      scan;
-    int         text_flag = 0;
-    uint32_t    bitmap_size = 0;
-    const char * tmp;
+   const char * tmp;
+   uint32_t    address;
+   struct disassemble_info di;
+   int         rc;
+   struct stream_struct stream;
 
-    if (bitmap) {
-        fputs ("called startup_counter twice\n", stderr);
-        exit (1);
-    }
-    tmp = getenv ("X86D_QUIET_MODE");
-    x86_quiet_mode = (tmp && (atoi (tmp) != 0));
-    min_address = minPage;
-    max_address = maxPage;
+   if (bitmap) {
+      return 0x301;
+   }
+   tmp = getenv ("X86D_QUIET_MODE");
+   x86_quiet_mode = 0 && (tmp && (atoi (tmp) != 0));
+   min_address = minPage;
+   max_address = maxPage;
+
+   memset (&stream, 0, sizeof (stream));
+
+   memset (&di, 0, sizeof (di));
+   di.read_memory_func = read_memory_func;
+   di.memory_error_func = memory_error_func;
+   di.print_address_func = print_address_func;
+   di.symbol_at_address_func = symbol_at_address_func;
+   di.symbol_is_valid = symbol_is_valid;
+   di.mach = bfd_mach_i386_i386;     /* 32 bit */
+   di.fprintf_func = (fprintf_ftype) scan_printf;
+   di.stream = (void *) &stream;
+
+   bitmap = calloc (1, max_address + 1 - min_address);
+   if (!bitmap) {
+      return 0x302;
+   }
+   memset (bitmap, 0x80, max_address + 1 - min_address);
+   // In the bitmap:
+   //   '\x80' (bit 7 set) "not end of superblock"
+   //   '\xc0' (bit 7 and 6 set) "start of instruction, not end of superblock"
+   // anything else means start of instruction & end of superblock
+   //   'J'    -> jump
+   //   'R'    -> return
+   //   'C'    -> call
+   //   't'    -> special instruction of some sort
+   //   'X'    -> end of bitmap (sentinel)
+
+   // read superblock boundaries
+   address = min_address;
+   while (address < max_address) {
+      uint8_t     special;
+      char *      scan = stream.data;
 
 #if 0
-    min_address = max_address = 0;
-    if (!x86_quiet_mode) {
-        printf ("libx86determiniser is disassembling the program...\n  %s\n", objdump_cmd);
-    }
-    // read superblock boundaries
-    bitmap_fd = popen (objdump_cmd, "r");
-    if (bitmap_fd == NULL) {
-        perror ("popen failed");
-        exit (1);
-    }
-    while (fgets (line, sizeof (line), bitmap_fd)) {
-        uint8_t     special;
-        uint32_t    address;
-
 #define DOS "Disassembly of section ."
         if (startswith (line, DOS)) {
             text_flag = startswith (line, DOS "text");
@@ -563,15 +684,6 @@ int x86_startup (size_t minPage, size_t maxPage)
             continue; // Did not find instruction
         }
 
-        // In the bitmap:
-        //   '\xc0' (bit 7 set) "not end of superblock"
-        //   '\x80' (bit 7 and 6 set) "start of instruction"
-        // anything else means start of instruction & end of superblock
-        //   'J'    -> jump
-        //   'R'    -> return
-        //   'C'    -> call
-        //   't'    -> special instruction of some sort
-        //   'X'    -> end of bitmap (sentinel)
         if (!bitmap) {
             min_address = address;
             max_address = address + 1;
@@ -598,67 +710,74 @@ int x86_startup (size_t minPage, size_t maxPage)
                 bitmap_size *= 2;
             }
         }
+#endif
+      stream.data[0] = '\0';
+      stream.size = 0;
 
-        special = '\xc0'; 
-        switch (scan[0]) {
-            case 'j':
-                special = 'J';
-                break;
-            case 'c':
-                if (startswith (scan, "call")) {
-                    special = 'C';
-                }
-                break;
-            case 'l':
-                if (startswith (scan, "loop")) {
-                    special = 'J';
-                }
-                break;
-            case 'r':
-                if (startswith (scan, "ret") || startswith (scan, "repz ret")) {
-                    special = 'R';
-                } else if (startswith (scan, "rdtsc")) {
-                    special = 't';
-                }
-                break;
-            case 'o':
-                if (startswith (scan, "out")) {
-                    special = 't';
-                }
-                break;
-        }
-        bitmap[address - min_address] = special;
-    }
-    fclose (bitmap_fd);
-#endif 
+      rc = print_insn_i386 (address, &di);
+      if (rc <= 0) {
+         return 0x303;
+      }
+      if (!x86_quiet_mode) {
+         printf ("%08x: %s\n", address, scan);
+      }
 
-    if ((!bitmap) || (!bitmap_size) || (min_address == max_address)) {
-        fputs ("objdump read failed\n", stderr);
-        exit (1);
-    }
-    bitmap[max_address - min_address] = 'X';
-    if (!x86_quiet_mode) {
-        printf ("program address range: %08x .. %08x\n", min_address, max_address);
-    }
+      special = '\xc0'; 
+      switch (scan[0]) {
+         case 'j':
+            special = 'J';
+            break;
+         case 'c':
+            if (startswith (scan, "call")) {
+               special = 'C';
+            }
+            break;
+         case 'l':
+            if (startswith (scan, "loop")) {
+               special = 'J';
+            }
+            break;
+         case 'r':
+            if (startswith (scan, "ret") || startswith (scan, "repz ret")) {
+               special = 'R';
+            } else if (startswith (scan, "rdtsc")) {
+               special = 't';
+            }
+            break;
+         case 'o':
+            if (startswith (scan, "out")) {
+               special = 't';
+            }
+            break;
+      }
+      bitmap[address - min_address] = special;
+      address += rc;
+   }
 
-    tmp = getenv ("X86D_BRANCH_TRACE");
-    if (tmp && strlen (tmp)) {
-        if (!x86_quiet_mode) {
-            printf ("writing branch trace to: %s\n", tmp);
-        }
-        branch_trace = fopen (tmp, "wt");
-        if (!branch_trace) {
-            perror ("opening branch trace file");
-        }
-    }
+   bitmap[max_address - min_address] = 'X';
+   if (!x86_quiet_mode) {
+      printf ("program address range: %08x .. %08x\n", min_address, max_address);
+   }
 
-    //x86_make_text_writable (min_address, max_address);
-    entry_flag = 1;
+   tmp = getenv ("X86D_BRANCH_TRACE");
+   if (tmp && strlen (tmp)) {
+      if (!x86_quiet_mode) {
+         printf ("writing branch trace to: %s\n", tmp);
+      }
+      branch_trace = fopen (tmp, "wt");
+      if (!branch_trace) {
+         perror ("opening branch trace file");
+      }
+   }
 
-    // save this context and launch the interpreter
-    x86_begin_single_step ();
+   //x86_make_text_writable (min_address, max_address);
+   entry_flag = 1;
 
-    // we return to here in user mode only
+   // save this context and launch the interpreter
+   x86_begin_single_step ();
+
+   // we return to here in user mode only
+   return 0;
 }
 
 

@@ -69,7 +69,7 @@
 
 /* Define to 1 if you have the declaration of `stpcpy', and to 0 if you don't.
    */
-// #define HAVE_DECL_STPCPY 1
+#define HAVE_DECL_STPCPY 0
 
 /* Define to 1 if you have the declaration of `strnlen', and to 0 if you
    don't. */
