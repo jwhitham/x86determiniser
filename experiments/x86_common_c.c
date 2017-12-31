@@ -26,7 +26,6 @@ uint8_t                 x86_quiet_mode = 0;
 static uint8_t          fake_endpoint[8];
 static uint32_t         min_address = 0;
 static uint32_t         max_address = 0;
-static uint8_t *        bitmap = NULL;
 
 static FILE *           branch_trace = NULL;
 
@@ -65,6 +64,15 @@ static void dump_regs (uint32_t * gregs)
     printf (" EBP = %08x  ", gregs[REG_EBP]);
     printf (" ESP = %08x\n", gregs[REG_ESP]);
 }
+
+typedef struct superblock_info {
+    uint32_t size;
+    uint32_t count;
+} superblock_info;
+
+static superblock_info * superblocks;
+
+static void superblock_decoder (superblock_info * si, uint32_t pc);
 
 // single step print_trigger_counted
 void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
@@ -369,7 +377,7 @@ static int interpret_control_flow (void)
 // interpreter loop
 void x86_interpreter (void)
 {
-    uint32_t pc, pc_end, count;
+    uint32_t pc, pc_end;
 
     if (!x86_quiet_mode) {
         printf ("interpreter startup...\n");
@@ -402,25 +410,14 @@ void x86_interpreter (void)
         if ((pc >= min_address) && (pc <= max_address)) {
             // We're in the program. Attempt to free run to end of superblock.
             // Find the end first (counting instructions as we go)
-            pc_end = pc;
-            count = 0;
-            do {
-                uint8_t bits = bitmap[pc_end - min_address];
+            superblock_info *si;
 
-                if (bits & 0x80) {
-                    // not end of superblock
-                    if (bits & 0x40) {
-                        // instruction start
-                        count ++;
-                    }
-                } else {
-                    // end of superblock
-                    count ++;
-                    break;
-                }
-                pc_end ++;
-            } while (1);
-            inst_count += count;
+            si = &superblocks[pc - min_address];
+            if (!si->count) {
+                superblock_decoder (si, pc);
+            }
+            pc_end = pc + si->size;
+            inst_count += si->count;
 
             // run the superblock
             if (pc_end != pc) {
@@ -554,6 +551,7 @@ static int read_memory_func (bfd_vma memaddr, bfd_byte *myaddr, unsigned int len
    for (i = 0; (i < length) && (memaddr < max_address); i++) {
       *myaddr = *((char *) memaddr);
       myaddr ++;
+      memaddr ++;
    }
    for (; i < length; i++) {
       *myaddr = 0x90;
@@ -597,26 +595,17 @@ char * stpcpy (char * dest, const char * src)
    return dest;
 }
 
-
-// entry point
-int x86_startup (size_t minPage, size_t maxPage)
+static void superblock_decoder (superblock_info * si, uint32_t pc)
 {
-   const char * tmp;
-   uint32_t    address;
    struct disassemble_info di;
-   int         rc;
    struct stream_struct stream;
+   uint32_t address;
+   char special = 'X';
 
-   if (bitmap) {
-      return 0x301;
+   if (!x86_quiet_mode) {
+      printf ("new superblock: %08x\n", pc);
    }
-   tmp = getenv ("X86D_QUIET_MODE");
-   x86_quiet_mode = 0 && (tmp && (atoi (tmp) != 0));
-   min_address = minPage;
-   max_address = maxPage;
-
    memset (&stream, 0, sizeof (stream));
-
    memset (&di, 0, sizeof (di));
    di.read_memory_func = read_memory_func;
    di.memory_error_func = memory_error_func;
@@ -626,103 +615,27 @@ int x86_startup (size_t minPage, size_t maxPage)
    di.mach = bfd_mach_i386_i386;     /* 32 bit */
    di.fprintf_func = (fprintf_ftype) scan_printf;
    di.stream = (void *) &stream;
+   si->count = 0;
 
-   bitmap = calloc (1, max_address + 1 - min_address);
-   if (!bitmap) {
-      return 0x302;
-   }
-   memset (bitmap, 0x80, max_address + 1 - min_address);
-   // In the bitmap:
-   //   '\x80' (bit 7 set) "not end of superblock"
-   //   '\xc0' (bit 7 and 6 set) "start of instruction, not end of superblock"
-   // anything else means start of instruction & end of superblock
-   //   'J'    -> jump
-   //   'R'    -> return
-   //   'C'    -> call
-   //   't'    -> special instruction of some sort
-   //   'X'    -> end of bitmap (sentinel)
-
-   // read superblock boundaries
-   address = min_address;
+   address = pc;
    while (address < max_address) {
-      uint8_t     special;
       char *      scan = stream.data;
+      int         rc;
 
-#if 0
-#define DOS "Disassembly of section ."
-        if (startswith (line, DOS)) {
-            text_flag = startswith (line, DOS "text");
-            continue;
-        } 
-        if (!text_flag) {
-            continue;
-        }
-        line[sizeof (line) - 2] = '\0';
-        line[sizeof (line) - 1] = '\0';
-
-        // Get address (if present)
-        address = (uint32_t) strtol (line, &scan, 16);
-        if ((scan == line) || (scan[0] != ':')) {
-            continue; // did not read address
-        }
-
-        // Find first byte of instruction
-        for (; (!isalnum (scan[0])) && (scan[0] != '\0'); scan++) {}
-        if (scan[0] == '\0') {
-            continue; // Did not find first byte of instruction
-        }
-
-        // Find two or more whitespaces together
-        for (; (scan[0] != '\0') && !(isspace (scan[0]) && isspace (scan[1])); scan++) {}
-        if ((scan[0] == '\0') || (scan[1] == '\0')) {
-            continue; // Did not find two whitespaces together
-        }
-
-        // Next alpha character is the instruction
-        for (; (scan[0] != '\0') && !isalpha (scan[0]); scan++) {}
-        if (scan[0] == '\0') {
-            continue; // Did not find instruction
-        }
-
-        if (!bitmap) {
-            min_address = address;
-            max_address = address + 1;
-            bitmap_size = 1 << 16;
-            bitmap = calloc (1, bitmap_size);
-            if (!bitmap) {
-                perror ("unable to calloc initial bitmap");
-                exit (1);
-            }
-            memset (bitmap, 0x80, bitmap_size);
-        } else {
-            if (address < max_address) {
-                fputs ("addresses running backwards in objdump output\n", stderr);
-                exit (1);
-            }
-            max_address = address + 1;
-            while ((address + 1 - min_address) >= bitmap_size) {
-                bitmap = realloc (bitmap, bitmap_size * 2);
-                if (!bitmap) {
-                    perror ("unable to realloc bitmap");
-                    exit (1);
-                }
-                memset (&bitmap[bitmap_size], 0x80, bitmap_size);
-                bitmap_size *= 2;
-            }
-        }
-#endif
       stream.data[0] = '\0';
       stream.size = 0;
-
+      si->count ++;
       rc = print_insn_i386 (address, &di);
       if (rc <= 0) {
-         return 0x303;
+         // invalid instruction? Assume end of superblock
+         special = '?';
+         break;
       }
       if (!x86_quiet_mode) {
          printf ("%08x: %s\n", address, scan);
       }
+      special = '\0';
 
-      special = '\xc0'; 
       switch (scan[0]) {
          case 'j':
             special = 'J';
@@ -750,11 +663,38 @@ int x86_startup (size_t minPage, size_t maxPage)
             }
             break;
       }
-      bitmap[address - min_address] = special;
+      if (special) {
+         // End of superblock reached
+         break;
+      }
       address += rc;
    }
+   si->size = address - pc;
+   if (!x86_quiet_mode) {
+      printf ("superblock %08x has %u instructions "
+               "and ends at %08x with %c\n", pc, si->count, address, special);
+      fflush (stdout);
+   }
+}
 
-   bitmap[max_address - min_address] = 'X';
+// entry point
+int x86_startup (size_t minPage, size_t maxPage)
+{
+   const char * tmp;
+
+   if (superblocks) {
+      return 0x301;
+   }
+   tmp = getenv ("X86D_QUIET_MODE");
+   x86_quiet_mode = 0 && (tmp && (atoi (tmp) != 0));
+   min_address = minPage;
+   max_address = maxPage;
+
+   superblocks = calloc (sizeof (superblock_info), max_address + 1 - min_address);
+
+   if (!superblocks) {
+      return 0x302;
+   }
    if (!x86_quiet_mode) {
       printf ("program address range: %08x .. %08x\n", min_address, max_address);
    }
@@ -768,6 +708,9 @@ int x86_startup (size_t minPage, size_t maxPage)
       if (!branch_trace) {
          perror ("opening branch trace file");
       }
+   }
+   if (!x86_quiet_mode) {
+      fflush (stdout);
    }
 
    //x86_make_text_writable (min_address, max_address);

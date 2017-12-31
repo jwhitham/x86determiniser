@@ -479,6 +479,7 @@ int main(void)
                         printf
                           ("RUNNING: Single step at %p\n", 
                            (void *) context.Eip);
+                        fflush (stdout);
                         run = FALSE;
                         StartSingleStepProc
                           (singleStepProc,
