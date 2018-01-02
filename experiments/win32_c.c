@@ -15,7 +15,7 @@
 #include "remote_loader.h"
 
 void x86_trap_handler (uint32_t * gregs, uint32_t trapno);
-int x86_startup (size_t minPage, size_t maxPage);
+int x86_startup (size_t minPage, size_t maxPage, int debugEnabled);
 
 static void single_step_handler (PCONTEXT ContextRecord)
 {
@@ -68,16 +68,11 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * cs)
       goto error;
    }
 
-   printf ("code segment %p .. %p\n", (void *) minPage, (void *) maxPage);
-
-   rc = x86_startup (minPage, maxPage);
+   rc = x86_startup (minPage, maxPage, cs->debugEnabled);
    if (rc != 0) {
       // Error code EAX = rc
       goto error;
    }
-
-   printf ("hand back\n");
-   fflush (stdout);
 
    // Now ready for the user program
    // Breakpoint with EAX = 0x101 and EBX = pointer to single_step_handler

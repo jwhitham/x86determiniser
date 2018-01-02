@@ -9,6 +9,7 @@ typedef struct CommStruct {
    void * loadLibraryProc;
    void * getProcAddressProc;
    void * startAddress;
+   int debugEnabled;
 } CommStruct;
 
 void RemoteLoaderStart (void);

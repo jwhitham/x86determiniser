@@ -88,7 +88,7 @@ void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
         
     pc = gregs[REG_EIP];
 #ifdef DEBUG
-    printf ("stepping EIP %08x ESP %08x entry_flag %u\n", pc, gregs[REG_ESP], entry_flag);
+    printf ("RUNNING: stepping EIP %08x ESP %08x entry_flag %u\n", pc, gregs[REG_ESP], entry_flag);
 #endif
 
     if (!entry_flag) {
@@ -98,7 +98,7 @@ void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
         ((uint32_t *) gregs[REG_ESP])[0] = gregs[REG_EIP] + x86_size_of_indirect_call_instruction; 
         gregs[REG_EIP] = (uint32_t) x86_switch_from_user;
 #ifdef DEBUG
-        printf ("switch from user: new EIP %08x ESP %08x\n", gregs[REG_EIP], gregs[REG_ESP]);
+        printf ("RUNNING: switch from user: new EIP %08x ESP %08x\n", gregs[REG_EIP], gregs[REG_ESP]);
 #endif
         gregs[REG_EFL] &= ~FLAG_TF;
     } else if ((pc < min_address) || (pc > max_address)) {
@@ -188,7 +188,7 @@ static int interpret_control_flow (void)
                      MARKER_FLAG | (uint32_t) pc_bytes[1],
                      (uint32_t) inst_count);
             }
-            printf ("marker %u\n", (uint32_t) pc_bytes[1]);
+            printf ("MARKER: %u\n", (uint32_t) pc_bytes[1]);
             break;
         case 0x0f: // Two-byte instructions
             switch (pc_bytes[1]) {
@@ -289,7 +289,7 @@ static int interpret_control_flow (void)
             stack = (uint32_t *) x86_other_context[REG_ESP];
             stack--;
 #ifdef DEBUG
-            printf ("Code ff %02x at %08x, mode %u, R/M %u, opcode %u\n",
+            printf ("RUNNING: Code ff %02x at %08x, mode %u, R/M %u, opcode %u\n",
                 pc_bytes[1], pc, pc_bytes[1] >> 6, pc_bytes[1] & 7, (pc_bytes[1] >> 3) & 7);
 #endif
 
@@ -380,7 +380,7 @@ void x86_interpreter (void)
     uint32_t pc, pc_end;
 
     if (!x86_quiet_mode) {
-        printf ("interpreter startup...\n");
+        printf ("RUNNING: interpreter startup...\n");
     }
 
     // Startup: run until reaching the program
@@ -394,12 +394,12 @@ void x86_interpreter (void)
     x86_other_context[REG_EFL] &= ~FLAG_TF;
     pc = x86_other_context[REG_EIP];
     if ((pc < min_address) || (pc > max_address)) {
-        printf ("Startup did not reach program (at %08x)\n", pc);
+        printf ("RUNNING: Startup did not reach program (at %08x)\n", pc);
         exit (1);
     }
 
     if (!x86_quiet_mode) {
-        printf ("interpreter ok, entry EIP %08x ESP %08x, program running:\n",
+        printf ("RUNNING: interpreter ok, entry EIP %08x ESP %08x, program running:\n",
                     pc, x86_other_context[REG_ESP]);
     }
 
@@ -422,7 +422,7 @@ void x86_interpreter (void)
             // run the superblock
             if (pc_end != pc) {
 #ifdef DEBUG
-                printf ("Exec from %08x to %08x\n", pc, pc_end);
+                printf ("RUNNING: Exec from %08x to %08x\n", pc, pc_end);
                 dump_regs (x86_other_context);
 #endif
                 x86_switch_to_user (pc_end);
@@ -438,7 +438,7 @@ void x86_interpreter (void)
                 // Forced to single step
 #ifdef DEBUG
                 uint8_t * pc_bytes = (uint8_t *) pc;
-                printf ("Non-interpretable code %02x %02x at %08x\n",
+                printf ("RUNNING: Non-interpretable code %02x %02x at %08x\n",
                     pc_bytes[0], pc_bytes[1], pc);
 #endif
                 entry_flag = 1;
@@ -466,13 +466,13 @@ void x86_interpreter (void)
             pc_end = ((uint32_t *) x86_other_context[REG_ESP])[0];
             if ((pc_end < min_address) || (pc_end > max_address)) {
                 if (!x86_quiet_mode) {
-                    printf ("exit interpreter by return to %08x: stop interpretation\n", pc);
+                    printf ("RUNNING: exit interpreter by return to %08x: stop interpretation\n", pc);
                 }
                 x86_switch_to_user ((uint32_t) fake_endpoint);
                 exit (1);
             }
 #ifdef DEBUG
-            printf ("free run: IP %08x SP %08x end %08x\n",
+            printf ("RUNNING: free run: IP %08x SP %08x end %08x\n",
                 pc, x86_other_context[REG_ESP], pc_end);
 #endif
             x86_switch_to_user (pc_end);
@@ -537,7 +537,8 @@ static void print_address_func (bfd_vma addr, struct disassemble_info *dinfo)
 static void memory_error_func (int status, bfd_vma memaddr, struct disassemble_info *dinfo)
 {
    (void) dinfo;
-   printf ("memory_error_func status %d addr %p\n", status, (void *) memaddr);
+   printf ("RUNNING: memory_error_func status %d addr %p\n", status, (void *) memaddr);
+   exit (1);
 }
 
 /* Function used to get bytes to disassemble.  MEMADDR is the
@@ -603,7 +604,7 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
    char special = 'X';
 
    if (!x86_quiet_mode) {
-      printf ("new superblock: %08x\n", pc);
+      printf ("DECODE: new superblock: %08x\n", pc);
    }
    memset (&stream, 0, sizeof (stream));
    memset (&di, 0, sizeof (di));
@@ -632,7 +633,7 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
          break;
       }
       if (!x86_quiet_mode) {
-         printf ("%08x: %s\n", address, scan);
+         printf ("DECODE: %08x: %s\n", address, scan);
       }
       special = '\0';
 
@@ -671,22 +672,21 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
    }
    si->size = address - pc;
    if (!x86_quiet_mode) {
-      printf ("superblock %08x has %u instructions "
+      printf ("DECODE: superblock %08x has %u instructions "
                "and ends at %08x with %c\n", pc, si->count, address, special);
       fflush (stdout);
    }
 }
 
 // entry point
-int x86_startup (size_t minPage, size_t maxPage)
+int x86_startup (size_t minPage, size_t maxPage, int debugEnabled)
 {
    const char * tmp;
 
    if (superblocks) {
       return 0x301;
    }
-   tmp = getenv ("X86D_QUIET_MODE");
-   x86_quiet_mode = 0 && (tmp && (atoi (tmp) != 0));
+   x86_quiet_mode = !debugEnabled;
    min_address = minPage;
    max_address = maxPage;
 
@@ -696,13 +696,13 @@ int x86_startup (size_t minPage, size_t maxPage)
       return 0x302;
    }
    if (!x86_quiet_mode) {
-      printf ("program address range: %08x .. %08x\n", min_address, max_address);
+      printf ("RUNNING: program address range: %08x .. %08x\n", min_address, max_address);
    }
 
    tmp = getenv ("X86D_BRANCH_TRACE");
    if (tmp && strlen (tmp)) {
       if (!x86_quiet_mode) {
-         printf ("writing branch trace to: %s\n", tmp);
+         printf ("RUNNING: writing branch trace to: %s\n", tmp);
       }
       branch_trace = fopen (tmp, "wt");
       if (!branch_trace) {
