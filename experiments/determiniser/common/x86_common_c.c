@@ -9,11 +9,7 @@
 
 #include <dis-asm.h>
 
-#ifdef LINUX32
-#include "linux32_offsets.h"
-#elif WIN32
-#include "win32_offsets.h"
-#endif
+#include "offsets.h"
 
 #define TRIGGER_LEVEL   0x1000000
 #define AFTER_FLAG      0x80000000U

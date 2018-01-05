@@ -11,7 +11,7 @@
 #include <windows.h>
 #include <excpt.h>
 
-#include "win32_offsets.h"
+#include "offsets.h"
 #include "remote_loader.h"
 
 void x86_trap_handler (uint32_t * gregs, uint32_t trapno);

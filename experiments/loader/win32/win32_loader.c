@@ -111,7 +111,7 @@ void StartRemoteLoader
 
    // build data structure to load into the remote stack
    localCs.myself = (void *) context->Esp;
-   strncpy (localCs.libraryName, "remote.dll", MAX_LIBRARY_NAME_SIZE);
+   strncpy (localCs.libraryName, "bin/x86determiniser.dll", MAX_LIBRARY_NAME_SIZE);
    strncpy (localCs.procName, "X86DeterminiserStartup", MAX_PROC_NAME_SIZE);
    localCs.loadLibraryProc = 
       (void *) ((char *) kernel32Base + loadLibraryOffset);

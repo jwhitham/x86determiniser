@@ -1,9 +1,5 @@
 
-#ifdef WIN32
-#include "win32_offsets.h"
-#elif LINUX32
-#include "linux32_offsets.h"
-#endif
+#include "offsets.h"
 
 #define PARAM_1 8
 #define PARAM_2 12

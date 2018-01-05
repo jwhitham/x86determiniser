@@ -2,34 +2,67 @@
 
 CC=/c/TDM-GCC-64/bin/gcc
 #CC=gcc
-CFLAGS=-g -Wall -m32 -DWIN32
+CFLAGS32=-g -Wall -m32 -DWIN32
+LOADER_LIBS=-lpsapi
 BINUTILS=distest/binutils-2.29.1
 
-LOADER_SRCS=main.c loader.c remote_loader.c
-TARGET_SRCS=target.c
-REMOTE_SRCS=x86_common_c.c x86_common_asm.S \
-   win32_asm.S win32_c.c $(BINUTILS)/opcodes/i386-dis.c
-HEADERS=remote_loader.h
+
+PLATFORM=win32
+EXE=.exe
+DLL=.dll
+
+LOADER32_EXE=bin/x86determiniser$(EXE)
+# LOADER64_EXE=bin/x64determiniser$(EXE)
+DETERMINISER32_DLL=bin/x86determiniser$(DLL)
+# DETERMINISER64_DLL=bin/x64determiniser$(DLL)
+
+LOADER_COMMON=loader/common
+LOADER_PLATFORM=loader/$(PLATFORM)
+DETERMINISER_COMMON=determiniser/common
+DETERMINISER_PLATFORM=determiniser/$(PLATFORM)
+GENERATED=determiniser/generated
+
+LOADER_SRCS=\
+   $(LOADER_COMMON)/main.c \
+   $(LOADER_PLATFORM)/win32_loader.c \
+   $(LOADER_PLATFORM)/win32_remote.c
+DETERMINISER_SRCS=\
+   $(DETERMINISER_COMMON)/x86_common_c.c \
+   $(DETERMINISER_COMMON)/x86_common_asm.S \
+   $(DETERMINISER_PLATFORM)/win32_asm.S \
+   $(DETERMINISER_PLATFORM)/win32_c.c \
+   $(BINUTILS)/opcodes/i386-dis.c
+HEADERS=\
+   $(LOADER_COMMON)/remote_loader.h
+MAKE_H_SRCS=$(DETERMINISER_COMMON)/make_h.c
+MAKE_H=$(GENERATED)/make_h$(EXE)
+OFFSETS_H=$(GENERATED)/offsets.h
+INCS=-I$(GENERATED) -I$(LOADER_COMMON) -I$(DETERMINISER_COMMON) \
+   -I$(LOADER_PLATFORM) -I$(DETERMINISER_PLATFORM)
 
 
 
-all: loader.exe target.exe remote.dll
+all: $(LOADER32_EXE) $(DETERMINISER32_DLL) target.exe 
 
 clean:
 	rm -f loader.exe target.exe remote.dll \
       win32_offsets.h win32_make_h.exe
 
-loader.exe: $(LOADER_SRCS) $(HEADERS)
-	$(CC) -o $@ $(LOADER_SRCS) $(CFLAGS) -lpsapi
+$(LOADER32_EXE): $(LOADER_SRCS) $(HEADERS)
+	$(CC) -o $@ $(LOADER_SRCS) $(CFLAGS32) $(LOADER_LIBS) $(INCS)
+
+$(DETERMINISER32_DLL): $(DETERMINISER_SRCS) $(HEADERS) $(OFFSETS_H)
+	$(CC) -o $@ -shared $(DETERMINISER_SRCS) $(CFLAGS32) \
+      -I$(BINUTILS)/include -I$(BINUTILS)/binutils $(INCS)
+
+$(OFFSETS_H): $(MAKE_H_SRCS)
+	$(CC) -o $(MAKE_H) $(MAKE_H_SRCS) $(CFLAGS32)
+	$(MAKE_H) > $(OFFSETS_H)
+
+
+
+TARGET_SRCS=target.c
 
 target.exe: $(TARGET_SRCS) $(HEADERS)
-	$(CC) -o $@ $(TARGET_SRCS) $(CFLAGS)
-
-remote.dll: $(REMOTE_SRCS) $(HEADERS) win32_offsets.h 
-	$(CC) -o $@ -shared $(REMOTE_SRCS) $(CFLAGS) \
-      -I$(BINUTILS)/include -Idistest 
-
-win32_offsets.h: make_h.c
-	$(CC) -o win32_make_h.exe make_h.c $(CFLAGS) -DWIN32
-	./win32_make_h.exe > win32_offsets.h
+	$(CC) -o $@ $(TARGET_SRCS) $(CFLAGS32)
 
