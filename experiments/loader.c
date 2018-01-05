@@ -18,6 +18,7 @@ DWORD WINAPI GetFinalPathNameByHandle(
 static BOOL debugEnabled = FALSE;
 
 #define dbg_printf if (debugEnabled) printf
+#define err_printf printf
 
 void DefaultHandler (const char * state, DEBUG_EVENT * pDebugEvent,
       PROCESS_INFORMATION * pProcessInformation);
@@ -76,7 +77,7 @@ void StartRemoteLoader
 
    space = (char *) RemoteLoaderEnd - (char *) RemoteLoaderStart;
    if (space <= 0) {
-      dbg_printf ("REMOTE_LOADER: No valid size for remote loader\n");
+      err_printf ("REMOTE_LOADER: No valid size for remote loader\n");
       exit (1);
    }
 
@@ -89,7 +90,7 @@ void StartRemoteLoader
       MEM_RESERVE | MEM_COMMIT,
       PAGE_EXECUTE_READWRITE);
    if (!remoteBuf) {
-      dbg_printf ("REMOTE_LOADER: Unable to allocate %d bytes for remote loader\n", (int) space);
+      err_printf ("REMOTE_LOADER: Unable to allocate %d bytes for remote loader\n", (int) space);
       exit (1);
    }
 
@@ -101,7 +102,7 @@ void StartRemoteLoader
       (DWORD) space,
       NULL);
    if (!rc) {
-      dbg_printf ("REMOTE_LOADER: Unable to inject %d bytes\n", (int) space);
+      err_printf ("REMOTE_LOADER: Unable to inject %d bytes\n", (int) space);
       exit (1);
    }
 
@@ -128,7 +129,7 @@ void StartRemoteLoader
       sizeof (localCs),
       NULL);
    if (!rc) {
-      dbg_printf ("REMOTE_LOADER: Unable to fill remote stack\n");
+      err_printf ("REMOTE_LOADER: Unable to fill remote stack\n");
       exit (1);
    }
 
@@ -140,7 +141,116 @@ void StartRemoteLoader
 }
 
 
-int main(void)
+// Based on
+// https://blogs.msdn.microsoft.com/twistylittlepassagesallalike/2011/04/23/everyone-quotes-command-line-arguments-the-wrong-way/
+static char * AppendArg (char * output, const char * input)
+{
+   size_t inputIndex = 0;
+   size_t outputIndex = 0;
+   char ch = '\0';
+   BOOL quotesNeeded = FALSE;
+
+   output[outputIndex++] = '"';
+   do {
+      size_t i, numberBackslashes = 0;
+
+      while (input[inputIndex] == '\\') {
+         inputIndex++;
+         numberBackslashes++;
+      }
+      ch = input[inputIndex];
+      if (ch == '\0') {
+         // End of string: escape backslashes and end
+         for (i = 0; i < numberBackslashes; i++) {
+            output[outputIndex++] = '\\';
+            output[outputIndex++] = '\\';
+         }
+         // quotes needed if the input string is empty
+         if (inputIndex == 0) {
+            quotesNeeded = TRUE;
+         }
+
+      } else if (ch == '"') {
+         // Escape backslashes and following " mark
+         for (i = 0; i < numberBackslashes; i++) {
+            output[outputIndex++] = '\\';
+            output[outputIndex++] = '\\';
+         }
+         output[outputIndex++] = '\\';
+         output[outputIndex++] = ch;
+
+         // quotes needed as " is present
+         quotesNeeded = TRUE;
+      } else {
+         // Backslashes aren't special here
+         for (i = 0; i < numberBackslashes; i++) {
+            output[outputIndex++] = '\\';
+         }
+         output[outputIndex++] = ch;
+
+         // quotes needed if whitespace chars are present
+         if ((ch == '\t') || (ch == ' ') || (ch == '\n') || (ch == '\v')) {
+            quotesNeeded = TRUE;
+         }
+      }
+      inputIndex++;
+   } while (ch != '\0');
+
+   // No quotes required? Just copy the whole string
+   if (!quotesNeeded) {
+      inputIndex--;
+      outputIndex = inputIndex;
+      memcpy (output, input, outputIndex);
+      output[outputIndex] = '\0';
+      return &output[outputIndex];
+   }
+
+   output[outputIndex++] = '"';
+   output[outputIndex] = '\0';
+   return &output[outputIndex];
+}
+
+static char * GenerateArgs (int argc, char ** argv)
+{
+   size_t max_space = 0;
+   size_t i = 0;
+   char * output = NULL;
+   char * tmp = NULL;
+
+   if (argc < 1) {
+      err_printf ("GenerateArgs: no args provided\n");
+      exit (1);
+   }
+
+   // Generate upper bound on required space for args
+   for (i = 0; i < argc; i++) {
+      max_space += strlen (argv[i]) * 2;
+      max_space += 10;
+      printf ("[%s]\n", argv[i]);
+   }
+   tmp = output = calloc (1, max_space);
+   if (!output) {
+      err_printf ("GenerateArgs: out of memory\n");
+      exit (1);
+   }
+
+   // append first arg
+   tmp = AppendArg (tmp, argv[0]);
+
+   for (i = 1; i < argc; i++) {
+      // add a space
+      *tmp = ' ';
+      tmp++;
+      *tmp = '\0';
+
+      // append next arg
+      tmp = AppendArg (tmp, argv[i]);
+   }
+   return output;
+}
+
+
+int X86DeterminiserLoader(int argc, char ** argv)
 {
    STARTUPINFO startupInfo;
    PROCESS_INFORMATION processInformation;
@@ -157,6 +267,7 @@ int main(void)
    LPVOID startAddress = NULL;
    LPVOID singleStepProc = NULL;
    char startInstruction = 0;
+   char *commandLine;
 
    memset (&startupInfo, 0, sizeof (startupInfo));
    memset (&processInformation, 0, sizeof (processInformation));
@@ -165,9 +276,11 @@ int main(void)
    startupInfo.cb = sizeof (startupInfo);
 
    dwCreationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS;
+   commandLine = GenerateArgs (argc, argv);
+   printf ("[[%s]]\n", commandLine);
    rc = CreateProcess(
-     /* _In_opt_    LPCTSTR               */ "target.exe",
-     /* _Inout_opt_ LPTSTR                */ NULL /* lpCommandLine */,
+     /* _In_opt_    LPCTSTR               */ argv[0],
+     /* _Inout_opt_ LPTSTR                */ commandLine /* lpCommandLine */,
      /* _In_opt_    LPSECURITY_ATTRIBUTES */ NULL /* lpProcessAttributes */,
      /* _In_opt_    LPSECURITY_ATTRIBUTES */ NULL /* lpThreadAttributes */,
      /* _In_        BOOL                  */ FALSE /* bInheritHandles */,
@@ -178,7 +291,7 @@ int main(void)
      /* _Out_       LPPROCESS_INFORMATION */ &processInformation
    );
    if (!rc) {
-      dbg_printf ("CreateProcess: error %d\n", (int) GetLastError());
+      err_printf ("CreateProcess: error %d\n", (int) GetLastError());
       return 1;
    }
 
@@ -190,26 +303,26 @@ int main(void)
       LPVOID pa;
 
       if (!kernel32) {
-         dbg_printf ("LoadLibrary: error %d\n", (int) GetLastError());
+         err_printf ("LoadLibrary: error %d\n", (int) GetLastError());
          return 1;
       }
       if (!GetModuleInformation
             (GetCurrentProcess(), kernel32, &modinfo, sizeof(MODULEINFO))) {
-         dbg_printf ("GetModuleInformation: error %d\n", (int) GetLastError());
+         err_printf ("GetModuleInformation: error %d\n", (int) GetLastError());
          return 1;
       }
       dbg_printf ("kernel32.dll: base %p size %u\n", modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
 
       pa = GetProcAddress (kernel32, "GetProcAddress");
       if (!pa) {
-         dbg_printf ("GetProcAddress: error %d\n", (int) GetLastError());
+         err_printf ("GetProcAddress: error %d\n", (int) GetLastError());
          return 1;
       }
       getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
 
       pa = GetProcAddress (kernel32, "LoadLibraryA");
       if (!pa) {
-         dbg_printf ("GetProcAddress: error %d\n", (int) GetLastError());
+         err_printf ("GetProcAddress: error %d\n", (int) GetLastError());
          return 1;
       }
       loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
@@ -223,14 +336,14 @@ int main(void)
    while (!startAddress) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       if (!rc) {
-         dbg_printf ("INITIAL: WaitForDebugEvent: error %d\n", (int) GetLastError());
+         err_printf ("INITIAL: WaitForDebugEvent: error %d\n", (int) GetLastError());
          exit (1);
       }
       switch (debugEvent.dwDebugEventCode) {
          case CREATE_PROCESS_DEBUG_EVENT:
             if ((debugEvent.dwProcessId != processInformation.dwProcessId)
             || (debugEvent.dwThreadId != processInformation.dwThreadId)) {
-               dbg_printf ("INITIAL: CREATE_PROCESS_DEBUG_EVENT from unexpected process\n");
+               err_printf ("INITIAL: CREATE_PROCESS_DEBUG_EVENT from unexpected process\n");
                exit (1);
             }
             startAddress = debugEvent.u.CreateProcessInfo.lpStartAddress;
@@ -243,7 +356,7 @@ int main(void)
                1,
                &len);
             if ((!rc) || (len != 1)) {
-               dbg_printf ("INITIAL: Unable to read first instruction\n");
+               err_printf ("INITIAL: Unable to read first instruction\n");
                exit (1);
             }
 
@@ -255,7 +368,7 @@ int main(void)
                1,
                &len);
             if ((!rc) || (len != 1)) {
-               dbg_printf ("INITIAL: Unable to replace first instruction with breakpoint\n");
+               err_printf ("INITIAL: Unable to replace first instruction with breakpoint\n");
                exit (1);
             }
             break;
@@ -276,7 +389,7 @@ int main(void)
    while (!startContext.Eip) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       if (!rc) {
-         dbg_printf ("AWAIT_FIRST: WaitForDebugEvent: error %d\n", (int) GetLastError());
+         err_printf ("AWAIT_FIRST: WaitForDebugEvent: error %d\n", (int) GetLastError());
          exit (1);
       }
       switch (debugEvent.dwDebugEventCode) {
@@ -288,7 +401,7 @@ int main(void)
                context.ContextFlags = CONTEXT_FULL;
                rc = GetThreadContext (processInformation.hThread, &context);
                if (!rc) {
-                  dbg_printf ("AWAIT_FIRST: GetThreadContext: error %d\n",
+                  err_printf ("AWAIT_FIRST: GetThreadContext: error %d\n",
                      (int) GetLastError());
                   exit (1);
                }
@@ -308,7 +421,7 @@ int main(void)
                      memcpy (&startContext, &context, sizeof (CONTEXT));
 
                      if (!kernel32Base) {
-                        dbg_printf ("REMOTE_LOADER: don't know the kernel32.dll base address\n");
+                        err_printf ("REMOTE_LOADER: don't know the kernel32.dll base address\n");
                         exit (1);
                      }
 
@@ -320,7 +433,7 @@ int main(void)
                         1,
                         &len);
                      if ((!rc) || (len != 1)) {
-                        dbg_printf ("REMOTE_LOADER: Unable to restore first instruction\n");
+                        err_printf ("REMOTE_LOADER: Unable to restore first instruction\n");
                         exit (1);
                      }
 
@@ -374,7 +487,7 @@ int main(void)
    while (!singleStepProc) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       if (!rc) {
-         dbg_printf ("AWAIT_REMOTE_LOADER_BP: WaitForDebugEvent: error %d\n", (int) GetLastError());
+         err_printf ("AWAIT_REMOTE_LOADER_BP: WaitForDebugEvent: error %d\n", (int) GetLastError());
          exit (1);
       }
       switch (debugEvent.dwDebugEventCode) {
@@ -385,7 +498,7 @@ int main(void)
                context.ContextFlags = CONTEXT_FULL;
                rc = GetThreadContext (processInformation.hThread, &context);
                if (!rc) {
-                  dbg_printf ("AWAIT_REMOTE_LOADER_BP: GetThreadContext: error %d\n",
+                  err_printf ("AWAIT_REMOTE_LOADER_BP: GetThreadContext: error %d\n",
                      (int) GetLastError());
                   exit (1);
                }
@@ -405,7 +518,7 @@ int main(void)
                      context.EFlags |= SINGLE_STEP_FLAG;
                      rc = SetThreadContext (processInformation.hThread, &context);
                      if (!rc) {
-                        dbg_printf ("REMOTE_LOADER_BP: unable to SetThreadContext\n");
+                        err_printf ("REMOTE_LOADER_BP: unable to SetThreadContext\n");
                         exit (1);
                      }
 
@@ -441,7 +554,7 @@ int main(void)
       while (run) {
          rc = WaitForDebugEvent (&debugEvent, INFINITE);
          if (!rc) {
-            dbg_printf ("RUNNING: WaitForDebugEvent: error %d\n", (int) GetLastError());
+            err_printf ("RUNNING: WaitForDebugEvent: error %d\n", (int) GetLastError());
             exit (1);
          }
          switch (debugEvent.dwDebugEventCode) {
@@ -452,7 +565,7 @@ int main(void)
                   context.ContextFlags = CONTEXT_FULL;
                   rc = GetThreadContext (processInformation.hThread, &context);
                   if (!rc) {
-                     dbg_printf ("RUNNING: GetThreadContext: error %d\n",
+                     err_printf ("RUNNING: GetThreadContext: error %d\n",
                         (int) GetLastError());
                      exit (1);
                   }
@@ -494,7 +607,7 @@ int main(void)
       while (!run) {
          rc = WaitForDebugEvent (&debugEvent, INFINITE);
          if (!rc) {
-            dbg_printf ("SINGLE_STEP: WaitForDebugEvent: error %d\n", (int) GetLastError());
+            err_printf ("SINGLE_STEP: WaitForDebugEvent: error %d\n", (int) GetLastError());
             exit (1);
          }
          switch (debugEvent.dwDebugEventCode) {
@@ -505,7 +618,7 @@ int main(void)
                   context.ContextFlags = CONTEXT_FULL;
                   rc = GetThreadContext (processInformation.hThread, &context);
                   if (!rc) {
-                     dbg_printf ("SINGLE_STEP: GetThreadContext: error %d\n",
+                     err_printf ("SINGLE_STEP: GetThreadContext: error %d\n",
                         (int) GetLastError());
                      exit (1);
                   }
@@ -515,7 +628,7 @@ int main(void)
                         // EAX contains an error code, or 0x102 on success
                         // EBX is pointer to context, altered by remote
                         if (context.Eax != 0x102) {
-                           dbg_printf ("SINGLE_STEP: error code 0x%x\n", (int) context.Eax);
+                           err_printf ("SINGLE_STEP: error code 0x%x\n", (int) context.Eax);
                            return 1;
                         }
                         // context restored
@@ -555,7 +668,7 @@ void DefaultHandler (const char * state, DEBUG_EVENT * pDebugEvent,
 {
    switch (pDebugEvent->dwDebugEventCode) {
       case CREATE_PROCESS_DEBUG_EVENT:
-         dbg_printf ("%s: received a second CREATE_PROCESS_DEBUG_EVENT "
+         err_printf ("%s: received a second CREATE_PROCESS_DEBUG_EVENT "
                "from an unexpected process\n", state);
          exit (1);
          break;
@@ -574,14 +687,14 @@ void DefaultHandler (const char * state, DEBUG_EVENT * pDebugEvent,
             GetThreadContext (pProcessInformation->hThread, &context);
             switch (pDebugEvent->u.Exception.ExceptionRecord.ExceptionCode) {
                case STATUS_BREAKPOINT:
-                  dbg_printf
+                  err_printf
                     ("%s: Reached "
                      "unexpected breakpoint at %p, error code 0x%x\n",
                      state, (void *) context.Eip, (int) context.Eax);
                   exit (1);
                   break;
                case STATUS_SINGLE_STEP:
-                  dbg_printf ("%s: Unexpected single step at %p\n", state, (void *) context.Eip);
+                  err_printf ("%s: Unexpected single step at %p\n", state, (void *) context.Eip);
                   exit (1);
                   break;
                default:

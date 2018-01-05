@@ -5,7 +5,7 @@ CC=/c/TDM-GCC-64/bin/gcc
 CFLAGS=-g -Wall -m32 -DWIN32
 BINUTILS=distest/binutils-2.29.1
 
-LOADER_SRCS=loader.c remote_loader.c
+LOADER_SRCS=main.c loader.c remote_loader.c
 TARGET_SRCS=target.c
 REMOTE_SRCS=x86_common_c.c x86_common_asm.S \
    win32_asm.S win32_c.c $(BINUTILS)/opcodes/i386-dis.c
