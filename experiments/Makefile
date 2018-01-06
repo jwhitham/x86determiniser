@@ -3,6 +3,7 @@
 CC=/c/TDM-GCC-64/bin/gcc
 #CC=gcc
 CFLAGS32=-g -Wall -m32 -DWIN32
+CFLAGS64=-g -Wall -m64 -DWIN32
 LOADER_LIBS=-lpsapi
 BINUTILS=distest/binutils-2.29.1
 
@@ -21,6 +22,8 @@ LOADER_PLATFORM=loader/$(PLATFORM)
 DETERMINISER_COMMON=determiniser/common
 DETERMINISER_PLATFORM=determiniser/$(PLATFORM)
 GENERATED=determiniser/generated
+T=tests
+TB=$(T)/bin
 
 LOADER_SRCS=\
    $(LOADER_COMMON)/main.c \
@@ -42,7 +45,8 @@ INCS=-I$(GENERATED) -I$(LOADER_COMMON) -I$(DETERMINISER_COMMON) \
 
 
 
-all: $(LOADER32_EXE) $(DETERMINISER32_DLL) target.exe 
+all: $(LOADER32_EXE) $(DETERMINISER32_DLL) \
+      $(TB)/simple32$(EXE) $(TB)/simple64$(EXE)
 
 clean:
 	rm -f loader.exe target.exe remote.dll \
@@ -60,9 +64,9 @@ $(OFFSETS_H): $(MAKE_H_SRCS)
 	$(MAKE_H) > $(OFFSETS_H)
 
 
+$(TB)/simple32$(EXE): $(T)/simple.c
+	$(CC) -o $@ $(CFLAGS32) $<
 
-TARGET_SRCS=target.c
-
-target.exe: $(TARGET_SRCS) $(HEADERS)
-	$(CC) -o $@ $(TARGET_SRCS) $(CFLAGS32)
+$(TB)/simple64$(EXE): $(T)/simple.c
+	$(CC) -o $@ $(CFLAGS64) $<
 

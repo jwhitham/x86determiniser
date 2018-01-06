@@ -5,15 +5,8 @@
 #include <Psapi.h>
 
 #include "remote_loader.h"
+#include "x86_flags.h"
 
-/*
-DWORD WINAPI GetFinalPathNameByHandle(
-  HANDLE hFile,
-  LPTSTR lpszFilePath,
-  DWORD  cchFilePath,
-  DWORD  dwFlags
-); */
-#define SINGLE_STEP_FLAG 0x100
 
 static BOOL debugEnabled = FALSE;
 
@@ -66,6 +59,7 @@ void StartRemoteLoader
    void * kernel32Base,
    void * startAddress,
    HANDLE hProcess,
+   const char * binFolder,
    PCONTEXT context)
 {
    ssize_t space;
@@ -111,7 +105,7 @@ void StartRemoteLoader
 
    // build data structure to load into the remote stack
    localCs.myself = (void *) context->Esp;
-   strncpy (localCs.libraryName, "bin/x86determiniser.dll", MAX_LIBRARY_NAME_SIZE);
+   snprintf (localCs.libraryName, MAX_LIBRARY_NAME_SIZE, "%s/x86determiniser.dll", binFolder);
    strncpy (localCs.procName, "X86DeterminiserStartup", MAX_PROC_NAME_SIZE);
    localCs.loadLibraryProc = 
       (void *) ((char *) kernel32Base + loadLibraryOffset);
@@ -226,7 +220,7 @@ static char * GenerateArgs (int argc, char ** argv)
    for (i = 0; i < argc; i++) {
       max_space += strlen (argv[i]) * 2;
       max_space += 10;
-      printf ("[%s]\n", argv[i]);
+      dbg_printf ("[%s]\n", argv[i]);
    }
    tmp = output = calloc (1, max_space);
    if (!output) {
@@ -268,6 +262,7 @@ int X86DeterminiserLoader(int argc, char ** argv)
    LPVOID singleStepProc = NULL;
    char startInstruction = 0;
    char *commandLine;
+   char binFolder[BUFSIZ];
 
    memset (&startupInfo, 0, sizeof (startupInfo));
    memset (&processInformation, 0, sizeof (processInformation));
@@ -275,9 +270,22 @@ int X86DeterminiserLoader(int argc, char ** argv)
    memset (&startContext, 0, sizeof (startContext));
    startupInfo.cb = sizeof (startupInfo);
 
+   if (GetModuleFileName(NULL, binFolder, sizeof (binFolder)) != 0) {
+      char * finalSlash = strrchr (binFolder, '\\');
+      if (!finalSlash) {
+         finalSlash = binFolder;
+      }
+      *finalSlash = '\0';
+   } else {
+      err_printf ("GetModuleFileName: error %d\n", (int) GetLastError());
+      return 1;
+   }
+
+
+
    dwCreationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS;
    commandLine = GenerateArgs (argc, argv);
-   printf ("[[%s]]\n", commandLine);
+   dbg_printf ("[[%s]]\n", commandLine);
    rc = CreateProcess(
      /* _In_opt_    LPCTSTR               */ argv[0],
      /* _Inout_opt_ LPTSTR                */ commandLine /* lpCommandLine */,
@@ -443,6 +451,7 @@ int X86DeterminiserLoader(int argc, char ** argv)
                         kernel32Base,
                         (void *) startAddress,
                         processInformation.hProcess,
+                        binFolder,
                         &context);
                      SetThreadContext (processInformation.hThread, &context);
 
