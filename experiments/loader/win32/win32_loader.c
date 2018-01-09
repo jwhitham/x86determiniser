@@ -6,14 +6,17 @@
 
 #include "remote_loader.h"
 #include "x86_flags.h"
+#include "common.h"
 
 
-static BOOL debugEnabled = FALSE;
+int _CRT_glob = 0; /* don't expand wildcards when parsing command-line args */
 
-#define dbg_printf if (debugEnabled) printf
+#define dbg_printf if (pcs->debugEnabled) printf
 #define err_printf printf
 
-void DefaultHandler (const char * state, DEBUG_EVENT * pDebugEvent,
+static void DefaultHandler (
+      CommStruct * pcs,
+      const char * state, DEBUG_EVENT * pDebugEvent,
       PROCESS_INFORMATION * pProcessInformation);
 
 typedef struct SingleStepStruct {
@@ -23,7 +26,7 @@ typedef struct SingleStepStruct {
 } SingleStepStruct;
 
 
-void StartSingleStepProc
+static void StartSingleStepProc
   (void * singleStepProc,
    HANDLE hProcess,
    PCONTEXT context)
@@ -54,7 +57,8 @@ void StartSingleStepProc
 }
 
 void StartRemoteLoader
-  (size_t getProcAddressOffset,
+  (CommStruct * pcs,
+   size_t getProcAddressOffset,
    size_t loadLibraryOffset,
    void * kernel32Base,
    void * startAddress,
@@ -64,10 +68,7 @@ void StartRemoteLoader
 {
    ssize_t space;
    void * remoteBuf;
-   CommStruct localCs;
    BOOL rc;
-
-   memset (&localCs, 0, sizeof (localCs));
 
    space = (char *) RemoteLoaderEnd - (char *) RemoteLoaderStart;
    if (space <= 0) {
@@ -101,26 +102,26 @@ void StartRemoteLoader
    }
 
    // reserve the right amount of stack space
-   context->Esp -= sizeof (localCs);
+   context->Esp -= sizeof (CommStruct);
 
    // build data structure to load into the remote stack
-   localCs.myself = (void *) context->Esp;
-   snprintf (localCs.libraryName, MAX_LIBRARY_NAME_SIZE, "%s/x86determiniser.dll", binFolder);
-   strncpy (localCs.procName, "X86DeterminiserStartup", MAX_PROC_NAME_SIZE);
-   localCs.loadLibraryProc = 
+   pcs->myself = (void *) context->Esp;
+   snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/x86determiniser.dll", binFolder);
+   strncpy (pcs->procName, "X86DeterminiserStartup", MAX_PROC_NAME_SIZE);
+   pcs->loadLibraryProc = 
       (void *) ((char *) kernel32Base + loadLibraryOffset);
-   localCs.getProcAddressProc =
+   pcs->getProcAddressProc =
       (void *) ((char *) kernel32Base + getProcAddressOffset);
-   localCs.startAddress = startAddress;
+   pcs->startAddress = startAddress;
 
    // fill remote stack
    // return address is NULL (1st item in struct: don't return!!)
    // first parameter is "myself" (2nd item in struct)
    WriteProcessMemory
      (hProcess,
-      localCs.myself,
-      &localCs,
-      sizeof (localCs),
+      pcs->myself,
+      pcs,
+      sizeof (CommStruct),
       NULL);
    if (!rc) {
       err_printf ("REMOTE_LOADER: Unable to fill remote stack\n");
@@ -204,7 +205,7 @@ static char * AppendArg (char * output, const char * input)
    return &output[outputIndex];
 }
 
-static char * GenerateArgs (int argc, char ** argv)
+static char * GenerateArgs (CommStruct * pcs, int argc, char ** argv)
 {
    size_t max_space = 0;
    size_t i = 0;
@@ -243,8 +244,9 @@ static char * GenerateArgs (int argc, char ** argv)
    return output;
 }
 
-
-int X86DeterminiserLoader(int argc, char ** argv)
+// Entry point from main
+// Args already parsed into CommStruct
+int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 {
    STARTUPINFO startupInfo;
    PROCESS_INFORMATION processInformation;
@@ -284,7 +286,7 @@ int X86DeterminiserLoader(int argc, char ** argv)
 
 
    dwCreationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS;
-   commandLine = GenerateArgs (argc, argv);
+   commandLine = GenerateArgs (pcs, argc, argv);
    dbg_printf ("[[%s]]\n", commandLine);
    rc = CreateProcess(
      /* _In_opt_    LPCTSTR               */ argv[0],
@@ -381,7 +383,7 @@ int X86DeterminiserLoader(int argc, char ** argv)
             }
             break;
          default:
-            DefaultHandler ("INITIAL", &debugEvent, &processInformation);
+            DefaultHandler (pcs, "INITIAL", &debugEvent, &processInformation);
             break;
       }
       ContinueDebugEvent
@@ -446,7 +448,8 @@ int X86DeterminiserLoader(int argc, char ** argv)
                      }
 
                      StartRemoteLoader
-                       (getProcAddressOffset,
+                       (pcs,
+                        getProcAddressOffset,
                         loadLibraryOffset,
                         kernel32Base,
                         (void *) startAddress,
@@ -457,11 +460,11 @@ int X86DeterminiserLoader(int argc, char ** argv)
 
                      break;
                   default:
-                     DefaultHandler ("AWAIT_FIRST", &debugEvent, &processInformation);
+                     DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
                      break;
                }
             } else {
-               DefaultHandler ("AWAIT_FIRST", &debugEvent, &processInformation);
+               DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
             }
             break;
          case LOAD_DLL_DEBUG_EVENT:
@@ -482,7 +485,7 @@ int X86DeterminiserLoader(int argc, char ** argv)
             }
             break;
          default:
-            DefaultHandler ("AWAIT_FIRST", &debugEvent, &processInformation);
+            DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
             break;
       }
       ContinueDebugEvent
@@ -515,7 +518,7 @@ int X86DeterminiserLoader(int argc, char ** argv)
                   case STATUS_BREAKPOINT:
                      // EAX contains an error code, or 0x101 on success
                      if (context.Eax != 0x101) {
-                        DefaultHandler ("AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+                        DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
                      }
                      // EBX contains the address of the single step handler
                      singleStepProc = (void *) context.Ebx;
@@ -539,15 +542,15 @@ int X86DeterminiserLoader(int argc, char ** argv)
                      SetThreadContext (processInformation.hThread, &context);
                      break;
                   default:
-                     DefaultHandler ("AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+                     DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
                      break;
                }
             } else {
-               DefaultHandler ("AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+               DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
             }
             break;
          default:
-            DefaultHandler ("AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+            DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
             break;
       }
       ContinueDebugEvent
@@ -594,15 +597,15 @@ int X86DeterminiserLoader(int argc, char ** argv)
                         SetThreadContext (processInformation.hThread, &context);
                         break;
                      default:
-                        DefaultHandler ("RUNNING", &debugEvent, &processInformation);
+                        DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
                         break;
                   }
                } else {
-                  DefaultHandler ("RUNNING", &debugEvent, &processInformation);
+                  DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
                }
                break;
             default:
-               DefaultHandler ("RUNNING", &debugEvent, &processInformation);
+               DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
                break;
          }
          ContinueDebugEvent
@@ -653,15 +656,15 @@ int X86DeterminiserLoader(int argc, char ** argv)
                         run = TRUE;
                         break;
                      default:
-                        DefaultHandler ("SINGLE_STEP", &debugEvent, &processInformation);
+                        DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
                         break;
                   }
                } else {
-                  DefaultHandler ("SINGLE_STEP", &debugEvent, &processInformation);
+                  DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
                }
                break;
             default:
-               DefaultHandler ("SINGLE_STEP", &debugEvent, &processInformation);
+               DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
                break;
          }
          ContinueDebugEvent
@@ -672,7 +675,9 @@ int X86DeterminiserLoader(int argc, char ** argv)
 }
 
 /* Handle a debug event without doing anything special */
-void DefaultHandler (const char * state, DEBUG_EVENT * pDebugEvent,
+static void DefaultHandler (
+      CommStruct * pcs,
+      const char * state, DEBUG_EVENT * pDebugEvent,
       PROCESS_INFORMATION * pProcessInformation)
 {
    switch (pDebugEvent->dwDebugEventCode) {

@@ -4,18 +4,21 @@
 #include <stdlib.h>
 
 
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0500
-#endif
+#define _WIN32_WINNT 0x0600
 
 #include <windows.h>
 #include <excpt.h>
 
 #include "offsets.h"
 #include "remote_loader.h"
+#include "x86_common.h"
+#include "common.h"
 
-void x86_trap_handler (uint32_t * gregs, uint32_t trapno);
-int x86_startup (size_t minPage, size_t maxPage, int debugEnabled);
+#define COMPLETED_SINGLE_STEP_HANDLER 0x102
+   asm volatile ("mov %0, %%ebx\nmov $0x102, %%eax\nint3\n"
+      : : "r"(gregs) );
+
+
 
 static void single_step_handler (PCONTEXT ContextRecord)
 {
@@ -26,11 +29,10 @@ static void single_step_handler (PCONTEXT ContextRecord)
 
    // Completed the single step handler, go back to normal execution
    // Breakpoint with EAX = 0x102 and EBX = pointer to updated context
-   asm volatile ("mov %0, %%ebx\nmov $0x102, %%eax\nint3\n"
-      : : "r"(gregs) );
+   x86_bp_trap (COMPLETED_SINGLE_STEP_HANDLER, gregs);
 }
 
-__declspec(dllexport) void X86DeterminiserStartup (CommStruct * cs)
+__declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
 {
    SYSTEM_INFO systemInfo;
    MEMORY_BASIC_INFORMATION mbi;
@@ -38,12 +40,15 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * cs)
    int rc = 0;
 
    // Here is the entry point from the RemoteLoader procedure
+   // Check internal version first
+   x86_check_version (pcs);
+
    // Discover the bounds of the executable .text segment
-   // which is known to contain cs->startAddress
+   // which is known to contain pcs->startAddress
    GetSystemInfo (&systemInfo);
    pageSize = systemInfo.dwPageSize;
    pageMask = ~ (pageSize - 1);
-   minPage = ((size_t) cs->startAddress) & pageMask;
+   minPage = ((size_t) pcs->startAddress) & pageMask;
    ZeroMemory (&mbi, sizeof (mbi));
 
    // find minimum page
@@ -68,7 +73,7 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * cs)
       goto error;
    }
 
-   rc = x86_startup (minPage, maxPage, cs->debugEnabled);
+   rc = x86_startup (minPage, maxPage, pcs);
    if (rc != 0) {
       // Error code EAX = rc
       goto error;
