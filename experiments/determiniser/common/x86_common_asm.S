@@ -12,11 +12,13 @@
 .global x86_begin_single_step
 .global x86_other_context
 .global x86_size_of_indirect_call_instruction
+.global x86_bp_trap
 .global _x86_switch_to_user
 .global _x86_switch_from_user
 .global _x86_begin_single_step
 .global _x86_other_context
 .global _x86_size_of_indirect_call_instruction
+.global _x86_bp_trap
 .text
 
 
@@ -79,8 +81,8 @@ user_start_point:
 /* void x86_switch_to_user (uint32_t endpoint); */
 x86_switch_to_user:
 _x86_switch_to_user:
-	pushl	%ebp
-	movl	%esp, %ebp
+    pushl   %ebp
+    movl    %esp, %ebp
 
     /* %eax, %ecx, %edx are "caller save" registers */
     /* %ebp, %ebx, %esi, %edi are "callee save" registers */
@@ -143,6 +145,15 @@ x86_switch_from_user:
     popl    %edi
     popl    %esi
     popl    %ebx
-	popl	%ebp
-	ret
+    popl    %ebp
+    ret
+
+_x86_bp_trap:
+x86_bp_trap:
+    /* (int code, void * arg) */
+    mov     0x4(%esp),%eax  /* code */
+    mov     0x8(%esp),%ebx  /* arg */
+    int3
+    mov     $0x9999,%eax    /* should never be reached */
+    int3
 

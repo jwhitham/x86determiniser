@@ -11,23 +11,25 @@ void RemoteLoader (CommStruct * cs)
    HMODULE WINAPI (* loadLibrary) (LPCSTR lpLibFileName);
    FARPROC WINAPI (* getProcAddress) (HMODULE hModule, LPCSTR lpProcName);
    void (* x86DeterminiserStartup) (CommStruct *);
+   int rc = FAILED_UNKNOWN;
 
    loadLibrary = cs->loadLibraryProc;
    getProcAddress = cs->getProcAddressProc;
 
    hm = loadLibrary (cs->libraryName);
    if (!hm) {
-      asm volatile ("int3" : : "eax"(FAILED_LOADLIBRARY));
-      return;
+      rc = FAILED_LOADLIBRARY;
+      goto error;
    }
    x86DeterminiserStartup = (void *) getProcAddress (hm, cs->procName);
    if (!x86DeterminiserStartup) {
-      asm volatile ("int3" : : "eax"(FAILED_GETPROCADDRESS));
-      return;
+      rc = FAILED_GETPROCADDRESS;
+      goto error;
    }
    x86DeterminiserStartup (cs);
-   asm volatile ("int3" : : "eax"(FAILED_UNKNOWN));
-   return;
+error:
+   /* similar to x86_bp_trap but we can't use that from this procedure */
+   asm volatile ("mov %0, %%eax\nmov $0, %%ebx\nint3" : : "r"(rc));
 }
 
 void RemoteLoaderEnd (void) {}

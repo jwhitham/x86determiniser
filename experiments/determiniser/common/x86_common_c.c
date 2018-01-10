@@ -667,11 +667,6 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
    }
 }
 
-void x86_bp_trap (int code, void * arg)
-{
-   asm volatile ("int3" : : "eax"(code), "ebx"(arg));
-}
-
 void x86_check_version (CommStruct * pcs)
 {
    if (strcmp (pcs->internalVersionCheck, INTERNAL_VERSION) != 0)
