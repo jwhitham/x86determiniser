@@ -1,10 +1,9 @@
+#define _WIN32_WINNT 0x0600
+
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-
-
-#define _WIN32_WINNT 0x0600
 
 #include <windows.h>
 #include <excpt.h>
@@ -13,11 +12,6 @@
 #include "remote_loader.h"
 #include "x86_common.h"
 #include "common.h"
-
-#define COMPLETED_SINGLE_STEP_HANDLER 0x102
-   asm volatile ("mov %0, %%ebx\nmov $0x102, %%eax\nint3\n"
-      : : "r"(gregs) );
-
 
 
 static void single_step_handler (PCONTEXT ContextRecord)
@@ -37,7 +31,6 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
    SYSTEM_INFO systemInfo;
    MEMORY_BASIC_INFORMATION mbi;
    size_t pageSize, pageMask, minPage, maxPage;
-   int rc = 0;
 
    // Here is the entry point from the RemoteLoader procedure
    // Check internal version first
@@ -60,8 +53,7 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
    // calculate maximum page
    if (VirtualQuery ((void *) minPage, &mbi, sizeof (mbi)) == 0) {
       // Error code EAX = 0x104
-      rc = 0x104;
-      goto error;
+      x86_bp_trap (FAILED_MEMORY_BOUND_DISCOVERY, NULL);
    }
    maxPage = mbi.RegionSize + minPage;
 
@@ -69,24 +61,14 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
    if (!VirtualProtect ((void *) minPage, maxPage - minPage,
          PAGE_EXECUTE_READWRITE, &mbi.Protect)) {
       // Error code EAX = 0x103
-      rc = 0x103;
-      goto error;
+      x86_bp_trap (FAILED_MEMORY_PERMISSIONS, NULL);
    }
 
-   rc = x86_startup (minPage, maxPage, pcs);
-   if (rc != 0) {
-      // Error code EAX = rc
-      goto error;
-   }
+   x86_startup (minPage, maxPage, pcs);
 
    // Now ready for the user program
    // Breakpoint with EAX = 0x101 and EBX = pointer to single_step_handler
-   asm volatile ("mov %0, %%ebx\nmov $0x101, %%eax\nint3\n"
-      : : "r"(single_step_handler) );
-
-error:
-   // Error handler - send error code to loader process
-   asm volatile ("mov %0, %%eax\nint3\n" : : "r"(rc) );
+   x86_bp_trap (COMPLETED_LOADER, single_step_handler);
 }
 
 

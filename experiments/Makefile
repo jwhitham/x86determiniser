@@ -7,6 +7,7 @@ CFLAGS64=-g -Wall -m64 -DWIN32
 LOADER_LIBS=-lpsapi
 BINUTILS=distest/binutils-2.29.1
 
+VERSION=2.0
 
 PLATFORM=win32
 EXE=.exe
@@ -21,12 +22,13 @@ LOADER_COMMON=loader/common
 LOADER_PLATFORM=loader/$(PLATFORM)
 DETERMINISER_COMMON=determiniser/common
 DETERMINISER_PLATFORM=determiniser/$(PLATFORM)
-GENERATED=determiniser/generated
+GENERATED=generated
 T=tests
 TB=$(T)/bin
 
 LOADER_SRCS=\
    $(LOADER_COMMON)/main.c \
+   $(LOADER_COMMON)/x86_error.c \
    $(LOADER_PLATFORM)/win32_loader.c \
    $(LOADER_PLATFORM)/win32_remote.c
 DETERMINISER_SRCS=\
@@ -36,7 +38,8 @@ DETERMINISER_SRCS=\
    $(DETERMINISER_PLATFORM)/win32_c.c \
    $(BINUTILS)/opcodes/i386-dis.c
 HEADERS=\
-   $(LOADER_COMMON)/remote_loader.h
+   $(LOADER_COMMON)/remote_loader.h \
+   $(GENERATED)/version.h
 MAKE_H_SRCS=$(DETERMINISER_COMMON)/make_h.c
 MAKE_H=$(GENERATED)/make_h$(EXE)
 OFFSETS_H=$(GENERATED)/offsets.h
@@ -50,7 +53,13 @@ all: $(LOADER32_EXE) $(DETERMINISER32_DLL) \
 
 clean:
 	rm -f loader.exe target.exe remote.dll \
-      win32_offsets.h win32_make_h.exe
+      win32_offsets.h win32_make_h.exe $(GENERATED)/version.h
+
+$(GENERATED)/version.h:
+	echo '#define X86D_VERSION "'$(VERSION)'"' > $(GENERATED)/version.h
+	echo -n '#define INTERNAL_VERSION "X86D '$(VERSION)' ' >> $(GENERATED)/version.h
+	git rev-parse HEAD | tr -d '\n' >> $(GENERATED)/version.h
+	echo ' !"' >> $(GENERATED)/version.h
 
 $(LOADER32_EXE): $(LOADER_SRCS) $(HEADERS)
 	$(CC) -o $@ $(LOADER_SRCS) $(CFLAGS32) $(LOADER_LIBS) $(INCS)

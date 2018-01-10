@@ -11,6 +11,8 @@
 
 #include "offsets.h"
 #include "x86_flags.h"
+#include "common.h"
+#include "x86_common.h"
 
 #define TRIGGER_LEVEL   0x1000000
 #define AFTER_FLAG      0x80000000U
@@ -514,7 +516,7 @@ static int symbol_at_address_func (bfd_vma addr, struct disassemble_info *dinfo)
 /* Function called to print ADDR.  */
 static void print_address_func (bfd_vma addr, struct disassemble_info *dinfo)
 {
-    dinfo->fprintf_func (dinfo->stream, "%p", (void *) addr);
+    dinfo->fprintf_func (dinfo->stream, "%p", (void *) ((intptr_t) addr));
 }
 
 /* Function which should be called if we get an error that we can't
@@ -524,8 +526,8 @@ static void print_address_func (bfd_vma addr, struct disassemble_info *dinfo)
 static void memory_error_func (int status, bfd_vma memaddr, struct disassemble_info *dinfo)
 {
    (void) dinfo;
-   printf ("RUNNING: memory_error_func status %d addr %p\n", status, (void *) memaddr);
-   exit (1);
+   printf ("RUNNING: memory_error_func status %d addr %p\n", status, (void *) ((intptr_t) memaddr));
+   x86_bp_trap (FAILED_DISASSEMBLE_ERROR, NULL);
 }
 
 /* Function used to get bytes to disassemble.  MEMADDR is the
@@ -537,7 +539,7 @@ static int read_memory_func (bfd_vma memaddr, bfd_byte *myaddr, unsigned int len
 {
    unsigned i;
    for (i = 0; (i < length) && (memaddr < max_address); i++) {
-      *myaddr = *((char *) memaddr);
+      *myaddr = *((char *) ((intptr_t) memaddr));
       myaddr ++;
       memaddr ++;
    }
@@ -665,35 +667,50 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
    }
 }
 
-// entry point
-int x86_startup (size_t minPage, size_t maxPage, int debugEnabled)
+void x86_bp_trap (int code, void * arg)
 {
-   const char * tmp;
+   asm volatile ("int3" : : "eax"(code), "ebx"(arg));
+}
+
+void x86_check_version (CommStruct * pcs)
+{
+   if (strcmp (pcs->internalVersionCheck, INTERNAL_VERSION) != 0)
+   {
+      printf ("pcs ivc = '%s' %d\n", pcs->internalVersionCheck, strlen (pcs->internalVersionCheck));
+      printf ("internal= '%s' %d\n", INTERNAL_VERSION , strlen (INTERNAL_VERSION));
+      fflush (stdout);
+      x86_bp_trap (FAILED_VERSION_CHECK, NULL);
+   }
+}
+
+// entry point
+void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
+{
 
    if (superblocks) {
-      return 0x301;
+      x86_bp_trap (FAILED_DOUBLE_LOAD, NULL);
    }
-   x86_quiet_mode = !debugEnabled;
+   x86_quiet_mode = !pcs->debugEnabled;
    min_address = minPage;
    max_address = maxPage;
 
    superblocks = calloc (sizeof (superblock_info), max_address + 1 - min_address);
 
    if (!superblocks) {
-      return 0x302;
+      x86_bp_trap (FAILED_MALLOC, NULL);
    }
    if (!x86_quiet_mode) {
       printf ("RUNNING: program address range: %08x .. %08x\n", min_address, max_address);
    }
 
-   tmp = getenv ("X86D_BRANCH_TRACE");
-   if (tmp && strlen (tmp)) {
+   if (strlen (pcs->branchTrace)) {
       if (!x86_quiet_mode) {
-         printf ("RUNNING: writing branch trace to: %s\n", tmp);
+         printf ("RUNNING: writing branch trace to: %s\n", pcs->branchTrace);
       }
-      branch_trace = fopen (tmp, "wt");
+      branch_trace = fopen (pcs->branchTrace, "wt");
       if (!branch_trace) {
          perror ("opening branch trace file");
+         x86_bp_trap (FAILED_OPEN_BRANCH_TRACE, NULL);
       }
    }
    if (!x86_quiet_mode) {
@@ -707,7 +724,6 @@ int x86_startup (size_t minPage, size_t maxPage, int debugEnabled)
    x86_begin_single_step ();
 
    // we return to here in user mode only
-   return 0;
 }
 
 

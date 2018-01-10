@@ -640,7 +640,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         // EAX contains an error code, or 0x102 on success
                         // EBX is pointer to context, altered by remote
                         if (context.Eax != 0x102) {
-                           err_printf ("SINGLE_STEP: error code 0x%x\n", (int) context.Eax);
+                           err_printf ("SINGLE_STEP: error code 0x%x: %s\n", (int) context.Eax,
+                              X86Error ((int) context.Eax));
                            return 1;
                         }
                         // context restored
@@ -703,8 +704,9 @@ static void DefaultHandler (
                case STATUS_BREAKPOINT:
                   err_printf
                     ("%s: Reached "
-                     "unexpected breakpoint at %p, error code 0x%x\n",
-                     state, (void *) context.Eip, (int) context.Eax);
+                     "unexpected breakpoint at %p, error code 0x%x, %s\n",
+                     state, (void *) context.Eip, (int) context.Eax,
+                     X86Error ((int) context.Eax));
                   exit (1);
                   break;
                case STATUS_SINGLE_STEP:

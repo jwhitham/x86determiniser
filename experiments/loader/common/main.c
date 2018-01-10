@@ -13,19 +13,22 @@ int main (int argc, char ** argv)
 {
    CommStruct cs;
    memset (&cs, 0, sizeof (cs));
-   strncpy (cs.internalVersionCheck, INTERNAL_VERSION, MAX_INTERNAL_VERSION_SIZE - 1);
+   strcpy (cs.internalVersionCheck, INTERNAL_VERSION);
 
    while (1) {
       static const char version[] =
-         "X86Determiniser version " VERSION "\n"
+         "X86Determiniser version " X86D_VERSION "\n"
          "copyright (c) 2015-2018 by Jack Whitham\n"
          "https://github.com/jwhitham/x86determiniser\n";
       static const char help[] =
          "\n"
-         "X86Determiniser will run an x86 program in a 'simulation' by rewriting basic blocks,\n"
-         "emulating some instructions and single-stepping others as required. The RDTSC\n"
-         "execution timestamps are always deterministic. Optionally, a branch trace may be\n"
-         "produced, and OUT instructions can be recorded.\n\n"
+        //1                                                                              80 
+         "X86Determiniser will run an x86 program in a 'simulation' by rewriting basic\n"
+         "blocks, emulating some instructions and single-stepping others as required to\n"
+         "act as an interpreter for x86 machine code. RDTSC execution timestamps are\n"
+         "always deterministic, and system/library calls are executed at full speed.\n"
+         "Optionally, a branch trace may be produced, and OUT instructions can be\n"
+         "recorded.\n\n"
          "Basic usage:\n"
          "   x86determiniser [options] -- <program name> [program args...]\n\n"
          "Options:\n"
