@@ -39,43 +39,57 @@ DETERMINISER_SRCS=\
    $(BINUTILS)/opcodes/i386-dis.c
 HEADERS=\
    $(LOADER_COMMON)/remote_loader.h \
-   $(GENERATED)/version.h
+   $(GENERATED)/x86d_version.h
 MAKE_H_SRCS=$(DETERMINISER_COMMON)/make_h.c
 MAKE_H=$(GENERATED)/make_h$(EXE)
 OFFSETS_H=$(GENERATED)/offsets.h
-INCS=-I$(GENERATED) -I$(LOADER_COMMON) -I$(DETERMINISER_COMMON) \
+INCS=-I$(BINUTILS)/bfd -I$(BINUTILS)/include  \
+   -I$(GENERATED) -I$(LOADER_COMMON) -I$(DETERMINISER_COMMON) \
    -I$(LOADER_PLATFORM) -I$(DETERMINISER_PLATFORM)
 
 
 
 all: $(LOADER32_EXE) $(DETERMINISER32_DLL) \
-      $(TB)/simple32$(EXE) $(TB)/simple64$(EXE)
+      $(TB)/simple32$(EXE) $(T)/outs.ok
 
 clean:
 	rm -f loader.exe target.exe remote.dll \
-      win32_offsets.h win32_make_h.exe $(GENERATED)/version.h
+      win32_offsets.h win32_make_h.exe $(GENERATED)/x86d_version.h
 
-$(GENERATED)/version.h:
-	echo '#define X86D_VERSION "'$(VERSION)'"' > $(GENERATED)/version.h
-	echo -n '#define INTERNAL_VERSION "X86D '$(VERSION)' ' >> $(GENERATED)/version.h
-	git rev-parse HEAD | tr -d '\n' >> $(GENERATED)/version.h
-	echo ' !"' >> $(GENERATED)/version.h
+$(GENERATED)/x86d_version.h:
+	echo '#define X86D_VERSION "'$(VERSION)'"' > $(GENERATED)/x86d_version.h
+	echo -n '#define INTERNAL_VERSION "X86D '$(VERSION)' ' >> $(GENERATED)/x86d_version.h
+	git rev-parse HEAD | tr -d '\n' >> $(GENERATED)/x86d_version.h
+	echo ' !"' >> $(GENERATED)/x86d_version.h
 
-$(LOADER32_EXE): $(LOADER_SRCS) $(HEADERS)
+$(LOADER32_EXE): $(LOADER_SRCS) $(HEADERS) bin
 	$(CC) -o $@ $(LOADER_SRCS) $(CFLAGS32) $(LOADER_LIBS) $(INCS)
 
-$(DETERMINISER32_DLL): $(DETERMINISER_SRCS) $(HEADERS) $(OFFSETS_H)
+$(DETERMINISER32_DLL): $(DETERMINISER_SRCS) $(HEADERS) $(OFFSETS_H) bin
 	$(CC) -o $@ -shared $(DETERMINISER_SRCS) $(CFLAGS32) \
-      -I$(BINUTILS)/include -I$(BINUTILS)/binutils $(INCS)
+      $(INCS)
 
 $(OFFSETS_H): $(MAKE_H_SRCS)
 	$(CC) -o $(MAKE_H) $(MAKE_H_SRCS) $(CFLAGS32)
 	$(MAKE_H) > $(OFFSETS_H)
 
+bin:
+	mkdir -p bin
 
-$(TB)/simple32$(EXE): $(T)/simple.c
+$(TB):
+	mkdir -p $(TB)
+
+$(TB)/simple32$(EXE): $(T)/simple.c $(TB)
 	$(CC) -o $@ $(CFLAGS32) $<
 
-$(TB)/simple64$(EXE): $(T)/simple.c
-	$(CC) -o $@ $(CFLAGS64) $<
+$(TB)/outs$(EXE): $(T)/outs.s $(TB)
+	$(CC) -o $@ $(CFLAGS32) $<
+
+$(T)/outs.txt: $(TB)/outs$(EXE)
+	$(LOADER32_EXE) --out-trace $@ $<
+
+$(T)/outs.ok: $(T)/outs.txt
+	diff -w $(T)/outs.txt $(T)/outs.ref
+	touch $@
+
 

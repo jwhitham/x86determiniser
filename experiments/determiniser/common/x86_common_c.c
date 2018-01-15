@@ -27,6 +27,7 @@ static uint32_t         min_address = 0;
 static uint32_t         max_address = 0;
 
 static FILE *           branch_trace = NULL;
+static FILE *           out_trace = NULL;
 
 static uint64_t         inst_count = 0;
 
@@ -169,6 +170,15 @@ static int interpret_control_flow (void)
                 pc += (int8_t) pc_bytes[1];
             }
             break;
+        case 0xe4: // IN imm8, AL (special instruction; reset counter)
+            pc += 2;
+            inst_count = 0;
+            break;
+        case 0xe5: // IN imm8, EAX (special instruction; read and reset counter)
+            pc += 2;
+            x86_other_context[REG_EAX] = inst_count;
+            inst_count = 0;
+            break;
         case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
         case 0xe7: // OUT imm8, EAX
             pc += 2;
@@ -177,7 +187,22 @@ static int interpret_control_flow (void)
                      MARKER_FLAG | (uint32_t) pc_bytes[1],
                      (uint32_t) inst_count);
             }
-            printf ("MARKER: %u\n", (uint32_t) pc_bytes[1]);
+            if (out_trace) {
+               // fields:
+               //  port number
+               //  inst count
+               //  value (AL or EAX)
+               fprintf (out_trace, "%02x %08x %08x\n",
+                     (uint32_t) pc_bytes[1],
+                     (uint32_t) inst_count,
+                     ((pc_bytes[0] == 0xe6) ?
+                        (x86_other_context[REG_EAX] & 0xff) :
+                        x86_other_context[REG_EAX]));
+            }
+            if (!x86_quiet_mode) {
+               printf ("MARKER: %u\n", (uint32_t) pc_bytes[1]);
+               fflush (stdout);
+            }
             break;
         case 0x0f: // Two-byte instructions
             switch (pc_bytes[1]) {
@@ -652,13 +677,17 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
                special = 't';
             }
             break;
+         case 'i':
+            if (startswith (scan, "in")) {
+               special = 't';
+            }
+            break;
       }
       if (special) {
          // End of superblock reached
          break;
       }
-      address += rc;
-   }
+      address += rc; }
    si->size = address - pc;
    if (!x86_quiet_mode) {
       printf ("DECODE: superblock %08x has %u instructions "
@@ -706,6 +735,16 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
       if (!branch_trace) {
          perror ("opening branch trace file");
          x86_bp_trap (FAILED_OPEN_BRANCH_TRACE, NULL);
+      }
+   }
+   if (strlen (pcs->outTrace)) {
+      if (!x86_quiet_mode) {
+         printf ("RUNNING: writing out trace to: %s\n", pcs->outTrace);
+      }
+      out_trace = fopen (pcs->outTrace, "wt");
+      if (!out_trace) {
+         perror ("opening out trace file");
+         x86_bp_trap (FAILED_OPEN_OUT_TRACE, NULL);
       }
    }
    if (!x86_quiet_mode) {

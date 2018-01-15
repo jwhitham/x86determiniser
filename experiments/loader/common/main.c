@@ -39,7 +39,7 @@ int main (int argc, char ** argv)
       static struct option long_options[] = {
          {"out-trace", 1, 0, 'o'},
          {"branch-trace", 1, 0, 'b'},
-         {"debug", 0, 0, 0},
+         {"debug", 0, 0, 'd'},
          {"version", 0, 0, 'v'},
          {"help", 0, 0, '?'},
          {NULL, 0, 0, 0},

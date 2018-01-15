@@ -3,7 +3,7 @@
 #define MAX_FILE_NAME_SIZE 1024
 #define MAX_PROC_NAME_SIZE 128
 
-#include "version.h"
+#include "x86d_version.h"
 
 #define MAX_INTERNAL_VERSION_SIZE (sizeof (INTERNAL_VERSION) + 1)
 

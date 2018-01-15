@@ -14,7 +14,7 @@ int _CRT_glob = 0; /* don't expand wildcards when parsing command-line args */
 #define dbg_printf if (pcs->debugEnabled) printf
 #define err_printf printf
 
-static void DefaultHandler (
+static DWORD DefaultHandler (
       CommStruct * pcs,
       const char * state, DEBUG_EVENT * pDebugEvent,
       PROCESS_INFORMATION * pProcessInformation);
@@ -265,6 +265,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    char startInstruction = 0;
    char *commandLine;
    char binFolder[BUFSIZ];
+   DWORD todo = DBG_CONTINUE;
 
    memset (&startupInfo, 0, sizeof (startupInfo));
    memset (&processInformation, 0, sizeof (processInformation));
@@ -345,6 +346,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // actually reached
    while (!startAddress) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
+      todo = todo;
       if (!rc) {
          err_printf ("INITIAL: WaitForDebugEvent: error %d\n", (int) GetLastError());
          exit (1);
@@ -383,11 +385,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             }
             break;
          default:
-            DefaultHandler (pcs, "INITIAL", &debugEvent, &processInformation);
+            todo = DefaultHandler (pcs, "INITIAL", &debugEvent, &processInformation);
             break;
       }
       ContinueDebugEvent
-         (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+         (debugEvent.dwProcessId, debugEvent.dwThreadId, todo);
    }
    dbg_printf ("INITIAL: startAddress = %p\n", startAddress);
 
@@ -398,6 +400,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // before the first instruction
    while (!startContext.Eip) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
+      todo = todo;
       if (!rc) {
          err_printf ("AWAIT_FIRST: WaitForDebugEvent: error %d\n", (int) GetLastError());
          exit (1);
@@ -460,11 +463,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
                      break;
                   default:
-                     DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
+                     todo = DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
                      break;
                }
             } else {
-               DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
+               todo = DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
             }
             break;
          case LOAD_DLL_DEBUG_EVENT:
@@ -485,11 +488,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             }
             break;
          default:
-            DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
+            todo = DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
             break;
       }
       ContinueDebugEvent
-         (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+         (debugEvent.dwProcessId, debugEvent.dwThreadId, todo);
    }
 
    // AWAIT_REMOTE_LOADER_BP STAGE
@@ -498,6 +501,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // procedure.
    while (!singleStepProc) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
+      todo = todo;
       if (!rc) {
          err_printf ("AWAIT_REMOTE_LOADER_BP: WaitForDebugEvent: error %d\n", (int) GetLastError());
          exit (1);
@@ -518,7 +522,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   case STATUS_BREAKPOINT:
                      // EAX contains an error code, or 0x101 on success
                      if (context.Eax != 0x101) {
-                        DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+                        todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
                      }
                      // EBX contains the address of the single step handler
                      singleStepProc = (void *) context.Ebx;
@@ -542,19 +546,19 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      SetThreadContext (processInformation.hThread, &context);
                      break;
                   default:
-                     DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+                     todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
                      break;
                }
             } else {
-               DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+               todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
             }
             break;
          default:
-            DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+            todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
             break;
       }
       ContinueDebugEvent
-         (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+         (debugEvent.dwProcessId, debugEvent.dwThreadId, todo);
    }
 
    while (TRUE) {
@@ -565,6 +569,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       run = TRUE;
       while (run) {
          rc = WaitForDebugEvent (&debugEvent, INFINITE);
+         todo = todo;
          if (!rc) {
             err_printf ("RUNNING: WaitForDebugEvent: error %d\n", (int) GetLastError());
             exit (1);
@@ -597,19 +602,19 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         SetThreadContext (processInformation.hThread, &context);
                         break;
                      default:
-                        DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
+                        todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
                         break;
                   }
                } else {
-                  DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
+                  todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
                }
                break;
             default:
-               DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
+               todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
                break;
          }
          ContinueDebugEvent
-            (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+            (debugEvent.dwProcessId, debugEvent.dwThreadId, todo);
       }
 
       // SINGLE_STEP STATE
@@ -618,6 +623,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
       while (!run) {
          rc = WaitForDebugEvent (&debugEvent, INFINITE);
+         todo = todo;
          if (!rc) {
             err_printf ("SINGLE_STEP: WaitForDebugEvent: error %d\n", (int) GetLastError());
             exit (1);
@@ -657,30 +663,31 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         run = TRUE;
                         break;
                      default:
-                        DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
+                        todo = DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
                         break;
                   }
                } else {
-                  DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
+                  todo = DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
                }
                break;
             default:
-               DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
+               todo = DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
                break;
          }
          ContinueDebugEvent
-            (debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
+            (debugEvent.dwProcessId, debugEvent.dwThreadId, todo);
       }
    }
    return 0;
 }
 
 /* Handle a debug event without doing anything special */
-static void DefaultHandler (
+static DWORD DefaultHandler (
       CommStruct * pcs,
       const char * state, DEBUG_EVENT * pDebugEvent,
       PROCESS_INFORMATION * pProcessInformation)
 {
+   DWORD todo = DBG_CONTINUE;
    switch (pDebugEvent->dwDebugEventCode) {
       case CREATE_PROCESS_DEBUG_EVENT:
          err_printf ("%s: received a second CREATE_PROCESS_DEBUG_EVENT "
@@ -715,7 +722,10 @@ static void DefaultHandler (
                   break;
                default:
                   // pass through
-                  dbg_printf ("%s: Exception at %p\n", state, (void *) context.Eip);
+                  dbg_printf ("%s: Exception at %p code 0x%0x\n",
+                     state, (void *) context.Eip,
+                     (unsigned) pDebugEvent->u.Exception.ExceptionRecord.ExceptionCode);
+                  todo = DBG_EXCEPTION_NOT_HANDLED;
                   break;
             }
          }
@@ -738,5 +748,6 @@ static void DefaultHandler (
       default:
          break;
    }
+   return todo;
 }
 
