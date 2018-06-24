@@ -12,9 +12,17 @@
 #endif
 
 #define TRIGGER_LEVEL   0x1000000
-#define AFTER_FLAG      0x80000000U
-#define MARKER_FLAG     0x40000000U
-#define PC_MASK         0x3fffffffU
+
+// branch trace encoding data (see DOC-18054 section 8)
+#define WORD_DATA_MASK  0x0fffffffU
+#define CEM             0x00000000U
+#define BNT             0x10000000U
+#define SA              0x20000000U
+#define BT              0x30000000U
+#define SM              0x40000000U
+
+#define BRANCH_TRACE_REFRESH_INTERVAL 10000
+
 
 static uint8_t          entry_flag = 1;
 uint8_t                 x86_quiet_mode = 0;
@@ -24,6 +32,8 @@ static uint32_t         min_address = 0;
 static uint32_t         max_address = 0;
 static uint8_t *        bitmap = NULL;
 
+static uint32_t         branch_trace_temp = 0;
+static uint32_t         branch_trace_refresh = BRANCH_TRACE_REFRESH_INTERVAL;
 static FILE *           branch_trace = NULL;
 
 static uint64_t         inst_count = 0;
@@ -60,6 +70,47 @@ static void dump_regs (uint32_t * gregs)
     printf (" EDI = %08x  ", gregs[REG_EDI]);
     printf (" EBP = %08x  ", gregs[REG_EBP]);
     printf (" ESP = %08x\n", gregs[REG_ESP]);
+}
+
+// encode some element into the branch trace, with correct handling
+// for values greater than 1 << 28
+static void branch_trace_encode (uint32_t trace_opcode, uint32_t addr)
+{
+    if (branch_trace) {
+        uint32_t top_nibble = addr >> 28;
+
+        if ((top_nibble != branch_trace_temp)
+        || (branch_trace_refresh == 0)) {
+            /* set the value of the top nibble used in the branch trace using
+             * the SM trace opcode */
+            branch_trace_temp = top_nibble;
+            branch_trace_refresh = BRANCH_TRACE_REFRESH_INTERVAL;
+            fprintf (branch_trace, "%08x %08x\n", SM | top_nibble, (uint32_t) inst_count);
+        }
+        /* write an element to the branch trace */
+        fprintf (branch_trace, "%08x %08x\n", trace_opcode | (addr & WORD_DATA_MASK), (uint32_t) inst_count);
+        branch_trace_refresh --;
+    }
+}
+
+// write taken branch to branch trace
+static inline void branch_taken (uint32_t src, uint32_t dest)
+{
+    if (branch_trace
+    && (src >= min_address) && (src <= max_address)
+    && (dest >= min_address) && (dest <= max_address)) {
+         branch_trace_encode (SA, src);
+         branch_trace_encode (BT, dest);
+    }
+}
+
+// write not taken branch to branch trace
+static inline void branch_not_taken (uint32_t src)
+{
+    if (branch_trace
+    && (src >= min_address) && (src <= max_address)) {
+         branch_trace_encode (BNT, src);
+    }
 }
 
 // single step print_trigger_counted
@@ -103,6 +154,7 @@ void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
 static int interpret_control_flow (void)
 {
     uint32_t pc = x86_other_context[REG_EIP];
+    uint32_t src = pc;
     uint8_t * pc_bytes = (uint8_t *) pc;
     uint32_t flags = x86_other_context[REG_EFL];
     uint32_t branch = 0;
@@ -166,16 +218,15 @@ static int interpret_control_flow (void)
             pc += 2;
             if (branch) {
                 pc += (int8_t) pc_bytes[1];
+                branch_taken (src, pc);
+            } else {
+                branch_not_taken (src);
             }
             break;
         case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
         case 0xe7: // OUT imm8, EAX
             pc += 2;
-            if (branch_trace) {
-               fprintf (branch_trace, "%08x %08x\n",
-                     MARKER_FLAG | (uint32_t) pc_bytes[1],
-                     (uint32_t) inst_count);
-            }
+            branch_trace_encode (CEM, pc_bytes[1]);
             printf ("marker %u\n", (uint32_t) pc_bytes[1]);
             break;
         case 0x0f: // Two-byte instructions
@@ -233,6 +284,9 @@ static int interpret_control_flow (void)
                     if (branch) {
                         offset = (uint32_t *) &pc_bytes[2];
                         pc += offset[0];
+                        branch_taken (src, pc);
+                    } else {
+                        branch_not_taken (src);
                     }
                     break;
                 case 0x31: // RDTSC
@@ -249,6 +303,7 @@ static int interpret_control_flow (void)
             pc += 5;
             offset = (uint32_t *) &pc_bytes[1];
             pc += offset[0];
+            branch_taken (src, pc);
             break;
 
         case 0xe8: // CALL
@@ -259,6 +314,7 @@ static int interpret_control_flow (void)
             stack[0] = pc;
             x86_other_context[REG_ESP] = (intptr_t) stack;
             pc += offset[0];
+            branch_taken (src, pc);
             break;
 
         case 0xf3: // REPZ
@@ -271,6 +327,7 @@ static int interpret_control_flow (void)
             pc = stack[0];
             stack++;
             x86_other_context[REG_ESP] = (intptr_t) stack;
+            branch_taken (src, pc);
             break;
 
         case 0xff:
@@ -340,11 +397,13 @@ static int interpret_control_flow (void)
                     x86_other_context[REG_ESP] = (intptr_t) stack;
                     stack[0] = pc;
                     pc = rm;
+                    branch_taken (src, pc);
                     break;
                 case 3: // CALLF
                     return 0;
                 case 4: // JMP
                     pc = rm;
+                    branch_taken (src, pc);
                     break;
                 case 5: // JMPF
                     return 0;
@@ -444,20 +503,8 @@ void x86_interpreter (void)
                 x86_other_context[REG_EFL] |= FLAG_TF;
                 x86_switch_to_user ((uint32_t) fake_endpoint);
                 x86_other_context[REG_EFL] &= ~FLAG_TF;
-            }
 
-            // branch taken
-            if (branch_trace
-            && (pc_end >= min_address)
-            && (pc_end <= max_address)
-            && ((uint32_t) x86_other_context[REG_EIP] >= min_address)
-            && ((uint32_t) x86_other_context[REG_EIP] <= max_address)) {
-               fprintf (branch_trace, "%08x %08x\n",     // before
-                     PC_MASK & pc_end,
-                     (uint32_t) inst_count);
-               fprintf (branch_trace, "%08x %08x\n",     // after
-                     AFTER_FLAG | (PC_MASK & (uint32_t) x86_other_context[REG_EIP]),
-                     (uint32_t) inst_count);
+                branch_taken (pc_end, x86_other_context[REG_EIP]);
             }
 
         } else {

@@ -1,0 +1,31 @@
+-- x86determiniser for Ada projects
+-- 
+-- 1. Copy this gpr and libx86determiniser.* files into the project
+-- 
+-- 2. Add this line into the project's main gpr file:
+--    with "determiniser";
+-- 
+-- 3. Then modify the project's main procedure to contain the code below:
+--    + with System;
+--      
+--      procedure <main procedure> is
+--    +    SEH : aliased array (1 .. 2) of Integer;
+--      
+--    +    procedure startup_x86_determiniser (ER : System.Address);
+--    +    pragma Import (C, startup_x86_determiniser, "startup_x86_determiniser");
+--         
+--      begin
+--    +    startup_x86_determiniser (SEH'Address);
+--         
+--         -- body of main procedure
+--      end <main procedure>;
+
+project determiniser is
+   for Languages use ("C");
+
+   for Externally_Built use "true";
+   for Library_Kind use "dynamic";
+   for Library_Name use "x86determiniser";
+   for Library_Dir use ".";
+   for Source_Files use ();
+end determiniser;
