@@ -174,8 +174,15 @@ static int interpret_control_flow (void)
         case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
         case 0xe7: // OUT imm8, EAX
             pc += 2;
-            branch_trace_encode (CEM, pc_bytes[1]);
-            printf ("marker %u\n", (uint32_t) pc_bytes[1]);
+            if (pc_bytes[1] == 0x30) {
+               // write to port 0x30 (cem_io_port)
+               unsigned v = x86_other_context[REG_EAX];
+               if (pc_bytes[0] == 0xe6) {
+                  v = v & 0xff;
+               }
+               branch_trace_encode (CEM, v & WORD_DATA_MASK);
+               printf ("marker %u\n", (uint32_t) v);
+            }
             break;
         case 0x0f: // Two-byte instructions
             switch (pc_bytes[1]) {
