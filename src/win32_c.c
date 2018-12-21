@@ -28,9 +28,9 @@ void x86_make_text_writable (uint32_t min_address, uint32_t max_address)
 
 EXCEPTION_DISPOSITION __cdecl
 new_handler (PEXCEPTION_RECORD ExceptionRecord,
-			  void *EstablisherFrame,
-			  PCONTEXT ContextRecord,
-			  void *DispatcherContext)
+              void *EstablisherFrame,
+              PCONTEXT ContextRecord,
+              void *DispatcherContext)
 {
    if (ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP) {
       uint32_t * gregs = (uint32_t *) ContextRecord;
@@ -47,6 +47,12 @@ void startup_x86_determiniser (uint32_t * ER)
     char objdump_cmd[BUFSIZ + 128];
     unsigned rc;
     uint32_t ptr = 0;
+    const char * x86_disabled = getenv ("X86D_DISABLED");
+
+    if (x86_disabled && (atoi (x86_disabled) != 0)) {
+        printf ("libx86determiniser is disabled by environment variable; running code natively\n");
+        return; // skip initialisation, run program natively
+    }
 
     if (!ER) {
         fputs ("startup_x86_determiniser must be passed an SEH "

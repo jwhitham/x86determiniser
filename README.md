@@ -23,9 +23,8 @@ compiled with GCC.
 The interpreter can be trivially extended to produce a trace of executed instructions,
 register values, memory accesses and so forth.
 
-The x86 conditional branch decoding is based on i8086emu, which is 
-copyright (c) 2004 by Joerg Mueller-Hipper, Robert Dinse, Fred Brodmueller,
-Christian Steineck. See http://sourceforge.net/projects/i8086emu/ .
+All of the code is copyright (c) 2015-2018 by Jack Whitham.
 
-The rest of the code is copyright (c) 2015 by Jack Whitham.
+x86determiniser has been relicenced under the Lesser GNU Public License version 2.1
+so that non-GPL software may be linked to it and distributed.
 

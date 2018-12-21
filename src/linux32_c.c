@@ -72,6 +72,12 @@ void startup_x86_determiniser (uint32_t * ER)
     struct sigaction sa;
     char objdump_cmd[BUFSIZ];
     int rc;
+    const char * x86_disabled = getenv ("X86D_DISABLED");
+
+    if (x86_disabled && (atoi (x86_disabled) != 0)) {
+        printf ("libx86determiniser is disabled by environment variable; running code natively\n");
+        return; // skip initialisation, run program natively
+    }
 
     // be ready for breakpoints
     memset (&sa, 0, sizeof (struct sigaction));
