@@ -2,10 +2,11 @@
 
 CC=/c/TDM-GCC-64/bin/gcc
 #CC=gcc
-CFLAGS32=-g -Wall -m32 -DWIN32
-CFLAGS64=-g -Wall -m64 -DWIN32
+CFLAGS=-DWIN32 -std=c99 -g -Wall -DZYDIS_STATIC_DEFINE
+CFLAGS32=-m32 $(CFLAGS)
+CFLAGS64=-m64 $(CFLAGS)
 LOADER_LIBS=-lpsapi
-BINUTILS=distest/binutils-2.29.1
+ZYDIS=determiniser/zydis-2.0.2
 
 VERSION=2.0
 
@@ -36,14 +37,25 @@ DETERMINISER_SRCS=\
    $(DETERMINISER_COMMON)/x86_common_asm.S \
    $(DETERMINISER_PLATFORM)/win32_asm.S \
    $(DETERMINISER_PLATFORM)/win32_c.c \
-   $(BINUTILS)/opcodes/i386-dis.c
+   $(ZYDIS)/src/Decoder.c \
+   $(ZYDIS)/src/DecoderData.c \
+   $(ZYDIS)/src/Formatter.c \
+   $(ZYDIS)/src/MetaInfo.c \
+   $(ZYDIS)/src/Mnemonic.c \
+   $(ZYDIS)/src/Register.c \
+   $(ZYDIS)/src/SharedData.c \
+   $(ZYDIS)/src/String.c \
+   $(ZYDIS)/src/Utils.c \
+   $(ZYDIS)/src/Zydis.c
 HEADERS=\
    $(LOADER_COMMON)/remote_loader.h \
    $(GENERATED)/x86d_version.h
 MAKE_H_SRCS=$(DETERMINISER_COMMON)/make_h.c
 MAKE_H=$(GENERATED)/make_h$(EXE)
 OFFSETS_H=$(GENERATED)/offsets.h
-INCS=-I$(BINUTILS)/bfd -I$(BINUTILS)/include  \
+INCS=-I$(ZYDIS)/include \
+   -I$(ZYDIS)/msvc \
+   -I$(ZYDIS)/src \
    -I$(GENERATED) -I$(LOADER_COMMON) -I$(DETERMINISER_COMMON) \
    -I$(LOADER_PLATFORM) -I$(DETERMINISER_PLATFORM)
 

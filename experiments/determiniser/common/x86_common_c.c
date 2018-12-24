@@ -1,5 +1,4 @@
 //#define DEBUG
-#include <config.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -7,7 +6,7 @@
 #include <stdarg.h>
 #include <ctype.h>
 
-#include <dis-asm.h>
+#include <Zydis/Zydis.h>
 
 #include "offsets.h"
 #include "x86_flags.h"
@@ -30,6 +29,8 @@ static FILE *           branch_trace = NULL;
 static FILE *           out_trace = NULL;
 
 static uint64_t         inst_count = 0;
+static ZydisDecoder     decoder;
+static ZydisFormatter   formatter;
 
 
 extern uint32_t x86_other_context[];
@@ -494,191 +495,52 @@ void x86_interpreter (void)
     } while (1);
 }
 
-static int startswith (const char * line, const char * search)
-{ 
-    unsigned i;
-
-    for (i = 0; (line[i] == search[i]) && (line[i] != '\0'); i++) {}
-
-    if (line[i] == search[i]) {
-        return 1; // both strings are the same
-    } else if (search[i] == '\0') {
-        return 1; // line starts with search
-    } else {
-        return 0; // line does not start with search
-    }
-}
-
-int print_insn_i386 (bfd_vma pc, disassemble_info *info);
-
-//enum bfd_architecture bfd_get_arch (bfd * x) { (void) x; return 0; }
-//unsigned long bfd_get_mach (bfd * x) { (void) x; return 0; }
-
-/* Function called to check if a SYMBOL is can be displayed to the user.
- This is used by some ports that want to hide special symbols when
- displaying debugging outout.  */
-static bfd_boolean symbol_is_valid (asymbol *s, struct disassemble_info *dinfo)
-{
-    (void) s;
-    (void) dinfo;
-    return FALSE;
-}
-
-/* Function called to determine if there is a symbol at the given ADDR.
- If there is, the function returns 1, otherwise it returns 0.
- This is used by ports which support an overlay manager where
- the overlay number is held in the top part of an address.  In
- some circumstances we want to include the overlay number in the
- address, (normally because there is a symbol associated with
- that address), but sometimes we want to mask out the overlay bits.  */
-static int symbol_at_address_func (bfd_vma addr, struct disassemble_info *dinfo)
-{
-    (void) addr;
-    (void) dinfo;
-    return 0;
-}
-
-/* Function called to print ADDR.  */
-static void print_address_func (bfd_vma addr, struct disassemble_info *dinfo)
-{
-    dinfo->fprintf_func (dinfo->stream, "%p", (void *) ((intptr_t) addr));
-}
-
-/* Function which should be called if we get an error that we can't
- recover from.  STATUS is the errno value from read_memory_func and
- MEMADDR is the address that we were trying to read.  INFO is a
- pointer to this struct.  */
-static void memory_error_func (int status, bfd_vma memaddr, struct disassemble_info *dinfo)
-{
-   (void) dinfo;
-   printf ("RUNNING: memory_error_func status %d addr %p\n", status, (void *) ((intptr_t) memaddr));
-   x86_bp_trap (FAILED_DISASSEMBLE_ERROR, NULL);
-}
-
-/* Function used to get bytes to disassemble.  MEMADDR is the
- address of the stuff to be disassembled, MYADDR is the address to
- put the bytes in, and LENGTH is the number of bytes to read.
- INFO is a pointer to this struct.
- Returns an errno value or 0 for success.  */
-static int read_memory_func (bfd_vma memaddr, bfd_byte *myaddr, unsigned int length, struct disassemble_info *dinfo)
-{
-   unsigned i;
-   for (i = 0; (i < length) && (memaddr < max_address); i++) {
-      *myaddr = *((char *) ((intptr_t) memaddr));
-      myaddr ++;
-      memaddr ++;
-   }
-   for (; i < length; i++) {
-      *myaddr = 0x90;
-      myaddr ++;
-   }
-   (void) dinfo;
-   return 0;
-}
-
-typedef struct stream_struct {
-   unsigned size;
-   char data[BUFSIZ];
-} stream_struct;
-
-//typedef int (*fprintf_ftype) (void *, const char*, ...) ATTRIBUTE_FPTR_PRINTF_2;
-static int scan_printf (void *s, const char *formatstring, ...)
-{
-   va_list args;
-   stream_struct * stream = (stream_struct *) s;
-   int rc;
-   va_start (args, formatstring);
-   rc = vsnprintf (&stream->data[stream->size],
-                   BUFSIZ - stream->size,
-                   formatstring,
-                   args);
-   if (rc > 0) {
-      stream->size += rc;
-   }
-   stream->data[stream->size] = '\0';
-   return rc;
-}
-
-char * stpcpy (char * dest, const char * src)
-{
-   while (*src) {
-      *dest = *src;
-      dest ++;
-      src ++;
-   }
-   *dest = '\0';
-   return dest;
-}
-
 static void superblock_decoder (superblock_info * si, uint32_t pc)
 {
-   struct disassemble_info di;
-   struct stream_struct stream;
    uint32_t address;
    char special = 'X';
 
    if (!x86_quiet_mode) {
       printf ("DECODE: new superblock: %08x\n", pc);
    }
-   memset (&stream, 0, sizeof (stream));
-   memset (&di, 0, sizeof (di));
-   di.read_memory_func = read_memory_func;
-   di.memory_error_func = memory_error_func;
-   di.print_address_func = print_address_func;
-   di.symbol_at_address_func = symbol_at_address_func;
-   di.symbol_is_valid = symbol_is_valid;
-   di.mach = bfd_mach_i386_i386;     /* 32 bit */
-   di.fprintf_func = (fprintf_ftype) scan_printf;
-   di.stream = (void *) &stream;
-   si->count = 0;
 
    address = pc;
    while (address < max_address) {
-      char *      scan = stream.data;
-      int         rc;
+      ZydisDecodedInstruction instruction;
 
-      stream.data[0] = '\0';
-      stream.size = 0;
       si->count ++;
-      rc = print_insn_i386 (address, &di);
-      if (rc <= 0) {
+      if (!ZYDIS_SUCCESS (ZydisDecoderDecodeBuffer
+            (&decoder, (const char *) address, 32, address, &instruction))) {
          // invalid instruction? Assume end of superblock
          special = '?';
          break;
       }
       if (!x86_quiet_mode) {
-         printf ("DECODE: %08x: %s\n", address, scan);
+         char buffer[256];
+         ZydisFormatterFormatInstruction
+           (&formatter, &instruction, buffer, sizeof(buffer));
+         printf ("DECODE: %08x: %s\n", address, buffer);
       }
       special = '\0';
-
-      switch (scan[0]) {
-         case 'j':
+      switch (instruction.meta.category) {
+         case ZYDIS_CATEGORY_COND_BR:
+         case ZYDIS_CATEGORY_UNCOND_BR:
             special = 'J';
             break;
-         case 'c':
-            if (startswith (scan, "call")) {
-               special = 'C';
-            }
+         case ZYDIS_CATEGORY_CALL:
+            special = 'C';
             break;
-         case 'l':
-            if (startswith (scan, "loop")) {
-               special = 'J';
-            }
+         case ZYDIS_CATEGORY_RET:
+            special = 'R';
             break;
-         case 'r':
-            if (startswith (scan, "ret") || startswith (scan, "repz ret")) {
-               special = 'R';
-            } else if (startswith (scan, "rdtsc")) {
+         case ZYDIS_CATEGORY_SYSTEM:
+            if (instruction.mnemonic == ZYDIS_MNEMONIC_RDTSC) {
                special = 't';
             }
             break;
-         case 'o':
-            if (startswith (scan, "out")) {
-               special = 't';
-            }
-            break;
-         case 'i':
-            if (startswith (scan, "in")) {
+         case ZYDIS_CATEGORY_IO:
+            if ((instruction.mnemonic == ZYDIS_MNEMONIC_OUT)
+            || (instruction.mnemonic == ZYDIS_MNEMONIC_IN)) {
                special = 't';
             }
             break;
@@ -687,7 +549,8 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
          // End of superblock reached
          break;
       }
-      address += rc; }
+      address += instruction.length;
+   }
    si->size = address - pc;
    if (!x86_quiet_mode) {
       printf ("DECODE: superblock %08x has %u instructions "
@@ -749,6 +612,11 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
    }
    if (!x86_quiet_mode) {
       fflush (stdout);
+   }
+
+   ZydisDecoderInit (&decoder, ZYDIS_MACHINE_MODE_LEGACY_32, ZYDIS_ADDRESS_WIDTH_32);
+   if (!x86_quiet_mode) {
+      ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
    }
 
    //x86_make_text_writable (min_address, max_address);

@@ -29,7 +29,7 @@ void RemoteLoader (CommStruct * cs)
    x86DeterminiserStartup (cs);
 error:
    /* similar to x86_bp_trap but we can't use that from this procedure */
-   asm volatile ("mov %0, %%eax\nmov $0, %%ebx\nint3" : : "r"(rc));
+   __asm__ volatile ("mov %0, %%eax\nmov $0, %%ebx\nint3" : : "r"(rc));
 }
 
 void RemoteLoaderEnd (void) {}
