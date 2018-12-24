@@ -1,8 +1,0 @@
-#!/bin/bash -xe
-
-cd /c/Users/jack/x86determiniser/experiments/distest
-
-B=binutils-2.29.1
-gcc -o x.elf test.c $B/opcodes/i386-dis.c -g \
-    -I$B/include -I.
-

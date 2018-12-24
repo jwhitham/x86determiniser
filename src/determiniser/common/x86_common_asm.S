@@ -13,12 +13,14 @@
 .global x86_other_context
 .global x86_size_of_indirect_call_instruction
 .global x86_bp_trap
+.global x86_is_branch_taken 
 .global _x86_switch_to_user
 .global _x86_switch_from_user
 .global _x86_begin_single_step
 .global _x86_other_context
 .global _x86_size_of_indirect_call_instruction
 .global _x86_bp_trap
+.global _x86_is_branch_taken 
 .text
 
 
@@ -117,6 +119,7 @@ _x86_switch_to_user:
     xchg    %esp, OFF_ESP + x86_other_context
     jmp     *(OFF_EIP + x86_other_context)       /* user PC */
 
+.align 4
 _x86_switch_from_user:
 x86_switch_from_user:
     /* save the user context */
@@ -156,4 +159,90 @@ x86_bp_trap:
     int3
     mov     $0x9999,%eax    /* should never be reached */
     int3
+
+.align 4
+#define CF 1    /* carry */
+#define PF 4    /* parity */
+#define ZF 64   /* zero */
+#define SF 128  /* sign */
+#define OF 2048 /* overflow */
+#define FLAG_MASK (CF | PF | ZF | SF | OF)
+
+/* int x86_is_branch_taken (uint32_t flags, uint8_t opcode) */
+x86_is_branch_taken:
+_x86_is_branch_taken:
+    movl    4(%esp), %edx       /* get flags parameter */
+    pushf                       /* get CPU flags */
+    popl    %eax                
+    andl    $~FLAG_MASK, %eax   /* zero bits CF/PF/ZF/SF/OF */
+    andl    $FLAG_MASK, %edx    /* keep only bits CF/PF/ZF/SF/OF */
+    orl     %edx, %eax
+    pushl   %eax                /* store new CPU flags on stack */
+
+    xorl    %eax, %eax          /* return value is zero by default */
+
+    movzbl  12(%esp), %edx      /* get opcode parameter */
+    andl    $15, %edx           /* keep low nibble only */
+    lea     .Ljump_base(,%edx,4), %edx  /* dispatch within table (below) */
+
+    popf                        /* update flags */
+    jmp     *%edx
+
+.Ljump_base:
+    jo      .Ltaken
+    ret
+    nop
+    jno     .Ltaken
+    ret
+    nop
+    jb      .Ltaken
+    ret
+    nop
+    jnb     .Ltaken
+    ret
+    nop
+
+    je      .Ltaken
+    ret
+    nop
+    jne     .Ltaken
+    ret
+    nop
+    jbe     .Ltaken
+    ret
+    nop
+    jnbe    .Ltaken
+    ret
+    nop
+
+    js      .Ltaken
+    ret
+    nop
+    jns     .Ltaken
+    ret
+    nop
+    jp      .Ltaken
+    ret
+    nop
+    jnp     .Ltaken
+    ret
+    nop
+
+    jl      .Ltaken
+    ret
+    nop
+    jnl     .Ltaken
+    ret
+    nop
+    jle     .Ltaken
+    ret
+    nop
+    jnle    .Ltaken
+    ret
+    nop
+
+.Ltaken:
+    inc     %eax    /* return 1 */
+    ret
+
 

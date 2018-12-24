@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <ctype.h>
 
 #include <Zydis/Zydis.h>
@@ -14,9 +13,18 @@
 #include "x86_common.h"
 
 #define TRIGGER_LEVEL   0x1000000
-#define AFTER_FLAG      0x80000000U
-#define MARKER_FLAG     0x40000000U
-#define PC_MASK         0x3fffffffU
+
+// branch trace encoding data (see ../doc/branch_trace_format.pdf)
+#define WORD_DATA_MASK  0x0fffffffU
+#define CEM             0x00000000U
+#define BNT             0x10000000U
+#define SA              0x20000000U
+#define BT              0x30000000U
+#define SM              0x40000000U
+
+#define BRANCH_TRACE_REFRESH_INTERVAL 10000
+
+#define TRAP_FLAG       0x100
 
 static uint8_t          entry_flag = 1;
 uint8_t                 x86_quiet_mode = 0;
@@ -25,6 +33,8 @@ static uint8_t          fake_endpoint[8];
 static uint32_t         min_address = 0;
 static uint32_t         max_address = 0;
 
+static uint32_t         branch_trace_temp = 0;
+static uint32_t         branch_trace_refresh = BRANCH_TRACE_REFRESH_INTERVAL;
 static FILE *           branch_trace = NULL;
 static FILE *           out_trace = NULL;
 
@@ -32,15 +42,21 @@ static uint64_t         inst_count = 0;
 static ZydisDecoder     decoder;
 static ZydisFormatter   formatter;
 
+typedef struct superblock_info {
+    uint32_t size;
+    uint32_t count;
+} superblock_info;
+
+static superblock_info * superblocks;
 
 extern uint32_t x86_other_context[];
+extern uint8_t x86_switch_from_user[];
+extern uint32_t x86_size_of_indirect_call_instruction;
 
 void x86_switch_to_user (uint32_t endpoint);
 void x86_make_text_writable (uint32_t min_address, uint32_t max_address);
 void x86_begin_single_step (void);
-
-extern uint8_t x86_switch_from_user[];
-extern uint32_t x86_size_of_indirect_call_instruction;
+int x86_is_branch_taken (uint32_t flags, uint8_t opcode);
 
 static void dump_regs (uint32_t * gregs)
 {
@@ -56,14 +72,48 @@ static void dump_regs (uint32_t * gregs)
     printf (" ESP = %08x\n", gregs[REG_ESP]);
 }
 
-typedef struct superblock_info {
-    uint32_t size;
-    uint32_t count;
-} superblock_info;
-
-static superblock_info * superblocks;
-
 static void superblock_decoder (superblock_info * si, uint32_t pc);
+
+// encode some element into the branch trace, with correct handling
+// for values greater than 1 << 28
+static void branch_trace_encode (uint32_t trace_opcode, uint32_t addr)
+{
+    if (branch_trace) {
+        uint32_t top_nibble = addr >> 28;
+
+        if ((top_nibble != branch_trace_temp)
+        || (branch_trace_refresh == 0)) {
+            /* set the value of the top nibble used in the branch trace using
+             * the SM trace opcode */
+            branch_trace_temp = top_nibble;
+            branch_trace_refresh = BRANCH_TRACE_REFRESH_INTERVAL;
+            fprintf (branch_trace, "%08x %08x\n", SM | top_nibble, (uint32_t) inst_count);
+        }
+        /* write an element to the branch trace */
+        fprintf (branch_trace, "%08x %08x\n", trace_opcode | (addr & WORD_DATA_MASK), (uint32_t) inst_count);
+        branch_trace_refresh --;
+    }
+}
+
+// write taken branch to branch trace
+static inline void branch_taken (uint32_t src, uint32_t dest)
+{
+    if (branch_trace
+    && (src >= min_address) && (src <= max_address)
+    && (dest >= min_address) && (dest <= max_address)) {
+         branch_trace_encode (SA, src);
+         branch_trace_encode (BT, dest);
+    }
+}
+
+// write not taken branch to branch trace
+static inline void branch_not_taken (uint32_t src)
+{
+    if (branch_trace
+    && (src >= min_address) && (src <= max_address)) {
+         branch_trace_encode (BNT, src);
+    }
+}
 
 // single step print_trigger_counted
 void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
@@ -79,7 +129,7 @@ void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
         
     pc = gregs[REG_EIP];
 #ifdef DEBUG
-    printf ("RUNNING: stepping EIP %08x ESP %08x entry_flag %u\n", pc, gregs[REG_ESP], entry_flag);
+    printf ("stepping EIP %08x ESP %08x entry_flag %u\n", pc, gregs[REG_ESP], entry_flag);
 #endif
 
     if (!entry_flag) {
@@ -89,177 +139,74 @@ void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
         ((uint32_t *) gregs[REG_ESP])[0] = gregs[REG_EIP] + x86_size_of_indirect_call_instruction; 
         gregs[REG_EIP] = (uint32_t) x86_switch_from_user;
 #ifdef DEBUG
-        printf ("RUNNING: switch from user: new EIP %08x ESP %08x\n", gregs[REG_EIP], gregs[REG_ESP]);
+        printf ("switch from user: new EIP %08x ESP %08x\n", gregs[REG_EIP], gregs[REG_ESP]);
 #endif
-        gregs[REG_EFL] &= ~FLAG_TF;
+        gregs[REG_EFL] &= ~TRAP_FLAG;
     } else if ((pc < min_address) || (pc > max_address)) {
         // Still outside program (probably completing the switch from super -> user)
         // Keep stepping
-        gregs[REG_EFL] |= FLAG_TF;
+        gregs[REG_EFL] |= TRAP_FLAG;
     } else {
         // Stepped one instruction
         entry_flag = 0;
-        gregs[REG_EFL] |= FLAG_TF;
+        gregs[REG_EFL] |= TRAP_FLAG;
     }
 }
 
 static int interpret_control_flow (void)
 {
     uint32_t pc = x86_other_context[REG_EIP];
+    uint32_t src = pc;
     uint8_t * pc_bytes = (uint8_t *) pc;
     uint32_t flags = x86_other_context[REG_EFL];
-    uint32_t branch = 0;
     uint32_t rm = 0;
     uint32_t * offset = NULL;
     uint32_t * stack = NULL;
 
     switch (pc_bytes[0]) {
-        // opcodes 0x70 - 0x7f decoding based on i8086emu - see README.md
-        case 0x70: //JO
-            branch = (flags & FLAG_OF);
-            goto short_relative_branch;
-        case 0x71: //JNO
-            branch = ( !(flags & FLAG_OF) );
-            goto short_relative_branch;
-        case 0x72: //JB/JNAE
-            branch = (flags & FLAG_CF);
-            goto short_relative_branch;
-        case 0x73: //JNB/JAE
-            branch = (!(flags & FLAG_CF));
-            goto short_relative_branch;
-        case 0x74: //JE/JZ
-            branch = (flags & FLAG_ZF);
-            goto short_relative_branch;
-        case 0x75: //JNE/JNZ
-            branch = (!(flags & FLAG_ZF));
-            goto short_relative_branch;
-        case 0x76: //JBE/JNA
-            branch = ((flags & FLAG_CF) || (flags & FLAG_ZF));
-            goto short_relative_branch;
-        case 0x77: //JNBE/JA
-            branch = ( (!(flags & FLAG_CF)) && (!(flags & FLAG_ZF)) );
-            goto short_relative_branch;
-        case 0x78: //JS
-            branch = (flags & FLAG_SF);
-            goto short_relative_branch;
-        case 0x79: //JNS
-            branch = ( !(flags & FLAG_SF) );
-            goto short_relative_branch;
-        case 0x7a: //JP/JPE
-            branch = (flags & FLAG_PF);
-            goto short_relative_branch;
-        case 0x7b: //JNP/JPO
-            branch = ( !(flags & FLAG_PF) );
-            goto short_relative_branch;
-        case 0x7c: //JL/JNGE
-            branch = (((flags & FLAG_SF) << 4) != (flags & FLAG_OF));
-            goto short_relative_branch;
-        case 0x7d: //JNL/JGE
-            branch = (((flags & FLAG_SF) << 4) == (flags & FLAG_OF));
-            goto short_relative_branch;
-        case 0x7e: //JLE/JNG
-            branch = ((flags & FLAG_ZF) || (((flags & FLAG_SF) << 4) != (flags & FLAG_OF)));
-            goto short_relative_branch;
-        case 0x7f: //JNLE/JG
-            branch = ( (!(flags & FLAG_ZF)) && (((flags & FLAG_SF) << 4) == (flags & FLAG_OF)) );
-            goto short_relative_branch;
-        case 0xeb: // JMP (short)
-            branch = 1;
-        short_relative_branch:
+        case 0x70: case 0x71: case 0x72: case 0x73: // various conditional branches
+        case 0x74: case 0x75: case 0x76: case 0x77:
+        case 0x78: case 0x79: case 0x7a: case 0x7b:
+        case 0x7c: case 0x7d: case 0x7e: case 0x7f:
             pc += 2;
-            if (branch) {
+            if (x86_is_branch_taken (flags, pc_bytes[0])) {
                 pc += (int8_t) pc_bytes[1];
+                branch_taken (src, pc);
+            } else {
+                branch_not_taken (src);
             }
             break;
-        case 0xe4: // IN imm8, AL (special instruction; reset counter)
+        case 0xeb: // JMP (short)
             pc += 2;
-            inst_count = 0;
-            break;
-        case 0xe5: // IN imm8, EAX (special instruction; read and reset counter)
-            pc += 2;
-            x86_other_context[REG_EAX] = inst_count;
-            inst_count = 0;
+            pc += (int8_t) pc_bytes[1];
+            branch_taken (src, pc);
             break;
         case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
         case 0xe7: // OUT imm8, EAX
             pc += 2;
-            if (branch_trace) {
-               fprintf (branch_trace, "%08x %08x\n",
-                     MARKER_FLAG | (uint32_t) pc_bytes[1],
-                     (uint32_t) inst_count);
-            }
-            if (out_trace) {
-               // fields:
-               //  port number
-               //  inst count
-               //  value (AL or EAX)
-               fprintf (out_trace, "%02x %08x %08x\n",
-                     (uint32_t) pc_bytes[1],
-                     (uint32_t) inst_count,
-                     ((pc_bytes[0] == 0xe6) ?
-                        (x86_other_context[REG_EAX] & 0xff) :
-                        x86_other_context[REG_EAX]));
-            }
-            if (!x86_quiet_mode) {
-               printf ("MARKER: %u\n", (uint32_t) pc_bytes[1]);
-               fflush (stdout);
+            if (pc_bytes[1] == 0x30) {
+               // write to port 0x30 (cem_io_port)
+               unsigned v = x86_other_context[REG_EAX];
+               if (pc_bytes[0] == 0xe6) {
+                  v = v & 0xff;
+               }
+               branch_trace_encode (CEM, v & WORD_DATA_MASK);
+               printf ("marker %u\n", (uint32_t) v);
             }
             break;
         case 0x0f: // Two-byte instructions
             switch (pc_bytes[1]) {
-                // opcodes 0x80 - 0x8f decoding based on i8086emu - see README.md
-                case 0x80: //JO
-                    branch = (flags & FLAG_OF);
-                    goto long_relative_branch;
-                case 0x81: //JNO
-                    branch = ( !(flags & FLAG_OF) );
-                    goto long_relative_branch;
-                case 0x82: //JB/JNAE
-                    branch = (flags & FLAG_CF);
-                    goto long_relative_branch;
-                case 0x83: //JNB/JAE
-                    branch = (!(flags & FLAG_CF));
-                    goto long_relative_branch;
-                case 0x84: //JE/JZ
-                    branch = (flags & FLAG_ZF);
-                    goto long_relative_branch;
-                case 0x85: //JNE/JNZ
-                    branch = (!(flags & FLAG_ZF));
-                    goto long_relative_branch;
-                case 0x86: //JBE/JNA
-                    branch = ((flags & FLAG_CF) || (flags & FLAG_ZF));
-                    goto long_relative_branch;
-                case 0x87: //JNBE/JA
-                    branch = ( (!(flags & FLAG_CF)) && (!(flags & FLAG_ZF)) );
-                    goto long_relative_branch;
-                case 0x88: //JS
-                    branch = (flags & FLAG_SF);
-                    goto long_relative_branch;
-                case 0x89: //JNS
-                    branch = ( !(flags & FLAG_SF) );
-                    goto long_relative_branch;
-                case 0x8a: //JP/JPE
-                    branch = (flags & FLAG_PF);
-                    goto long_relative_branch;
-                case 0x8b: //JNP/JPO
-                    branch = ( !(flags & FLAG_PF) );
-                    goto long_relative_branch;
-                case 0x8c: //JL/JNGE
-                    branch = (((flags & FLAG_SF) << 4) != (flags & FLAG_OF));
-                    goto long_relative_branch;
-                case 0x8d: //JNL/JGE
-                    branch = (((flags & FLAG_SF) << 4) == (flags & FLAG_OF));
-                    goto long_relative_branch;
-                case 0x8e: //JLE/JNG
-                    branch = ((flags & FLAG_ZF) || (((flags & FLAG_SF) << 4) != (flags & FLAG_OF)));
-                    goto long_relative_branch;
-                case 0x8f: //JNLE/JG
-                    branch = ( (!(flags & FLAG_ZF)) && (((flags & FLAG_SF) << 4) == (flags & FLAG_OF)) );
-                long_relative_branch:
+                case 0x80: case 0x81: case 0x82: case 0x83: // various conditional branches
+                case 0x84: case 0x85: case 0x86: case 0x87:
+                case 0x88: case 0x89: case 0x8a: case 0x8b:
+                case 0x8c: case 0x8d: case 0x8e: case 0x8f:
                     pc += 6;
-                    if (branch) {
+                    if (x86_is_branch_taken (flags, pc_bytes[1])) {
                         offset = (uint32_t *) &pc_bytes[2];
                         pc += offset[0];
+                        branch_taken (src, pc);
+                    } else {
+                        branch_not_taken (src);
                     }
                     break;
                 case 0x31: // RDTSC
@@ -276,6 +223,7 @@ static int interpret_control_flow (void)
             pc += 5;
             offset = (uint32_t *) &pc_bytes[1];
             pc += offset[0];
+            branch_taken (src, pc);
             break;
 
         case 0xe8: // CALL
@@ -286,6 +234,7 @@ static int interpret_control_flow (void)
             stack[0] = pc;
             x86_other_context[REG_ESP] = (intptr_t) stack;
             pc += offset[0];
+            branch_taken (src, pc);
             break;
 
         case 0xf3: // REPZ
@@ -298,13 +247,14 @@ static int interpret_control_flow (void)
             pc = stack[0];
             stack++;
             x86_other_context[REG_ESP] = (intptr_t) stack;
+            branch_taken (src, pc);
             break;
 
         case 0xff:
             stack = (uint32_t *) x86_other_context[REG_ESP];
             stack--;
 #ifdef DEBUG
-            printf ("RUNNING: Code ff %02x at %08x, mode %u, R/M %u, opcode %u\n",
+            printf ("Code ff %02x at %08x, mode %u, R/M %u, opcode %u\n",
                 pc_bytes[1], pc, pc_bytes[1] >> 6, pc_bytes[1] & 7, (pc_bytes[1] >> 3) & 7);
 #endif
 
@@ -367,11 +317,13 @@ static int interpret_control_flow (void)
                     x86_other_context[REG_ESP] = (intptr_t) stack;
                     stack[0] = pc;
                     pc = rm;
+                    branch_taken (src, pc);
                     break;
                 case 3: // CALLF
                     return 0;
                 case 4: // JMP
                     pc = rm;
+                    branch_taken (src, pc);
                     break;
                 case 5: // JMPF
                     return 0;
@@ -395,7 +347,7 @@ void x86_interpreter (void)
     uint32_t pc, pc_end;
 
     if (!x86_quiet_mode) {
-        printf ("RUNNING: interpreter startup...\n");
+        printf ("interpreter startup...\n");
     }
 
     // Startup: run until reaching the program
@@ -404,17 +356,17 @@ void x86_interpreter (void)
     printf ("stepping from EIP %08x\n", pc);
 #endif
     entry_flag = 1;
-    x86_other_context[REG_EFL] |= FLAG_TF;
+    x86_other_context[REG_EFL] |= TRAP_FLAG;
     x86_switch_to_user ((uint32_t) fake_endpoint);
-    x86_other_context[REG_EFL] &= ~FLAG_TF;
+    x86_other_context[REG_EFL] &= ~TRAP_FLAG;
     pc = x86_other_context[REG_EIP];
     if ((pc < min_address) || (pc > max_address)) {
-        printf ("RUNNING: Startup did not reach program (at %08x)\n", pc);
+        printf ("Startup did not reach program (at %08x)\n", pc);
         exit (1);
     }
 
     if (!x86_quiet_mode) {
-        printf ("RUNNING: interpreter ok, entry EIP %08x ESP %08x, program running:\n",
+        printf ("interpreter ok, entry EIP %08x ESP %08x, program running:\n",
                     pc, x86_other_context[REG_ESP]);
     }
 
@@ -453,27 +405,15 @@ void x86_interpreter (void)
                 // Forced to single step
 #ifdef DEBUG
                 uint8_t * pc_bytes = (uint8_t *) pc;
-                printf ("RUNNING: Non-interpretable code %02x %02x at %08x\n",
+                printf ("Non-interpretable code %02x %02x at %08x\n",
                     pc_bytes[0], pc_bytes[1], pc);
 #endif
                 entry_flag = 1;
-                x86_other_context[REG_EFL] |= FLAG_TF;
+                x86_other_context[REG_EFL] |= TRAP_FLAG;
                 x86_switch_to_user ((uint32_t) fake_endpoint);
-                x86_other_context[REG_EFL] &= ~FLAG_TF;
-            }
+                x86_other_context[REG_EFL] &= ~TRAP_FLAG;
 
-            // branch taken
-            if (branch_trace
-            && (pc_end >= min_address)
-            && (pc_end <= max_address)
-            && ((uint32_t) x86_other_context[REG_EIP] >= min_address)
-            && ((uint32_t) x86_other_context[REG_EIP] <= max_address)) {
-               fprintf (branch_trace, "%08x %08x\n",     // before
-                     PC_MASK & pc_end,
-                     (uint32_t) inst_count);
-               fprintf (branch_trace, "%08x %08x\n",     // after
-                     AFTER_FLAG | (PC_MASK & (uint32_t) x86_other_context[REG_EIP]),
-                     (uint32_t) inst_count);
+                branch_taken (pc_end, x86_other_context[REG_EIP]);
             }
 
         } else {
@@ -481,13 +421,13 @@ void x86_interpreter (void)
             pc_end = ((uint32_t *) x86_other_context[REG_ESP])[0];
             if ((pc_end < min_address) || (pc_end > max_address)) {
                 if (!x86_quiet_mode) {
-                    printf ("RUNNING: exit interpreter by return to %08x: stop interpretation\n", pc);
+                    printf ("exit interpreter by return to %08x: stop interpretation\n", pc);
                 }
                 x86_switch_to_user ((uint32_t) fake_endpoint);
                 exit (1);
             }
 #ifdef DEBUG
-            printf ("RUNNING: free run: IP %08x SP %08x end %08x\n",
+            printf ("free run: IP %08x SP %08x end %08x\n",
                 pc, x86_other_context[REG_ESP], pc_end);
 #endif
             x86_switch_to_user (pc_end);
