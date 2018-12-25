@@ -2,31 +2,38 @@
 PLATFORM=win32
 include ../$(PLATFORM).cfg
 
-T=../tests
-TB=$(T)/bin
-
-all: $(T)/simple32.ok $(T)/outs.ok
+all: simple32.ok outs.ok ud.ok
 
 clean:
-	-rm -rf $(TB)/simple32$(EXE) $(TB)/outs$(EXE) \
-      $(T)/outs.txt $(T)/outs.ok $(T)/simple32.ok
+	-rm -rf simple32$(EXE) outs$(EXE) ud$(EXE) \
+      *.trace *.ok
 
-$(TB):
-	mkdir -p $(TB)
-
-$(TB)/simple32$(EXE): $(T)/simple.c $(TB)
+# simple32: "Hello World"
+simple32$(EXE): simple.c
 	$(CC) -o $@ $(CFLAGS32) $<
 
-$(TB)/outs$(EXE): $(T)/outs.s $(TB)
+simple32.ok: simple32$(EXE) $(LOADER32_EXE)
+	$(LOADER32_EXE) --branch-trace simple32.ok simple32$(EXE)
+
+# outs: OUT test, make a trace of OUT instructions, compare to reference
+outs$(EXE): outs.s
 	$(CC) -o $@ $(CFLAGS32) $<
 
-$(T)/outs.txt: $(TB)/outs$(EXE) $(LOADER32_EXE)
+outs.trace: outs$(EXE) $(LOADER32_EXE)
 	$(LOADER32_EXE) --out-trace $@ $<
 
-$(T)/outs.ok: $(T)/outs.txt
-	diff -w $(T)/outs.txt $(T)/outs.ref
+outs.ok: outs.trace
+	diff -w outs.trace outs.ref
 	touch $@
 
-$(T)/simple32.ok: $(TB)/simple32$(EXE) $(LOADER32_EXE)
-	$(LOADER32_EXE) --branch-trace $(T)/simple32.ok $(TB)/simple32$(EXE)
+# ud: undefined instruction handling
+ud$(EXE): ud.s
+	$(CC) -o $@ $(CFLAGS32) $<
+
+ud.trace: ud$(EXE) $(LOADER32_EXE)
+	$(LOADER32_EXE) --branch-trace $@ $<
+
+ud.ok: ud.trace
+	diff -w ud.trace ud.ref
+	touch $@
 

@@ -24,7 +24,6 @@
 
 #define BRANCH_TRACE_REFRESH_INTERVAL 10000
 
-#define TRAP_FLAG       0x100
 
 static uint8_t          entry_flag = 1;
 uint8_t                 x86_quiet_mode = 0;
@@ -141,15 +140,15 @@ void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
 #ifdef DEBUG
         printf ("switch from user: new EIP %08x ESP %08x\n", gregs[REG_EIP], gregs[REG_ESP]);
 #endif
-        gregs[REG_EFL] &= ~TRAP_FLAG;
+        gregs[REG_EFL] &= ~SINGLE_STEP_FLAG;
     } else if ((pc < min_address) || (pc > max_address)) {
         // Still outside program (probably completing the switch from super -> user)
         // Keep stepping
-        gregs[REG_EFL] |= TRAP_FLAG;
+        gregs[REG_EFL] |= SINGLE_STEP_FLAG;
     } else {
         // Stepped one instruction
         entry_flag = 0;
-        gregs[REG_EFL] |= TRAP_FLAG;
+        gregs[REG_EFL] |= SINGLE_STEP_FLAG;
     }
 }
 
@@ -377,9 +376,9 @@ void x86_interpreter (void)
     printf ("stepping from EIP %08x\n", pc);
 #endif
     entry_flag = 1;
-    x86_other_context[REG_EFL] |= TRAP_FLAG;
+    x86_other_context[REG_EFL] |= SINGLE_STEP_FLAG;
     x86_switch_to_user ((uint32_t) fake_endpoint);
-    x86_other_context[REG_EFL] &= ~TRAP_FLAG;
+    x86_other_context[REG_EFL] &= ~SINGLE_STEP_FLAG;
     pc = x86_other_context[REG_EIP];
     if ((pc < min_address) || (pc > max_address)) {
         printf ("Startup did not reach program (at %08x)\n", pc);
@@ -430,9 +429,9 @@ void x86_interpreter (void)
                     pc_bytes[0], pc_bytes[1], pc);
 #endif
                 entry_flag = 1;
-                x86_other_context[REG_EFL] |= TRAP_FLAG;
+                x86_other_context[REG_EFL] |= SINGLE_STEP_FLAG;
                 x86_switch_to_user ((uint32_t) fake_endpoint);
-                x86_other_context[REG_EFL] &= ~TRAP_FLAG;
+                x86_other_context[REG_EFL] &= ~SINGLE_STEP_FLAG;
 
                 branch_taken (pc_end, x86_other_context[REG_EIP]);
             }

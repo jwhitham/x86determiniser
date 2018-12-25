@@ -346,7 +346,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // actually reached
    while (!startAddress) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
-      todo = todo;
+      todo = DBG_CONTINUE;
       if (!rc) {
          err_printf ("INITIAL: WaitForDebugEvent: error %d\n", (int) GetLastError());
          exit (1);
@@ -400,7 +400,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // before the first instruction
    while (!startContext.Eip) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
-      todo = todo;
+      todo = DBG_CONTINUE;
       if (!rc) {
          err_printf ("AWAIT_FIRST: WaitForDebugEvent: error %d\n", (int) GetLastError());
          exit (1);
@@ -501,7 +501,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // procedure.
    while (!singleStepProc) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
-      todo = todo;
+      todo = DBG_CONTINUE;
       if (!rc) {
          err_printf ("AWAIT_REMOTE_LOADER_BP: WaitForDebugEvent: error %d\n", (int) GetLastError());
          exit (1);
@@ -521,7 +521,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_BREAKPOINT:
                      // EAX contains an error code, or 0x101 on success
-                     if (context.Eax != 0x101) {
+                     if (context.Eax != COMPLETED_LOADER) {
                         todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
                      }
                      // EBX contains the address of the single step handler
@@ -569,7 +569,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       run = TRUE;
       while (run) {
          rc = WaitForDebugEvent (&debugEvent, INFINITE);
-         todo = todo;
+         todo = DBG_CONTINUE;
          if (!rc) {
             err_printf ("RUNNING: WaitForDebugEvent: error %d\n", (int) GetLastError());
             exit (1);
@@ -590,8 +590,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      case STATUS_SINGLE_STEP:
                         // Reached single step; run single step handler.
                         dbg_printf
-                          ("RUNNING: Single step at %p\n", 
-                           (void *) context.Eip);
+                          ("RUNNING: Single step at %p, go to handler at %p\n", 
+                           (void *) context.Eip, (void *) singleStepProc);
                         fflush (stdout);
                         run = FALSE;
                         StartSingleStepProc
@@ -623,7 +623,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
       while (!run) {
          rc = WaitForDebugEvent (&debugEvent, INFINITE);
-         todo = todo;
+         todo = DBG_CONTINUE;
          if (!rc) {
             err_printf ("SINGLE_STEP: WaitForDebugEvent: error %d\n", (int) GetLastError());
             exit (1);
@@ -645,7 +645,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         // single step procedure finished
                         // EAX contains an error code, or 0x102 on success
                         // EBX is pointer to context, altered by remote
-                        if (context.Eax != 0x102) {
+                        if (context.Eax != COMPLETED_SINGLE_STEP_HANDLER) {
                            err_printf ("SINGLE_STEP: error code 0x%x: %s\n", (int) context.Eax,
                               X86Error ((int) context.Eax));
                            return 1;
