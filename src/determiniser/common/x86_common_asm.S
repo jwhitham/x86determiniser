@@ -173,7 +173,7 @@ x86_is_branch_taken:
 _x86_is_branch_taken:
     movl    4(%esp), %edx       /* get flags parameter */
     pushf                       /* get CPU flags */
-    popl    %eax                
+    popl    %eax
     andl    $~FLAG_MASK, %eax   /* zero bits CF/PF/ZF/SF/OF */
     andl    $FLAG_MASK, %edx    /* keep only bits CF/PF/ZF/SF/OF */
     orl     %edx, %eax

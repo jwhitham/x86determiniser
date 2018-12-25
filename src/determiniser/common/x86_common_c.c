@@ -162,6 +162,7 @@ static int interpret_control_flow (void)
     uint32_t rm = 0;
     uint32_t * offset = NULL;
     uint32_t * stack = NULL;
+    uint32_t v = 0;
 
     switch (pc_bytes[0]) {
         case 0x70: case 0x71: case 0x72: case 0x73: // various conditional branches
@@ -181,17 +182,37 @@ static int interpret_control_flow (void)
             pc += (int8_t) pc_bytes[1];
             branch_taken (src, pc);
             break;
+        case 0xe4: // IN imm8, AL (reset counter)
+            pc += 2;
+            inst_count = 0;
+            break;
+        case 0xe5: // IN imm8, EAX (load and reset set counter)
+            pc += 2;
+            x86_other_context[REG_EAX] = (uint32_t) inst_count;
+            inst_count = 0;
+            break;
         case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
         case 0xe7: // OUT imm8, EAX
             pc += 2;
+            v = x86_other_context[REG_EAX];
+            if (pc_bytes[0] == 0xe6) {
+                v = v & 0xff;
+            }
             if (pc_bytes[1] == 0x30) {
-               // write to port 0x30 (cem_io_port)
-               unsigned v = x86_other_context[REG_EAX];
-               if (pc_bytes[0] == 0xe6) {
-                  v = v & 0xff;
-               }
-               branch_trace_encode (CEM, v & WORD_DATA_MASK);
-               printf ("marker %u\n", (uint32_t) v);
+                // write to port 0x30 (cem_io_port)
+                branch_trace_encode (CEM, v & WORD_DATA_MASK);
+                if (!x86_quiet_mode) {
+                    printf ("marker %u\n", (uint32_t) v);
+                }
+            }
+            if (out_trace) {
+                // fields:
+                //  port number
+                //  inst count
+                //  value (AL or EAX)
+                fprintf (out_trace, "%02x %08x %08x\n",
+                     (uint32_t) pc_bytes[1],
+                     (uint32_t) inst_count, v);
             }
             break;
         case 0x0f: // Two-byte instructions
