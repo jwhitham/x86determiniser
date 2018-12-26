@@ -584,6 +584,12 @@ void x86_startup (const char * objdump_cmd)
                     special = 't';
                 }
                 break;
+            case 'd':
+                if (startswith (scan, "data16")) {
+                    // not an instruction, does not increment inst_count
+                    special = '\x80';
+                }
+                break;
             case 'i':
                 if (startswith (scan, "in ")) {
                     special = 't';
