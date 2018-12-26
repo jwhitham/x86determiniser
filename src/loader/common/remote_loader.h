@@ -20,6 +20,7 @@ typedef struct CommStruct {
 
    char outTrace[MAX_FILE_NAME_SIZE];
    char branchTrace[MAX_FILE_NAME_SIZE];
+   char instTrace[MAX_FILE_NAME_SIZE];
    void * startAddress;
    int debugEnabled;
 } CommStruct;

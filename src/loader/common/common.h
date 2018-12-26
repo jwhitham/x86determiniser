@@ -15,7 +15,7 @@
 #define FAILED_MALLOC                  0x302
 #define FAILED_OPEN_BRANCH_TRACE       0x303
 #define FAILED_OPEN_OUT_TRACE          0x304
-#define FAILED_DISASSEMBLE_ERROR       0x401
+#define FAILED_OPEN_INST_TRACE         0x305
 
 int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv);
 const char * X86Error(int code);

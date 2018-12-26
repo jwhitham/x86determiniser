@@ -36,6 +36,7 @@ static uint32_t         branch_trace_temp = 0;
 static uint32_t         branch_trace_refresh = BRANCH_TRACE_REFRESH_INTERVAL;
 static FILE *           branch_trace = NULL;
 static FILE *           out_trace = NULL;
+static FILE *           inst_trace = NULL;
 
 static uint64_t         inst_count = 0;
 static ZydisDecoder     decoder;
@@ -401,7 +402,7 @@ void x86_interpreter (void)
 
             si = &superblocks[pc - min_address];
             if (!si->count) {
-                superblock_decoder (si, pc);
+               superblock_decoder (si, pc);
             }
             pc_end = pc + si->size;
             inst_count += si->count;
@@ -418,6 +419,34 @@ void x86_interpreter (void)
                     fprintf (stderr, "Unexpected PC at end of superblock: %08x\n", pc);
                     exit (1);
                 }
+            }
+
+            // at end of superblock, print out the contents of the superblock
+            if (inst_trace || !x86_quiet_mode) {
+               uint32_t address = pc_end - si->size;
+               ZydisDecodedInstruction instruction;
+
+               while (address <= pc_end) {
+                  
+                  char buffer[256];
+                  if (!ZYDIS_SUCCESS (ZydisDecoderDecodeBuffer
+                        (&decoder, (const char *) address, 32, address, &instruction))) {
+                     strcpy (buffer, "(unknown)");
+                  } else {
+                     ZydisFormatterFormatInstruction
+                       (&formatter, &instruction, buffer, sizeof(buffer));
+                  }
+                  if (!x86_quiet_mode) {
+                     printf ("RUNNING: %08x: %s\n", address, buffer);
+                  }
+                  if (inst_trace) {
+                     fprintf (inst_trace, "%08x: %s\n", address, buffer);
+                  }
+                  address += instruction.length;
+               }
+               if (inst_trace) {
+                  fflush (inst_trace);
+               }
             }
 
             // at end of superblock, attempt to interpret the control flow here
@@ -558,6 +587,16 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
       if (!branch_trace) {
          perror ("opening branch trace file");
          x86_bp_trap (FAILED_OPEN_BRANCH_TRACE, NULL);
+      }
+   }
+   if (strlen (pcs->instTrace)) {
+      if (!x86_quiet_mode) {
+         printf ("RUNNING: writing instruction trace to: %s\n", pcs->instTrace);
+      }
+      inst_trace = fopen (pcs->instTrace, "wt");
+      if (!inst_trace) {
+         perror ("opening instruction trace file");
+         x86_bp_trap (FAILED_OPEN_INST_TRACE, NULL);
       }
    }
    if (strlen (pcs->outTrace)) {

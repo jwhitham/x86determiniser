@@ -22,8 +22,10 @@ const char * X86Error(int code)
          return "malloc failed during startup";
       case FAILED_OPEN_BRANCH_TRACE: // 0x303
          return "Failed to open the --branch-trace file";
-      case FAILED_DISASSEMBLE_ERROR: // 0x401
-         return "Error when disassembling code";
+      case FAILED_OPEN_OUT_TRACE:
+         return "Failed to open the --out-trace file";
+      case FAILED_OPEN_INST_TRACE:
+         return "Failed to open the --inst-trace file";
       case FAILED_UNKNOWN: // 0x003
       default:
          return "Unknown error";

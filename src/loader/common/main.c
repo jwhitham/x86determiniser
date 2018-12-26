@@ -32,13 +32,15 @@ int main (int argc, char ** argv)
          "Basic usage:\n"
          "   x86determiniser [options] -- <program name> [program args...]\n\n"
          "Options:\n"
-         "   --out-trace <file name>     write all OUT instructions to <file name>\n"
-         "   --branch-trace <file name>  write all branch instructions to <file name>\n"
+         "   --out-trace <file name>     write values of OUT instructions to <file name>\n"
+         "   --branch-trace <file name>  write addresses of branch instructions to <file name>\n"
+         "   --inst-trace <file name>    disassemble write all executed instructions to <file name>\n"
          "   --debug                     debug x86determiniser itself (more output)\n"
          "   --version / --help          print information about x86determiniser itself\n\n";
       static struct option long_options[] = {
          {"out-trace", 1, 0, 'o'},
          {"branch-trace", 1, 0, 'b'},
+         {"inst-trace", 1, 0, 'i'},
          {"debug", 0, 0, 'd'},
          {"version", 0, 0, 'v'},
          {"help", 0, 0, '?'},
@@ -54,6 +56,9 @@ int main (int argc, char ** argv)
             break;
          case 'b':
             strncpy (cs.branchTrace, optarg, MAX_FILE_NAME_SIZE - 1);
+            break;
+         case 'i':
+            strncpy (cs.instTrace, optarg, MAX_FILE_NAME_SIZE - 1);
             break;
          case 'd':
             cs.debugEnabled = 1;
