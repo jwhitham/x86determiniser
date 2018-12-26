@@ -1,5 +1,6 @@
 
 PLATFORM=win32
+ROOT=..
 include ../$(PLATFORM).cfg
 
 LOADER_LIBS=-lpsapi

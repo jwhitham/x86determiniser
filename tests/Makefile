@@ -1,5 +1,6 @@
 
 PLATFORM=win32
+ROOT=..
 include ../$(PLATFORM).cfg
 
 all: simple32.ok outs.ok ud.ok ctest.ok

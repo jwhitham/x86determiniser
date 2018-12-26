@@ -1687,7 +1687,7 @@ void AES_CTR_xcrypt_buffer(struct AES_ctx* ctx, uint8_t* buf, uint32_t length)
 
 
 
-int ctest(void)
+int test_6(void)
 {
    int i;
    struct AES_ctx ctx;
@@ -1706,7 +1706,7 @@ int ctest(void)
    i = puff ((uint8_t *) output_data, &output_len, (const uint8_t *) input_data, &input_len);
    if ((i != 0) || (output_len != 630) || (output_data[0x5a] != 'S') || (output_data[0x272] != 'r')) {
       /* decompress failed */
-      return 5;
+      while (1) {}
    }
 
    /* C test part 4 - AES encryption */
@@ -1715,37 +1715,15 @@ int ctest(void)
    AES_ECB_encrypt(&ctx, enc_data);
    if ((enc_data[1] != 0x94) || (enc_data[7] != 0x3a)) {
       /* encryption failed */
-      return 4;
+      while (1) {}
    }
    AES_ECB_decrypt(&ctx, enc_data);
    for (i = 0; i < 32; i++) {
       if (enc_data[i] != output_data[i]) {
          /* decryption failed */
-         return 3;
+         while (1) {}
       }
    }
    return 0;
-}
-
-#include <windows.h>
-
-int main(int argc, char ** argv)
-{
-   uint32_t ER[2];
-   void (* startup_x86_determiniser) (uint32_t * ER) = NULL;
-
-   if (argc == 2) {
-      HMODULE lib = LoadLibrary (argv[1]);
-      if (!lib) {
-         return 1;
-      }
-      startup_x86_determiniser = (void *) GetProcAddress (lib, "startup_x86_determiniser");
-      if (!startup_x86_determiniser) {
-         return 2;
-      }
-      startup_x86_determiniser (ER);
-   }
-
-   return ctest();
 }
 

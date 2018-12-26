@@ -186,7 +186,7 @@ static int interpret_control_flow (void)
             pc += 2;
             inst_count = 0;
             break;
-        case 0xe5: // IN imm8, EAX (load and reset set counter)
+        case 0xe5: // IN imm8, EAX (get counter value and then reset counter)
             pc += 2;
             x86_other_context[REG_EAX] = (uint32_t) inst_count;
             inst_count = 0;
@@ -513,6 +513,13 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
          case ZYDIS_CATEGORY_RET:
             special = 'R';
             break;
+         case ZYDIS_CATEGORY_X87_ALU:
+            if (instruction.mnemonic == ZYDIS_MNEMONIC_FWAIT) {
+               si->count --; // fwait does not count
+               // (this matches objdump which will combine it into the following
+               // floating point instruction)
+            }
+            break;
          case ZYDIS_CATEGORY_MISC:     // UD2
             if ((instruction.mnemonic == ZYDIS_MNEMONIC_UD0)
             || (instruction.mnemonic == ZYDIS_MNEMONIC_UD1)
@@ -615,9 +622,7 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
    }
 
    ZydisDecoderInit (&decoder, ZYDIS_MACHINE_MODE_LEGACY_32, ZYDIS_ADDRESS_WIDTH_32);
-   if (!x86_quiet_mode) {
-      ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
-   }
+   ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
 
    //x86_make_text_writable (min_address, max_address);
    entry_flag = 1;
