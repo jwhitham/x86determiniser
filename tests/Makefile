@@ -3,11 +3,12 @@ PLATFORM=win32
 ROOT=..
 include ../$(PLATFORM).cfg
 
-all: simple32.ok outs.ok ud.ok ctest.ok
+all: simple32.ok outs.ok complex_test/ctest.ok
 
 clean:
-	-rm -rf simple32$(EXE) outs$(EXE) ud$(EXE) ctest.trace \
+	-rm -rf simple32$(EXE) outs$(EXE) ud$(EXE) \
       *.trace *.ok
+	make -C complex_test clean
 
 # simple32: "Hello World"
 simple32$(EXE): simple.c
@@ -28,15 +29,8 @@ outs.ok: outs.trace
 	touch $@
 
 # ctest: branch trace of C program
-ctest$(EXE): ctest.c
-	$(CC) -o $@ $(CFLAGS32) $< -O2
-
-ctest.trace: ctest$(EXE) $(LOADER32_EXE)
-	$(LOADER32_EXE) --branch-trace $@ $<
-
-ctest.ok: ctest.trace
-	diff -w ctest.trace ctest.ref
-	touch $@
+complex_test/ctest.ok: 
+	make -C complex_test ctest.ok
 
 # ud: undefined instruction handling
 ud$(EXE): ud.s
