@@ -171,6 +171,15 @@ static int interpret_control_flow (void)
             pc += (int8_t) pc_bytes[1];
             branch_taken (src, pc);
             break;
+        case 0xe4: // IN imm8, AL (reset counter)
+            pc += 2;
+            inst_count = 0;
+            break;
+        case 0xe5: // IN imm8, EAX (get counter value and then reset counter)
+            pc += 2;
+            x86_other_context[REG_EAX] = (uint32_t) inst_count;
+            inst_count = 0;
+            break;
         case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
         case 0xe7: // OUT imm8, EAX
             pc += 2;
@@ -572,6 +581,11 @@ void x86_startup (const char * objdump_cmd)
                 if (startswith (scan, "ret") || startswith (scan, "repz ret")) {
                     special = 'R';
                 } else if (startswith (scan, "rdtsc")) {
+                    special = 't';
+                }
+                break;
+            case 'i':
+                if (startswith (scan, "in ")) {
                     special = 't';
                 }
                 break;

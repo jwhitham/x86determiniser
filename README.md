@@ -25,6 +25,6 @@ register values, memory accesses and so forth.
 
 All of the code is copyright (c) 2015-2018 by Jack Whitham.
 
-x86determiniser has been relicenced under the Lesser GNU Public License version 2.1
+x86determiniser has been relicenced under the MIT License
 so that non-GPL software may be linked to it and distributed.
 
