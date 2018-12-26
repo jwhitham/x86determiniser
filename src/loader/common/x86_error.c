@@ -26,6 +26,10 @@ const char * X86Error(int code)
          return "Failed to open the --out-trace file";
       case FAILED_OPEN_INST_TRACE:
          return "Failed to open the --inst-trace file";
+      case FAILED_TO_REACH_PROGRAM:
+         return "Failed to reach the start of the program";
+      case FAILED_SUPERBLOCK_DECODE_ERR:
+         return "Failed to decode a superblock";
       case FAILED_UNKNOWN: // 0x003
       default:
          return "Unknown error";

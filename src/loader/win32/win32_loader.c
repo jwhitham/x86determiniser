@@ -322,7 +322,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          err_printf ("GetModuleInformation: error %d\n", (int) GetLastError());
          return 1;
       }
-      dbg_printf ("kernel32.dll: base %p size %u\n", modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
+      dbg_printf ("INITIAL: kernel32.dll: base %p size %u\n", modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
 
       pa = GetProcAddress (kernel32, "GetProcAddress");
       if (!pa) {

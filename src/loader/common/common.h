@@ -16,6 +16,8 @@
 #define FAILED_OPEN_BRANCH_TRACE       0x303
 #define FAILED_OPEN_OUT_TRACE          0x304
 #define FAILED_OPEN_INST_TRACE         0x305
+#define FAILED_TO_REACH_PROGRAM        0x306
+#define FAILED_SUPERBLOCK_DECODE_ERR   0x401
 
 int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv);
 const char * X86Error(int code);

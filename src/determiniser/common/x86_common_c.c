@@ -368,26 +368,23 @@ void x86_interpreter (void)
     uint32_t pc, pc_end;
 
     if (!x86_quiet_mode) {
-        printf ("interpreter startup...\n");
+        printf ("RUNNING: interpreter startup...\n");
     }
 
     // Startup: run until reaching the program
     pc = x86_other_context[REG_EIP];
-#ifdef DEBUG
-    printf ("stepping from EIP %08x\n", pc);
-#endif
     entry_flag = 1;
     x86_other_context[REG_EFL] |= SINGLE_STEP_FLAG;
     x86_switch_to_user ((uint32_t) fake_endpoint);
     x86_other_context[REG_EFL] &= ~SINGLE_STEP_FLAG;
     pc = x86_other_context[REG_EIP];
     if ((pc < min_address) || (pc > max_address)) {
-        printf ("Startup did not reach program (at %08x)\n", pc);
-        exit (1);
+        fprintf (stderr, "Startup did not reach program (at %08x)\n", pc);
+        x86_bp_trap (FAILED_TO_REACH_PROGRAM, NULL);
     }
 
     if (!x86_quiet_mode) {
-        printf ("interpreter ok, entry EIP %08x ESP %08x, program running:\n",
+        printf ("RUNNING: interpreter ok, entry EIP %08x ESP %08x, program running:\n",
                     pc, x86_other_context[REG_ESP]);
     }
 
@@ -417,7 +414,7 @@ void x86_interpreter (void)
                 pc = (uint32_t) x86_other_context[REG_EIP];
                 if (pc_end != pc) {
                     fprintf (stderr, "Unexpected PC at end of superblock: %08x\n", pc);
-                    exit (1);
+                    x86_bp_trap (FAILED_SUPERBLOCK_DECODE_ERR, NULL);
                 }
             }
 
@@ -504,12 +501,6 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
          special = '?';
          break;
       }
-      if (!x86_quiet_mode) {
-         char buffer[256];
-         ZydisFormatterFormatInstruction
-           (&formatter, &instruction, buffer, sizeof(buffer));
-         printf ("DECODE: %08x: %s\n", address, buffer);
-      }
       special = '\0';
       switch (instruction.meta.category) {
          case ZYDIS_CATEGORY_COND_BR:
@@ -522,17 +513,19 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
          case ZYDIS_CATEGORY_RET:
             special = 'R';
             break;
-         case ZYDIS_CATEGORY_SYSTEM:
-            if (instruction.mnemonic == ZYDIS_MNEMONIC_RDTSC) {
-               special = 't';
-            }
+         case ZYDIS_CATEGORY_INVALID:
+         case ZYDIS_CATEGORY_INTERRUPT:
+         case ZYDIS_CATEGORY_MISC:     // UD2
+         case ZYDIS_CATEGORY_IO:       // IN, OUT
+         case ZYDIS_CATEGORY_SYSTEM:   // RDTSC
+            special = 't';
             break;
-         case ZYDIS_CATEGORY_IO:
-            if ((instruction.mnemonic == ZYDIS_MNEMONIC_OUT)
-            || (instruction.mnemonic == ZYDIS_MNEMONIC_IN)) {
-               special = 't';
-            }
-            break;
+      }
+      if (!x86_quiet_mode) {
+         char buffer[256];
+         ZydisFormatterFormatInstruction
+           (&formatter, &instruction, buffer, sizeof(buffer));
+         printf ("DECODE: %08x: %s\n", address, buffer);
       }
       if (special) {
          // End of superblock reached
