@@ -513,9 +513,17 @@ static void superblock_decoder (superblock_info * si, uint32_t pc)
          case ZYDIS_CATEGORY_RET:
             special = 'R';
             break;
+         case ZYDIS_CATEGORY_MISC:     // UD2
+            if ((instruction.mnemonic == ZYDIS_MNEMONIC_UD0)
+            || (instruction.mnemonic == ZYDIS_MNEMONIC_UD1)
+            || (instruction.mnemonic == ZYDIS_MNEMONIC_UD2)) {
+               special = 'u';
+            }
+            break;
          case ZYDIS_CATEGORY_INVALID:
          case ZYDIS_CATEGORY_INTERRUPT:
-         case ZYDIS_CATEGORY_MISC:     // UD2
+            special = 'i';
+            break;
          case ZYDIS_CATEGORY_IO:       // IN, OUT
          case ZYDIS_CATEGORY_SYSTEM:   // RDTSC
             special = 't';

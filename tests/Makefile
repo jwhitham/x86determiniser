@@ -2,10 +2,10 @@
 PLATFORM=win32
 include ../$(PLATFORM).cfg
 
-all: simple32.ok outs.ok ud.ok
+all: simple32.ok outs.ok ud.ok ctest.ok
 
 clean:
-	-rm -rf simple32$(EXE) outs$(EXE) ud$(EXE) \
+	-rm -rf simple32$(EXE) outs$(EXE) ud$(EXE) ctest.trace \
       *.trace *.ok
 
 # simple32: "Hello World"
@@ -24,6 +24,17 @@ outs.trace: outs$(EXE) $(LOADER32_EXE)
 
 outs.ok: outs.trace
 	diff -w outs.trace outs.ref
+	touch $@
+
+# ctest: branch trace of C program
+ctest$(EXE): ctest.c
+	$(CC) -o $@ $(CFLAGS32) $< -O2
+
+ctest.trace: ctest$(EXE) $(LOADER32_EXE)
+	$(LOADER32_EXE) --branch-trace $@ $<
+
+ctest.ok: ctest.trace
+	diff -w ctest.trace ctest.ref
 	touch $@
 
 # ud: undefined instruction handling
