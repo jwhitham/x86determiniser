@@ -4,7 +4,7 @@ import subprocess, os, time, stat
 
 SUFFIX = ".exe"
 ROOT = os.path.join(os.getcwd(), "..", "..")
-LOADER32 = os.path.join(ROOT, "bin", "x86determiniser" + SUFFIX)
+LOADER = os.path.join(ROOT, "bin", "x86determiniser" + SUFFIX)
 TMP_FILE = "tmp.txt"
 TMP_FILE_2 = "tmp2.txt"
 TMP_EXE_FILE = "tmp.exe"
@@ -21,13 +21,13 @@ def clean():
 
 # Here is a test of the args program, with and without the x86determiniser loader.
 # Weird parameters should be passed through without change.
-def args_test(use_loader):
+def args_test(use_loader, bits):
 
    def sub_args_test(args_list):
       loader = []
-      args_list = ["args" + SUFFIX] + args_list
+      args_list = ["args" + bits + SUFFIX] + args_list
       if use_loader:
-         loader = [use_loader, "--inst-trace", TMP_FILE_2, "--"]
+         loader = [LOADER, "--inst-trace", TMP_FILE_2, "--"]
       clean()
 
       fd = open(TMP_FILE, "wt")
@@ -74,9 +74,10 @@ def args_test(use_loader):
             "@LATER", "%1", "like to play with things a while",
             "\"\"BEFORE ANNIHILATION\"\"", "%TEMP%", "$SHELL" ])
 
-def outs_test(args):
+def outs_test(args, bits):
    clean()
-   rc = subprocess.call([LOADER32, "--out-trace", TMP_FILE] + args + ["--", "outs" + SUFFIX])
+   rc = subprocess.call([LOADER, "--out-trace", TMP_FILE] + args +
+            ["--", "outs" + bits + SUFFIX])
    if rc != 0:
       raise Exception("outs_test should have rc = 0, rc = %d" % rc)
 
@@ -109,11 +110,11 @@ def outs_test(args):
          raise Exception("unexpected output from outs.s on line %d, got %s expect %s" % (
             i, repr(got), repr(expect)))
 
-def help_test(args, unknown_option, use_loader):
+def help_test(args, unknown_option):
    clean()
    fd = open(TMP_FILE, "wt")
    fd2 = open(TMP_FILE_2, "wt")
-   rc = subprocess.call([use_loader] + args, stdout = fd, stderr = fd2)
+   rc = subprocess.call([LOADER] + args, stdout = fd, stderr = fd2)
    fd.close()
    fd2.close()
    if rc != 1:
@@ -136,13 +137,13 @@ def help_test(args, unknown_option, use_loader):
       if not ok:
          raise Exception("No unknown option message printed for %s" % args)
 
-def check_error(use_loader):
+def check_error(bits):
    clean()
 
    def sub_check_error(args):
       fd = open(TMP_FILE, "wt")
       fd2 = open(TMP_FILE_2, "wt")
-      rc = subprocess.call([use_loader] + args, stdout = fd, stderr = fd2)
+      rc = subprocess.call([LOADER] + args, stdout = fd, stderr = fd2)
       fd.close()
       fd2.close()
       if rc == 0:
@@ -169,7 +170,7 @@ def check_error(use_loader):
 
    for name in ["c:\\this path does not exist\\some file.txt", "."]:
       for option in ["--branch-trace", "--inst-trace", "--out-trace"]:
-         s = sub_check_error([option, name, "args" + SUFFIX])
+         s = sub_check_error([option, name, "args" + bits + SUFFIX])
          if not ((s.find("Failed to open") > 0) and (s.find(option) > 0)):
             raise Exception("Did not see expected error message for %s" % option)
 
@@ -185,7 +186,7 @@ def check_error(use_loader):
    if not (s.find(name) and (s.find("is not compatible") > 0)):
       raise Exception("Did not see expected error message for non-executable file")
 
-   name = "ud" + SUFFIX
+   name = "ud" + bits + SUFFIX
    for i in range(1, 4):
       s = sub_check_error([name, str(i)])
       if not s.startswith("Illegal instruction"):
@@ -196,11 +197,11 @@ def check_error(use_loader):
       if not s.startswith("Segmentation fault"):
          raise Exception("Did not see expected error message for segfault i = %d" % i)
 
-def pipe_test(use_loader):
+def pipe_test(bits):
    clean()
    fd = open(TMP_FILE, "wt")
    fd2 = open(TMP_FILE_2, "wt")
-   p = subprocess.Popen([use_loader, "pipetest" + SUFFIX],
+   p = subprocess.Popen([LOADER, "pipetest" + bits + SUFFIX],
          stdout = fd, stderr = fd2, stdin = subprocess.PIPE)
    
    p.stdin.write("0a1b2c3d4e")
@@ -216,9 +217,10 @@ def pipe_test(use_loader):
    if not open(TMP_FILE, "rb").read().startswith("abcdefghij"):
       raise Exception("stdout file should contain letters")
 
-def example_test(use_loader):
+def example_test(bits):
    clean()
-   subprocess.call([use_loader, "example" + SUFFIX], stdout = open(TMP_FILE, "wt"))
+   subprocess.call([LOADER, "example" + bits + SUFFIX],
+            stdout = open(TMP_FILE, "wt"))
 
    for line in open(TMP_FILE, "rt"):
       fields = line.split()
@@ -230,17 +232,18 @@ def example_test(use_loader):
 
 if __name__ == "__main__":
    clean()
-   args_test(None)
-   args_test(LOADER32)
-   outs_test([])
-   outs_test(["--branch-trace", TMP_FILE_2])
-   outs_test(["--inst-trace", TMP_FILE_2])
-   help_test([], False, LOADER32)
-   help_test(["-?"], True, LOADER32)
-   help_test(["--"], False, LOADER32)
-   check_error(LOADER32)
-   pipe_test(LOADER32)
-   example_test(LOADER32)
+   help_test([], False)
+   help_test(["-?"], True)
+   help_test(["--"], False)
+   for bits in ["", "64"]:
+      args_test(False, bits)
+      args_test(True, bits)
+      outs_test([], bits)
+      outs_test(["--branch-trace", TMP_FILE_2], bits)
+      outs_test(["--inst-trace", TMP_FILE_2], bits)
+      check_error(bits)
+      pipe_test(bits)
+      example_test(bits)
 
 
    open("tests.ok", "wt").write("")
