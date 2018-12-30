@@ -22,7 +22,7 @@ uint32_t function_call (void)
     return 1;
 }
 
-int main (int argc, char ** argv)
+int main (void)
 {
     uint32_t i, j, x, ignore;
     uint32_t start, stop;
@@ -30,30 +30,30 @@ int main (int argc, char ** argv)
     fputs ("\nInstruction counts (RDTSC) using libx86determiniser:\n", stdout);
 
     for (i = 0; i < N; i++) {
-        asm volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
+        __asm__ volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
     }
     start = count[0];
     printout ("loop");
 
     for (i = 0; i < N; i++) {
-        asm volatile ("nop\nrdtsc" : "=d"(ignore), "=a"(count[i]));
+        __asm__ volatile ("nop\nrdtsc" : "=d"(ignore), "=a"(count[i]));
     }
     printout ("loop with nop");
 
     for (i = 0; i < N; i++) {
-        asm volatile ("jmp 0f\n0: rdtsc" : "=d"(ignore), "=a"(count[i]));
+        __asm__ volatile ("jmp 0f\n0: rdtsc" : "=d"(ignore), "=a"(count[i]));
     }
     printout ("loop with jmp");
 
     for (i = 0; i < N; i++) {
         function_call ();
-        asm volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
+        __asm__ volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
     }
     printout ("loop with call");
 
     for (i = 0; i < N; i++) {
         printf ("."); fflush (stdout);
-        asm volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
+        __asm__ volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
     }
     printout ("\nloop with call to printf");
 
@@ -63,7 +63,7 @@ int main (int argc, char ** argv)
             x *= j + 2;
         }
         count[i] = x;
-        asm volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
+        __asm__ volatile ("rdtsc" : "=d"(ignore), "=a"(count[i]));
     }
     printout ("loop factorials");
     stop = count[0];

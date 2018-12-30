@@ -5,8 +5,6 @@ all:
 clean:
 	-make -C src PLATFORM=win32 clean
 	-make -C tests PLATFORM=win32 clean
-	-make -C src PLATFORM=linux32 clean
-	-make -C tests PLATFORM=linux32 clean
 	-rm -rf bin
 
 deepclean:
@@ -16,3 +14,6 @@ win32:
 	make -C src PLATFORM=win32 all
 	make -C tests PLATFORM=win32 all
 
+linux32:
+	make -C src PLATFORM=linux32 all
+	make -C tests PLATFORM=linux32 all

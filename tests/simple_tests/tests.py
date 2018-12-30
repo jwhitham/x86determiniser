@@ -1,15 +1,16 @@
 #!/usr/bin/python
 
-import subprocess, os, time
+import subprocess, os, time, stat
 
 SUFFIX = ".exe"
 ROOT = os.path.join(os.getcwd(), "..", "..")
 LOADER32 = os.path.join(ROOT, "bin", "x86determiniser" + SUFFIX)
 TMP_FILE = "tmp.txt"
 TMP_FILE_2 = "tmp2.txt"
+TMP_EXE_FILE = "tmp.exe"
 
 def clean():
-   for name in [TMP_FILE, TMP_FILE_2]:
+   for name in [TMP_FILE, TMP_FILE_2, TMP_EXE_FILE]:
       error = 0
       while os.path.exists(TMP_FILE) and error < 50:
          try:
@@ -136,8 +137,9 @@ def help_test(args, unknown_option, use_loader):
          raise Exception("No unknown option message printed for %s" % args)
 
 def check_error(use_loader):
+   clean()
+
    def sub_check_error(args):
-      clean()
       fd = open(TMP_FILE, "wt")
       fd2 = open(TMP_FILE_2, "wt")
       rc = subprocess.call([use_loader] + args, stdout = fd, stderr = fd2)
@@ -171,8 +173,63 @@ def check_error(use_loader):
          if not ((s.find("Failed to open") > 0) and (s.find(option) > 0)):
             raise Exception("Did not see expected error message for %s" % option)
 
+   name = TMP_EXE_FILE
+   open(name, "wb").write("")
+   s = sub_check_error([name])
+   if not (s.find(name) and (s.find("not a valid Win32 application") > 0)):
+      raise Exception("Did not see expected error message for non-executable file")
+
+   name = TMP_EXE_FILE
+   open(name, "wb").write("not an executable file")
+   s = sub_check_error([name])
+   if not (s.find(name) and (s.find("is not compatible") > 0)):
+      raise Exception("Did not see expected error message for non-executable file")
+
+   name = "ud" + SUFFIX
+   for i in range(1, 4):
+      s = sub_check_error([name, str(i)])
+      if not s.startswith("Illegal instruction"):
+         raise Exception("Did not see expected error message for illegal instruction i = %d" % i)
+
+   for i in range(4, 6):
+      s = sub_check_error([name, str(i)])
+      if not s.startswith("Segmentation fault"):
+         raise Exception("Did not see expected error message for segfault i = %d" % i)
+
+def pipe_test(use_loader):
+   clean()
+   fd = open(TMP_FILE, "wt")
+   fd2 = open(TMP_FILE_2, "wt")
+   p = subprocess.Popen([use_loader, "pipetest" + SUFFIX],
+         stdout = fd, stderr = fd2, stdin = subprocess.PIPE)
    
+   p.stdin.write("0a1b2c3d4e")
+   p.stdin.write("5f6g7h8i9j\n")
+   p.stdin.close()
+   p.wait()
+
+   fd.close()
+   fd2.close()
+
+   if not open(TMP_FILE_2, "rb").read().startswith("0123456789"):
+      raise Exception("stderr file should contain digits")
+   if not open(TMP_FILE, "rb").read().startswith("abcdefghij"):
+      raise Exception("stdout file should contain letters")
+
+def example_test(use_loader):
+   clean()
+   subprocess.call([use_loader, "example.exe"], stdout = open(TMP_FILE, "wt"))
+
+   for line in open(TMP_FILE, "rt"):
+      fields = line.split()
+      if (len(fields) > 5) and (fields[0] == "loop") and (fields[1] != "factorials"):
+         while not fields[0].isdigit():
+            fields.pop(0)
+         if len(set(fields)) != 1:
+            raise Exception("All timings should be the same: %s" % line)
+
 if __name__ == "__main__":
+   clean()
    args_test(None)
    args_test(LOADER32)
    outs_test([])
@@ -182,4 +239,10 @@ if __name__ == "__main__":
    help_test(["-?"], True, LOADER32)
    help_test(["--"], False, LOADER32)
    check_error(LOADER32)
+   pipe_test(LOADER32)
+   example_test(LOADER32)
+
+
+   open("tests.ok", "wt").write("")
+
 

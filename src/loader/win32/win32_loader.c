@@ -734,13 +734,21 @@ static DWORD DefaultHandler (
                   && (context.Eax <= X86D_LAST_ERROR)) {
                      err_printf (context.Eax, "x86determiniser");
                   } else {
-                     err_printf (0, "%s: Reached unexpected breakpoint at %p",
-                        state, (void *) context.Eip);
+                     err_printf (0, "Breakpoint instruction at %p", (void *) context.Eip);
                   }
                   exit (1);
                   break;
                case STATUS_SINGLE_STEP:
                   err_printf (0, "%s: Unexpected single step at %p", state, (void *) context.Eip);
+                  exit (1);
+                  break;
+               case STATUS_PRIVILEGED_INSTRUCTION:
+               case STATUS_ILLEGAL_INSTRUCTION:
+                  err_printf (0, "Illegal instruction at %p", (void *) context.Eip);
+                  exit (1);
+                  break;
+               case STATUS_ACCESS_VIOLATION:
+                  err_printf (0, "Segmentation fault at %p", (void *) context.Eip);
                   exit (1);
                   break;
                default:

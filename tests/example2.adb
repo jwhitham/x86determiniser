@@ -6,11 +6,6 @@ with Interfaces; use Interfaces;
 
 
 procedure example2 is
-   SEH : aliased array (1 .. 2) of Unsigned_32;
-
-   procedure startup_x86_determiniser (ER : System.Address);
-   pragma Import (C, startup_x86_determiniser, "startup_x86_determiniser");
-
 
    function rdtsc return Unsigned_32 is
       result : Unsigned_32;
@@ -24,8 +19,6 @@ procedure example2 is
    store : array (Natural range 1 .. 10) of Unsigned_32;
    v     : Unsigned_32 := 0;
 begin
-   startup_x86_determiniser (SEH'Address);
-
    v := rdtsc;
    Ada.Text_IO.Put_Line (v'Img);
    v := rdtsc;
