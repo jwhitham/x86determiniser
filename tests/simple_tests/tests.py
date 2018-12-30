@@ -218,7 +218,7 @@ def pipe_test(use_loader):
 
 def example_test(use_loader):
    clean()
-   subprocess.call([use_loader, "example.exe"], stdout = open(TMP_FILE, "wt"))
+   subprocess.call([use_loader, "example" + SUFFIX], stdout = open(TMP_FILE, "wt"))
 
    for line in open(TMP_FILE, "rt"):
       fields = line.split()

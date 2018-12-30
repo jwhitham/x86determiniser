@@ -13,7 +13,7 @@ clean:
 complex_test/ctest.ok: 
 	make -C complex_test ctest.ok
 
-simple_tests/ctest.ok: 
+simple_tests/tests.ok: 
 	make -C simple_tests tests.ok
 
 
