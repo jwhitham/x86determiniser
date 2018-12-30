@@ -32,9 +32,10 @@ int main (int argc, char ** argv)
          "Basic usage:\n"
          "   x86determiniser [options] -- <program name> [program args...]\n\n"
          "Options:\n"
+        //1                                                                              80 
          "   --out-trace <file name>     write values of OUT instructions to <file name>\n"
-         "   --branch-trace <file name>  write addresses of branch instructions to <file name>\n"
-         "   --inst-trace <file name>    disassemble write all executed instructions to <file name>\n"
+         "   --branch-trace <file name>  write addresses of branches to <file name>\n"
+         "   --inst-trace <file name>    disassemble + write instructions to <file name>\n"
          "   --debug                     debug x86determiniser itself (more output)\n"
          "   --version / --help          print information about x86determiniser itself\n\n";
       static struct option long_options[] = {
@@ -69,7 +70,7 @@ int main (int argc, char ** argv)
             break;
          case -1:
             // Reached end of options: launch now
-            if (optind >= argc) {
+            if ((optind >= argc) || (argc < 2)) {
                fputs (version, stdout);
                fputs (help, stdout);
                exit (1);
