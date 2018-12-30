@@ -1,6 +1,7 @@
 #define _WIN32_WINNT 0x600
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <Windows.h>
 #include <Psapi.h>
 
@@ -8,11 +9,9 @@
 #include "x86_flags.h"
 #include "common.h"
 
-
 int _CRT_glob = 0; /* don't expand wildcards when parsing command-line args */
 
 #define dbg_printf if (pcs->debugEnabled) printf
-#define err_printf printf
 
 static DWORD DefaultHandler (
       CommStruct * pcs,
@@ -24,6 +23,31 @@ typedef struct SingleStepStruct {
    PCONTEXT pcontext;
    CONTEXT context;
 } SingleStepStruct;
+
+static void err_printf (unsigned err_code, const char * fmt, ...)
+{
+   DWORD err = GetLastError ();
+   va_list ap;
+
+   va_start (ap, fmt);
+   vfprintf (stderr, fmt, ap);
+   va_end (ap);
+
+   if (err_code == 1) {
+      char * buf = NULL;
+      FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                        FORMAT_MESSAGE_FROM_SYSTEM |
+                        FORMAT_MESSAGE_IGNORE_INSERTS,
+                     NULL, err, 0, (char *) &buf, 0, NULL);
+      fprintf (stderr, ": Windows error code 0x%x: %s", (unsigned) err, buf ? buf : "??");
+
+   } else if ((err_code >= X86D_FIRST_ERROR) && (err_code <= X86D_LAST_ERROR)) {
+      const char * buf = X86Error (err_code);
+      fprintf (stderr, ": code 0x%x: %s\n", err_code - X86D_FIRST_ERROR, buf);
+   } else {
+      fprintf (stderr, "\n");
+   }
+}
 
 
 static void StartSingleStepProc
@@ -72,7 +96,7 @@ void StartRemoteLoader
 
    space = (char *) RemoteLoaderEnd - (char *) RemoteLoaderStart;
    if (space <= 0) {
-      err_printf ("REMOTE_LOADER: No valid size for remote loader\n");
+      err_printf (0, "REMOTE_LOADER: No valid size for remote loader");
       exit (1);
    }
 
@@ -85,7 +109,7 @@ void StartRemoteLoader
       MEM_RESERVE | MEM_COMMIT,
       PAGE_EXECUTE_READWRITE);
    if (!remoteBuf) {
-      err_printf ("REMOTE_LOADER: Unable to allocate %d bytes for remote loader\n", (int) space);
+      err_printf (0, "REMOTE_LOADER: Unable to allocate %d bytes for remote loader", (int) space);
       exit (1);
    }
 
@@ -97,7 +121,7 @@ void StartRemoteLoader
       (DWORD) space,
       NULL);
    if (!rc) {
-      err_printf ("REMOTE_LOADER: Unable to inject %d bytes\n", (int) space);
+      err_printf (0, "REMOTE_LOADER: Unable to inject %d bytes", (int) space);
       exit (1);
    }
 
@@ -124,7 +148,7 @@ void StartRemoteLoader
       sizeof (CommStruct),
       NULL);
    if (!rc) {
-      err_printf ("REMOTE_LOADER: Unable to fill remote stack\n");
+      err_printf (0, "REMOTE_LOADER: Unable to fill remote stack");
       exit (1);
    }
 
@@ -205,7 +229,7 @@ static char * AppendArg (char * output, const char * input)
    return &output[outputIndex];
 }
 
-static char * GenerateArgs (CommStruct * pcs, int argc, char ** argv)
+static char * GenerateArgs (CommStruct * pcs, size_t argc, char ** argv)
 {
    size_t max_space = 0;
    size_t i = 0;
@@ -213,7 +237,7 @@ static char * GenerateArgs (CommStruct * pcs, int argc, char ** argv)
    char * tmp = NULL;
 
    if (argc < 1) {
-      err_printf ("GenerateArgs: no args provided\n");
+      err_printf (0, "GenerateArgs: no args provided");
       exit (1);
    }
 
@@ -225,7 +249,7 @@ static char * GenerateArgs (CommStruct * pcs, int argc, char ** argv)
    }
    tmp = output = calloc (1, max_space);
    if (!output) {
-      err_printf ("GenerateArgs: out of memory\n");
+      err_printf (0, "GenerateArgs: out of memory");
       exit (1);
    }
 
@@ -280,14 +304,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       }
       *finalSlash = '\0';
    } else {
-      err_printf ("GetModuleFileName: error %d\n", (int) GetLastError());
+      err_printf (1, "GetModuleFileName('x86determiniser.exe')");
       return 1;
    }
 
 
 
    dwCreationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS;
-   commandLine = GenerateArgs (pcs, argc, argv);
+   commandLine = GenerateArgs (pcs, (size_t) argc, argv);
    dbg_printf ("[[%s]]\n", commandLine);
    rc = CreateProcess(
      /* _In_opt_    LPCTSTR               */ argv[0],
@@ -302,38 +326,40 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
      /* _Out_       LPPROCESS_INFORMATION */ &processInformation
    );
    if (!rc) {
-      err_printf ("CreateProcess: error %d\n", (int) GetLastError());
+      err_printf (1, "CreateProcess ('%s')", argv[0]);
       return 1;
    }
 
    // Determine offset of LoadLibrary and GetProcAddress
    // within kernel32.dll
    {
-      HMODULE kernel32 = LoadLibrary ("kernel32.dll");
+      const char * kernel32_name = "kernel32.dll";
+      HMODULE kernel32 = LoadLibrary (kernel32_name);
       MODULEINFO modinfo;
       LPVOID pa;
 
       if (!kernel32) {
-         err_printf ("LoadLibrary: error %d\n", (int) GetLastError());
+         err_printf (1, "LoadLibrary ('%s')", kernel32_name);
          return 1;
       }
       if (!GetModuleInformation
             (GetCurrentProcess(), kernel32, &modinfo, sizeof(MODULEINFO))) {
-         err_printf ("GetModuleInformation: error %d\n", (int) GetLastError());
+         err_printf (1, "GetModuleInformation ('%s')", kernel32_name);
          return 1;
       }
-      dbg_printf ("INITIAL: kernel32.dll: base %p size %u\n", modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
+      dbg_printf ("INITIAL: %s: base %p size %u\n", kernel32_name,
+            modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
 
       pa = GetProcAddress (kernel32, "GetProcAddress");
       if (!pa) {
-         err_printf ("GetProcAddress: error %d\n", (int) GetLastError());
+         err_printf (1, "GetProcAddress ('GetProcAddress') within '%s'", kernel32_name);
          return 1;
       }
       getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
 
       pa = GetProcAddress (kernel32, "LoadLibraryA");
       if (!pa) {
-         err_printf ("GetProcAddress: error %d\n", (int) GetLastError());
+         err_printf (1, "GetProcAddress ('LoadLibraryA') within '%s'", kernel32_name);
          return 1;
       }
       loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
@@ -348,14 +374,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       todo = DBG_CONTINUE;
       if (!rc) {
-         err_printf ("INITIAL: WaitForDebugEvent: error %d\n", (int) GetLastError());
+         err_printf (1, "INITIAL: WaitForDebugEvent");
          exit (1);
       }
       switch (debugEvent.dwDebugEventCode) {
          case CREATE_PROCESS_DEBUG_EVENT:
             if ((debugEvent.dwProcessId != processInformation.dwProcessId)
             || (debugEvent.dwThreadId != processInformation.dwThreadId)) {
-               err_printf ("INITIAL: CREATE_PROCESS_DEBUG_EVENT from unexpected process\n");
+               err_printf (0, "INITIAL: CREATE_PROCESS_DEBUG_EVENT from unexpected process");
                exit (1);
             }
             startAddress = debugEvent.u.CreateProcessInfo.lpStartAddress;
@@ -368,7 +394,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                1,
                &len);
             if ((!rc) || (len != 1)) {
-               err_printf ("INITIAL: Unable to read first instruction\n");
+               err_printf (1, "INITIAL: Unable to read first instruction");
                exit (1);
             }
 
@@ -380,7 +406,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                1,
                &len);
             if ((!rc) || (len != 1)) {
-               err_printf ("INITIAL: Unable to replace first instruction with breakpoint\n");
+               err_printf (1, "INITIAL: Unable to replace first instruction with breakpoint");
                exit (1);
             }
             break;
@@ -402,7 +428,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       todo = DBG_CONTINUE;
       if (!rc) {
-         err_printf ("AWAIT_FIRST: WaitForDebugEvent: error %d\n", (int) GetLastError());
+         err_printf (1, "AWAIT_FIRST: WaitForDebugEvent");
          exit (1);
       }
       switch (debugEvent.dwDebugEventCode) {
@@ -414,8 +440,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                context.ContextFlags = CONTEXT_FULL;
                rc = GetThreadContext (processInformation.hThread, &context);
                if (!rc) {
-                  err_printf ("AWAIT_FIRST: GetThreadContext: error %d\n",
-                     (int) GetLastError());
+                  err_printf (1, "AWAIT_FIRST: GetThreadContext");
                   exit (1);
                }
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
@@ -434,7 +459,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      memcpy (&startContext, &context, sizeof (CONTEXT));
 
                      if (!kernel32Base) {
-                        err_printf ("REMOTE_LOADER: don't know the kernel32.dll base address\n");
+                        err_printf (0, "REMOTE_LOADER: don't know the kernel32.dll base address");
                         exit (1);
                      }
 
@@ -446,7 +471,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         1,
                         &len);
                      if ((!rc) || (len != 1)) {
-                        err_printf ("REMOTE_LOADER: Unable to restore first instruction\n");
+                        err_printf (1, "REMOTE_LOADER: Unable to restore first instruction");
                         exit (1);
                      }
 
@@ -503,7 +528,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       todo = DBG_CONTINUE;
       if (!rc) {
-         err_printf ("AWAIT_REMOTE_LOADER_BP: WaitForDebugEvent: error %d\n", (int) GetLastError());
+         err_printf (1, "AWAIT_REMOTE_LOADER_BP: WaitForDebugEvent");
          exit (1);
       }
       switch (debugEvent.dwDebugEventCode) {
@@ -514,8 +539,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                context.ContextFlags = CONTEXT_FULL;
                rc = GetThreadContext (processInformation.hThread, &context);
                if (!rc) {
-                  err_printf ("AWAIT_REMOTE_LOADER_BP: GetThreadContext: error %d\n",
-                     (int) GetLastError());
+                  err_printf (1, "AWAIT_REMOTE_LOADER_BP: GetThreadContext");
                   exit (1);
                }
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
@@ -534,7 +558,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      context.EFlags |= SINGLE_STEP_FLAG;
                      rc = SetThreadContext (processInformation.hThread, &context);
                      if (!rc) {
-                        err_printf ("REMOTE_LOADER_BP: unable to SetThreadContext\n");
+                        err_printf (1, "REMOTE_LOADER_BP: unable to SetThreadContext");
                         exit (1);
                      }
 
@@ -571,7 +595,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          rc = WaitForDebugEvent (&debugEvent, INFINITE);
          todo = DBG_CONTINUE;
          if (!rc) {
-            err_printf ("RUNNING: WaitForDebugEvent: error %d\n", (int) GetLastError());
+            err_printf (1, "RUNNING: WaitForDebugEvent");
             exit (1);
          }
          switch (debugEvent.dwDebugEventCode) {
@@ -582,8 +606,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   context.ContextFlags = CONTEXT_FULL;
                   rc = GetThreadContext (processInformation.hThread, &context);
                   if (!rc) {
-                     err_printf ("RUNNING: GetThreadContext: error %d\n",
-                        (int) GetLastError());
+                     err_printf (1, "RUNNING: GetThreadContext");
                      exit (1);
                   }
                   switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
@@ -625,7 +648,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          rc = WaitForDebugEvent (&debugEvent, INFINITE);
          todo = DBG_CONTINUE;
          if (!rc) {
-            err_printf ("SINGLE_STEP: WaitForDebugEvent: error %d\n", (int) GetLastError());
+            err_printf (1, "SINGLE_STEP: WaitForDebugEvent");
             exit (1);
          }
          switch (debugEvent.dwDebugEventCode) {
@@ -636,8 +659,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   context.ContextFlags = CONTEXT_FULL;
                   rc = GetThreadContext (processInformation.hThread, &context);
                   if (!rc) {
-                     err_printf ("SINGLE_STEP: GetThreadContext: error %d\n",
-                        (int) GetLastError());
+                     err_printf (1, "SINGLE_STEP: GetThreadContext");
                      exit (1);
                   }
                   switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
@@ -646,8 +668,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         // EAX contains an error code, or 0x102 on success
                         // EBX is pointer to context, altered by remote
                         if (context.Eax != COMPLETED_SINGLE_STEP_HANDLER) {
-                           err_printf ("SINGLE_STEP: error code 0x%x: %s\n", (int) context.Eax,
-                              X86Error ((int) context.Eax));
+                           err_printf (context.Eax, "SINGLE_STEP");
                            return 1;
                         }
                         // context restored
@@ -690,7 +711,7 @@ static DWORD DefaultHandler (
    DWORD todo = DBG_CONTINUE;
    switch (pDebugEvent->dwDebugEventCode) {
       case CREATE_PROCESS_DEBUG_EVENT:
-         err_printf ("%s: received a second CREATE_PROCESS_DEBUG_EVENT "
+         err_printf (0, "%s: received a second CREATE_PROCESS_DEBUG_EVENT "
                "from an unexpected process\n", state);
          exit (1);
          break;
@@ -709,15 +730,17 @@ static DWORD DefaultHandler (
             GetThreadContext (pProcessInformation->hThread, &context);
             switch (pDebugEvent->u.Exception.ExceptionRecord.ExceptionCode) {
                case STATUS_BREAKPOINT:
-                  err_printf
-                    ("%s: Reached "
-                     "unexpected breakpoint at %p, error code 0x%x, %s\n",
-                     state, (void *) context.Eip, (int) context.Eax,
-                     X86Error ((int) context.Eax));
+                  if ((context.Eax >= X86D_FIRST_ERROR)
+                  && (context.Eax <= X86D_LAST_ERROR)) {
+                     err_printf (context.Eax, "x86determiniser");
+                  } else {
+                     err_printf (0, "%s: Reached unexpected breakpoint at %p",
+                        state, (void *) context.Eip);
+                  }
                   exit (1);
                   break;
                case STATUS_SINGLE_STEP:
-                  err_printf ("%s: Unexpected single step at %p\n", state, (void *) context.Eip);
+                  err_printf (0, "%s: Unexpected single step at %p", state, (void *) context.Eip);
                   exit (1);
                   break;
                default:

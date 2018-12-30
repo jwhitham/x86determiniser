@@ -108,15 +108,15 @@ def outs_test(args):
          raise Exception("unexpected output from outs.s on line %d, got %s expect %s" % (
             i, repr(got), repr(expect)))
 
-def help_test(args, unknown_option):
+def help_test(args, unknown_option, use_loader):
    clean()
    fd = open(TMP_FILE, "wt")
    fd2 = open(TMP_FILE_2, "wt")
-   rc = subprocess.call([LOADER32] + args, stdout = fd, stderr = fd2)
+   rc = subprocess.call([use_loader] + args, stdout = fd, stderr = fd2)
    fd.close()
    fd2.close()
    if rc != 1:
-      raise Exception("outs_test should have rc = 1, rc = %d" % rc)
+      raise Exception("help_test should have rc = 1, rc = %d" % rc)
 
    ok = False
    for line in open(TMP_FILE, "rt"):
@@ -134,6 +134,43 @@ def help_test(args, unknown_option):
       
       if not ok:
          raise Exception("No unknown option message printed for %s" % args)
+
+def check_error(use_loader):
+   def sub_check_error(args):
+      clean()
+      fd = open(TMP_FILE, "wt")
+      fd2 = open(TMP_FILE_2, "wt")
+      rc = subprocess.call([use_loader] + args, stdout = fd, stderr = fd2)
+      fd.close()
+      fd2.close()
+      if rc == 0:
+         raise Exception("rc should be non-zero if an error occurred")
+
+      for line in open(TMP_FILE, "rt"):
+         raise Exception("standard output should be empty if an error occurred")
+
+      output = []
+      for line in open(TMP_FILE_2, "rt"):
+         output.append(line)
+
+      return "".join(output)
+
+   name = "this program does not exist.exe"
+   s = sub_check_error([name])
+   if not (s.find(name) and (s.find("cannot find the file") > 0)):
+      raise Exception("Did not see expected error message for file not found")
+
+   name = "c:\\this path does not exist\\this program does not exist.exe"
+   s = sub_check_error([name])
+   if not (s.find(name) and (s.find("cannot find the path") > 0)):
+      raise Exception("Did not see expected error message for path not found")
+
+   for name in ["c:\\this path does not exist\\some file.txt", "."]:
+      for option in ["--branch-trace", "--inst-trace", "--out-trace"]:
+         s = sub_check_error([option, name, "args" + SUFFIX])
+         if not ((s.find("Failed to open") > 0) and (s.find(option) > 0)):
+            raise Exception("Did not see expected error message for %s" % option)
+
    
 if __name__ == "__main__":
    args_test(None)
@@ -141,7 +178,8 @@ if __name__ == "__main__":
    outs_test([])
    outs_test(["--branch-trace", TMP_FILE_2])
    outs_test(["--inst-trace", TMP_FILE_2])
-   help_test([], False)
-   help_test(["-?"], True)
-   help_test(["--"], False)
+   help_test([], False, LOADER32)
+   help_test(["-?"], True, LOADER32)
+   help_test(["--"], False, LOADER32)
+   check_error(LOADER32)
 

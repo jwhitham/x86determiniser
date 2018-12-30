@@ -593,7 +593,6 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
       }
       branch_trace = fopen (pcs->branchTrace, "wt");
       if (!branch_trace) {
-         perror ("opening branch trace file");
          x86_bp_trap (FAILED_OPEN_BRANCH_TRACE, NULL);
       }
    }
@@ -603,7 +602,6 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
       }
       inst_trace = fopen (pcs->instTrace, "wt");
       if (!inst_trace) {
-         perror ("opening instruction trace file");
          x86_bp_trap (FAILED_OPEN_INST_TRACE, NULL);
       }
    }
@@ -613,7 +611,6 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
       }
       out_trace = fopen (pcs->outTrace, "wt");
       if (!out_trace) {
-         perror ("opening out trace file");
          x86_bp_trap (FAILED_OPEN_OUT_TRACE, NULL);
       }
    }
