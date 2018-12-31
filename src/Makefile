@@ -9,20 +9,16 @@ ZYDIS=determiniser/zydis-2.0.2
 VERSION=2.0
 
 LOADER_COMMON=loader/common
-LOADER_PLATFORM=loader/$(PLATFORM)
 DETERMINISER_COMMON=determiniser/common
-DETERMINISER_PLATFORM=determiniser/$(PLATFORM)
 
 LOADER_SRCS=\
    $(LOADER_COMMON)/main.c \
    $(LOADER_COMMON)/x86_error.c \
-   $(LOADER_PLATFORM)/win32_loader.c \
-   $(LOADER_PLATFORM)/win32_remote.c
+   $(LOADER_PLATFORM_SRCS)
 DETERMINISER_SRCS=\
    $(DETERMINISER_COMMON)/x86_common_c.c \
    $(DETERMINISER_COMMON)/x86_common_asm.S \
-   $(DETERMINISER_PLATFORM)/win32_asm.S \
-   $(DETERMINISER_PLATFORM)/win32_c.c \
+   $(DETERMINISER_PLATFORM_SRCS) \
    $(ZYDIS)/src/Decoder.c \
    $(ZYDIS)/src/DecoderData.c \
    $(ZYDIS)/src/Formatter.c \
@@ -37,6 +33,8 @@ HEADERS=\
    $(LOADER_COMMON)/remote_loader.h \
    $(GENERATED)/x86d_version.h
 MAKE_H_SRCS=$(DETERMINISER_COMMON)/make_h.c
+MAKE_H=$(GENERATED)/make_h$(EXE)
+OFFSETS_H=$(GENERATED)/offsets.h
 INCS=-I$(ZYDIS)/include \
    -I$(ZYDIS)/msvc \
    -I$(ZYDIS)/src \

@@ -22,11 +22,11 @@ linux32:
 	make -C src PLATFORM=linux32 all
 	make -C tests PLATFORM=linux32 all
 
-win64: win32
+win64:
 	make -C src PLATFORM=win64 all
 	make -C tests PLATFORM=win64 all
 
-linux64: linux32
+linux64:
 	make -C src PLATFORM=linux64 all
 	make -C tests PLATFORM=linux64 all
 

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import subprocess, os, time, stat, sys
+import subprocess, os, time, sys
 
 SUFFIX = ".exe"
 ROOT = os.path.join(os.getcwd(), "..", "..")
