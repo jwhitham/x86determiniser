@@ -13,7 +13,8 @@ static const char api_name[] = "LINUX32";
 #define REG_LIMIT (sizeof (gregset_t))
 #define REGISTER_PREFIX 'E'
 
-#elif WIN64
+#else
+#ifdef WIN64
 
 static const char api_name[] = "WIN64";
 #include <stdint.h>
@@ -32,11 +33,12 @@ static CONTEXT c;
 #define REG_XCX (oof(Rcx))
 #define REG_XAX (oof(Rax))
 #define REG_XIP (oof(Rip))
-#define REG_XFL (oof(RFlags))
+#define REG_XFL (oof(EFlags))
 #define REG_LIMIT (sizeof (CONTEXT))
 #define REGISTER_PREFIX 'R'
 
-#elif WIN32
+#else
+#ifdef WIN32
 
 static const char api_name[] = "WIN32";
 #include <stdint.h>
@@ -60,6 +62,8 @@ static CONTEXT c;
 #define REGISTER_PREFIX 'E'
 
 #endif
+#endif
+#endif
 
 #include <stdio.h>
 
@@ -68,7 +72,7 @@ void table (const char * name, unsigned value)
    /* ptr offset */
    printf ("#define REG_%s (%u)\n", name, value);
    /* byte offset */
-   printf ("#define OFF_%s (%u)\n", name, value * sizeof (void *));
+   printf ("#define OFF_%s (%u)\n", name, (unsigned) (value * sizeof (void *)));
 }
 
 int main (void)
@@ -86,7 +90,7 @@ int main (void)
    table ("XFL", REG_XFL);
    table ("LIMIT", REG_LIMIT);
    printf ("#define REGISTER_PREFIX '%c'\n", REGISTER_PREFIX);
-   printf ("#define PTR_SIZE %d\n", sizeof (void *));
+   printf ("#define PTR_SIZE %u\n", (unsigned) sizeof (void *));
    return 0;
 }
 

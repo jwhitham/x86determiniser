@@ -93,7 +93,8 @@ static void branch_trace_encode (uint32_t trace_opcode, uintptr_t addr)
       }
       /* write an element to the branch trace */
       fprintf (branch_trace, "%08x %08x\n",
-          trace_opcode | (addr & WORD_DATA_MASK), (uint32_t) inst_count);
+          (uint32_t) (trace_opcode | (addr & WORD_DATA_MASK)),
+          (uint32_t) inst_count);
       branch_trace_refresh --;
    }
 }

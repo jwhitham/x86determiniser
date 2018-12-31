@@ -49,6 +49,70 @@ static void err_printf (unsigned err_code, const char * fmt, ...)
    }
 }
 
+static uintptr_t get_stack_ptr (PCONTEXT context)
+{
+#ifdef WIN64
+   return context->Rsp;
+#else
+   return context->Esp;
+#endif
+}
+
+static void set_stack_ptr (PCONTEXT context, uintptr_t sp)
+{
+#ifdef WIN64
+   context->Rsp = sp;
+#else
+   context->Esp = sp;
+#endif
+}
+
+static uintptr_t get_xax (PCONTEXT context)
+{
+#ifdef WIN64
+   return context->Rax;
+#else
+   return context->Eax;
+#endif
+}
+
+static uintptr_t get_xbx (PCONTEXT context)
+{
+#ifdef WIN64
+   return context->Rbx;
+#else
+   return context->Ebx;
+#endif
+}
+
+static uintptr_t get_pc (PCONTEXT context)
+{
+#ifdef WIN64
+   return context->Rip;
+#else
+   return context->Eip;
+#endif
+}
+
+static void set_pc (PCONTEXT context, uintptr_t pc)
+{
+#ifdef WIN64
+   context->Rip = pc;
+#else
+   context->Eip = pc;
+#endif
+}
+
+static void set_single_step_flag (PCONTEXT context)
+{
+   context->EFlags |= SINGLE_STEP_FLAG;
+}
+
+static void clear_single_step_flag (PCONTEXT context)
+{
+   context->EFlags &= ~SINGLE_STEP_FLAG;
+}
+
 
 static void StartSingleStepProc
   (void * singleStepProc,
@@ -60,8 +124,8 @@ static void StartSingleStepProc
    memcpy (&localCs.context, context, sizeof (CONTEXT));
 
    // reserve stack space for SingleStepStruct
-   context->Esp -= sizeof (localCs);
-   localCs.pcontext = (void *) (context->Esp + 8);
+   set_stack_ptr(context, get_stack_ptr(context) - sizeof (localCs));
+   localCs.pcontext = (void *) (get_stack_ptr(context) + (2 * sizeof (void *)));
    localCs.unused = NULL;
    // dbg_printf ("location of context: %p\n", (void *) localCs.pcontext);
 
@@ -70,14 +134,14 @@ static void StartSingleStepProc
    // first parameter is "pcontext" (2nd item in struct)
    WriteProcessMemory
      (hProcess,
-      (void *) context->Esp,
+      (void *) get_stack_ptr(context),
       &localCs,
       sizeof (localCs),
       NULL);
 
    // run single step handler until breakpoint
-   context->Eip = (DWORD) singleStepProc;
-   context->EFlags &= ~SINGLE_STEP_FLAG;
+   set_pc(context, (uintptr_t) singleStepProc);
+   clear_single_step_flag(context);
 }
 
 void StartRemoteLoader
@@ -126,10 +190,10 @@ void StartRemoteLoader
    }
 
    // reserve the right amount of stack space
-   context->Esp -= sizeof (CommStruct);
+   set_stack_ptr(context, get_stack_ptr(context) - sizeof (CommStruct));
 
    // build data structure to load into the remote stack
-   pcs->myself = (void *) context->Esp;
+   pcs->myself = (void *) get_stack_ptr(context);
    snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/x86determiniser.dll", binFolder);
    strncpy (pcs->procName, "X86DeterminiserStartup", MAX_PROC_NAME_SIZE);
    pcs->loadLibraryProc = 
@@ -153,10 +217,9 @@ void StartRemoteLoader
    }
 
    // run RemoteLoader procedure until breakpoint
-   context->Eip = 
-      (DWORD) ((void *) ((char *) remoteBuf +
-         ((char *) RemoteLoader - (char *) RemoteLoaderStart)));
-   context->EFlags &= ~SINGLE_STEP_FLAG;
+   set_pc(context, (uintptr_t) ((void *) ((char *) remoteBuf +
+         ((char *) RemoteLoader - (char *) RemoteLoaderStart))));
+   clear_single_step_flag(context);
 }
 
 
@@ -424,7 +487,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // Capture startContext once it's reached
    // Also capture the kernel32.dll base address, which we should see
    // before the first instruction
-   while (!startContext.Eip) {
+   while (!get_pc(&startContext)) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       todo = DBG_CONTINUE;
       if (!rc) {
@@ -446,8 +509,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_BREAKPOINT:
                      // Are we in the right place?
-                     context.Eip --;
-                     if ((void *) context.Eip != startAddress) {
+                     set_pc (&context, get_pc (&context) - 1);
+                     if ((void *) get_pc (&context) != startAddress) {
                         // This is a breakpoint in some system code.
                         // Its purpose is not known.
                         break;
@@ -545,17 +608,17 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_BREAKPOINT:
                      // EAX contains an error code, or 0x101 on success
-                     if (context.Eax != COMPLETED_LOADER) {
+                     if (get_xax (&context) != COMPLETED_LOADER) {
                         todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
                      }
                      // EBX contains the address of the single step handler
-                     singleStepProc = (void *) context.Ebx;
+                     singleStepProc = (void *) get_xbx (&context);
 
                      // REMOTE_LOADER_BP STAGE
                      // "reboot" into the original context and continue, initially
                      // single stepping
                      memcpy (&context, &startContext, sizeof (CONTEXT));
-                     context.EFlags |= SINGLE_STEP_FLAG;
+                     set_single_step_flag (&context);
                      rc = SetThreadContext (processInformation.hThread, &context);
                      if (!rc) {
                         err_printf (1, "REMOTE_LOADER_BP: unable to SetThreadContext");
@@ -614,7 +677,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         // Reached single step; run single step handler.
                         dbg_printf
                           ("RUNNING: Single step at %p, go to handler at %p\n", 
-                           (void *) context.Eip, (void *) singleStepProc);
+                           (void *) get_pc (&context), (void *) singleStepProc);
                         fflush (stdout);
                         run = FALSE;
                         StartSingleStepProc
@@ -667,15 +730,15 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         // single step procedure finished
                         // EAX contains an error code, or 0x102 on success
                         // EBX is pointer to context, altered by remote
-                        if (context.Eax != COMPLETED_SINGLE_STEP_HANDLER) {
-                           err_printf (context.Eax, "SINGLE_STEP");
+                        if (get_xax (&context) != COMPLETED_SINGLE_STEP_HANDLER) {
+                           err_printf (get_xax (&context), "SINGLE_STEP");
                            return 1;
                         }
                         // context restored
                         //dbg_printf ("location of context: %p\n", (void *) context.Ebx);
                         ReadProcessMemory
                           (processInformation.hProcess,
-                           (void *) context.Ebx,
+                           (void *) get_xbx (&context),
                            (void *) &context,
                            sizeof (CONTEXT),
                            NULL);
@@ -730,31 +793,31 @@ static DWORD DefaultHandler (
             GetThreadContext (pProcessInformation->hThread, &context);
             switch (pDebugEvent->u.Exception.ExceptionRecord.ExceptionCode) {
                case STATUS_BREAKPOINT:
-                  if ((context.Eax >= X86D_FIRST_ERROR)
-                  && (context.Eax <= X86D_LAST_ERROR)) {
-                     err_printf (context.Eax, "x86determiniser");
+                  if ((get_xax (&context) >= X86D_FIRST_ERROR)
+                  && (get_xax (&context) <= X86D_LAST_ERROR)) {
+                     err_printf (get_xax (&context), "x86determiniser");
                   } else {
-                     err_printf (0, "Breakpoint instruction at %p", (void *) context.Eip);
+                     err_printf (0, "Breakpoint instruction at %p", (void *) get_pc (&context));
                   }
                   exit (1);
                   break;
                case STATUS_SINGLE_STEP:
-                  err_printf (0, "%s: Unexpected single step at %p", state, (void *) context.Eip);
+                  err_printf (0, "%s: Unexpected single step at %p", state, (void *) get_pc (&context));
                   exit (1);
                   break;
                case STATUS_PRIVILEGED_INSTRUCTION:
                case STATUS_ILLEGAL_INSTRUCTION:
-                  err_printf (0, "Illegal instruction at %p", (void *) context.Eip);
+                  err_printf (0, "Illegal instruction at %p", (void *) get_pc (&context));
                   exit (1);
                   break;
                case STATUS_ACCESS_VIOLATION:
-                  err_printf (0, "Segmentation fault at %p", (void *) context.Eip);
+                  err_printf (0, "Segmentation fault at %p", (void *) get_pc (&context));
                   exit (1);
                   break;
                default:
                   // pass through
                   dbg_printf ("%s: Exception at %p code 0x%0x\n",
-                     state, (void *) context.Eip,
+                     state, (void *) get_pc (&context),
                      (unsigned) pDebugEvent->u.Exception.ExceptionRecord.ExceptionCode);
                   todo = DBG_EXCEPTION_NOT_HANDLED;
                   break;
@@ -768,7 +831,7 @@ static DWORD DefaultHandler (
          break;
       case EXIT_THREAD_DEBUG_EVENT:
          if (pDebugEvent->dwProcessId == pProcessInformation->dwProcessId) {
-            dbg_printf ("%s: Exit thread %p\n", state, (void *) pDebugEvent->dwThreadId);
+            dbg_printf ("%s: Exit thread 0x%x\n", state, (unsigned) pDebugEvent->dwThreadId);
          }
          break;
       case LOAD_DLL_DEBUG_EVENT:
