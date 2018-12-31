@@ -12,7 +12,6 @@ LOADER_COMMON=loader/common
 LOADER_PLATFORM=loader/$(PLATFORM)
 DETERMINISER_COMMON=determiniser/common
 DETERMINISER_PLATFORM=determiniser/$(PLATFORM)
-GENERATED=generated
 
 LOADER_SRCS=\
    $(LOADER_COMMON)/main.c \
@@ -38,8 +37,6 @@ HEADERS=\
    $(LOADER_COMMON)/remote_loader.h \
    $(GENERATED)/x86d_version.h
 MAKE_H_SRCS=$(DETERMINISER_COMMON)/make_h.c
-MAKE_H=$(GENERATED)/make_h$(EXE)
-OFFSETS_H=$(GENERATED)/offsets.h
 INCS=-I$(ZYDIS)/include \
    -I$(ZYDIS)/msvc \
    -I$(ZYDIS)/src \
@@ -48,10 +45,10 @@ INCS=-I$(ZYDIS)/include \
 
 
 
-all: $(LOADER32_EXE) $(DETERMINISER32_DLL)
+all: $(LOADER_EXE) $(DETERMINISER_DLL)
 
 clean:
-	rm -f $(LOADER32_EXE) $(DETERMINISER32_DLL)  \
+	rm -f $(LOADER_EXE) $(DETERMINISER_DLL)  \
       $(OFFSETS_H) $(MAKE_H) \
       $(GENERATED)/x86d_version.h
 
@@ -61,15 +58,15 @@ $(GENERATED)/x86d_version.h:
 	git rev-parse HEAD | tr -d '\n' >> $(GENERATED)/x86d_version.h
 	echo ' !"' >> $(GENERATED)/x86d_version.h
 
-$(LOADER32_EXE): $(LOADER_SRCS) $(HEADERS) ../bin
-	$(CC) -o $@ $(LOADER_SRCS) $(CFLAGS32) $(LOADER_LIBS) $(INCS)
+$(LOADER_EXE): $(LOADER_SRCS) $(HEADERS) ../bin
+	$(CC) -o $@ $(LOADER_SRCS) $(CFLAGS) $(LOADER_LIBS) $(INCS)
 
-$(DETERMINISER32_DLL): $(DETERMINISER_SRCS) $(HEADERS) $(OFFSETS_H)
-	$(CC) -o $@ -shared $(DETERMINISER_SRCS) $(CFLAGS32) \
+$(DETERMINISER_DLL): $(DETERMINISER_SRCS) $(HEADERS) $(OFFSETS_H)
+	$(CC) -o $@ -shared $(DETERMINISER_SRCS) $(CFLAGS) \
       $(INCS)
 
 $(OFFSETS_H): $(MAKE_H_SRCS)
-	$(CC) -o $(MAKE_H) $(MAKE_H_SRCS) $(CFLAGS32)
+	$(CC) -o $(MAKE_H) $(MAKE_H_SRCS) $(CFLAGS)
 	$(MAKE_H) > $(OFFSETS_H)
 
 ../bin:

@@ -9,15 +9,15 @@ clean:
 	-rm -rf ctest.trace \
       *.trace *.ok
 
-ctest.ok: $(LOADER32_EXE)
-	$(LOADER32_EXE) --branch-trace ctest.trace ctest$(EXE)
+ctest.ok: $(LOADER_EXE)
+	$(LOADER_EXE) --branch-trace ctest.trace ctest$(EXE)
 	python tests.py
 
 # These rules are only used when the test is created.
 SRC=main.c t1.c t2.S t3.S t4.S t5.S t6.c t7.c
 
 ctest$(EXE): $(SRC)
-	$(CC) -o $@ $(CFLAGS32) $(SRC) -O2
+	$(CC) -o $@ $(CFLAGS) $(SRC) -O2
 
 ctest.ref: ctest$(EXE)
 	cp ~/x86dx/libx86determiniser$(DLL) .

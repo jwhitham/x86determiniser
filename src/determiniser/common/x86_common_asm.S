@@ -45,18 +45,18 @@ super_stack_top:
 _x86_begin_single_step:
 x86_begin_single_step:
     /* save the user context */
-    mov     %eax, OFF_EAX + x86_other_context    /* GPRs */
-    mov     %ebx, OFF_EBX + x86_other_context
-    mov     %ecx, OFF_ECX + x86_other_context
-    mov     %edx, OFF_EDX + x86_other_context
-    mov     %esp, OFF_ESP + x86_other_context
-    mov     %ebp, OFF_EBP + x86_other_context
-    mov     %esi, OFF_ESI + x86_other_context
-    mov     %edi, OFF_EDI + x86_other_context
+    mov     %eax, OFF_XAX + x86_other_context    /* GPRs */
+    mov     %ebx, OFF_XBX + x86_other_context
+    mov     %ecx, OFF_XCX + x86_other_context
+    mov     %edx, OFF_XDX + x86_other_context
+    mov     %esp, OFF_XSP + x86_other_context
+    mov     %ebp, OFF_XBP + x86_other_context
+    mov     %esi, OFF_XSI + x86_other_context
+    mov     %edi, OFF_XDI + x86_other_context
     pushf
-    popl    OFF_EFL + x86_other_context          /* FLAGS */
+    popl    OFF_XFL + x86_other_context          /* FLAGS */
     mov     $user_start_point, %eax
-    mov     %eax, OFF_EIP + x86_other_context    /* program counter (return point) */
+    mov     %eax, OFF_XIP + x86_other_context    /* program counter (return point) */
 
     /* various setup */
     mov     $super_stack_top, %esp
@@ -107,36 +107,36 @@ _x86_switch_to_user:
     mov     %eax, 1(%esi)   /* call target (as relative address) */
 
     /* restore the user context */
-    mov     OFF_EAX + x86_other_context, %eax /* GPRs */
-    mov     OFF_EBX + x86_other_context, %ebx
-    mov     OFF_ECX + x86_other_context, %ecx
-    mov     OFF_EDX + x86_other_context, %edx
-    mov     OFF_EBP + x86_other_context, %ebp
-    xchg    OFF_ESI + x86_other_context, %esi
-    mov     OFF_EDI + x86_other_context, %edi
-    pushl   OFF_EFL + x86_other_context          /* user FLAGS, once restored */
+    mov     OFF_XAX + x86_other_context, %eax /* GPRs */
+    mov     OFF_XBX + x86_other_context, %ebx
+    mov     OFF_XCX + x86_other_context, %ecx
+    mov     OFF_XDX + x86_other_context, %edx
+    mov     OFF_XBP + x86_other_context, %ebp
+    xchg    OFF_XSI + x86_other_context, %esi
+    mov     OFF_XDI + x86_other_context, %edi
+    pushl   OFF_XFL + x86_other_context          /* user FLAGS, once restored */
     popf                                         /* may cause single-stepping */
-    xchg    %esp, OFF_ESP + x86_other_context
-    jmp     *(OFF_EIP + x86_other_context)       /* user PC */
+    xchg    %esp, OFF_XSP + x86_other_context
+    jmp     *(OFF_XIP + x86_other_context)       /* user PC */
 
 .align 4
 _x86_switch_from_user:
 x86_switch_from_user:
     /* save the user context */
-    mov     %eax, OFF_EAX + x86_other_context    /* GPRs */
+    mov     %eax, OFF_XAX + x86_other_context    /* GPRs */
     pop     %eax                                 /* PC + CALL_SIZE */
-    xchg    %esp, OFF_ESP + x86_other_context
-    mov     %ebx, OFF_EBX + x86_other_context
-    mov     %ecx, OFF_ECX + x86_other_context
-    mov     %edx, OFF_EDX + x86_other_context
-    mov     %ebp, OFF_EBP + x86_other_context
-    xchg    %esi, OFF_ESI + x86_other_context
-    mov     %edi, OFF_EDI + x86_other_context
+    xchg    %esp, OFF_XSP + x86_other_context
+    mov     %ebx, OFF_XBX + x86_other_context
+    mov     %ecx, OFF_XCX + x86_other_context
+    mov     %edx, OFF_XDX + x86_other_context
+    mov     %ebp, OFF_XBP + x86_other_context
+    xchg    %esi, OFF_XSI + x86_other_context
+    mov     %edi, OFF_XDI + x86_other_context
 
     pushf
-    popl    OFF_EFL + x86_other_context          /* user FLAGS */
+    popl    OFF_XFL + x86_other_context          /* user FLAGS */
     subl    $CALL_SIZE, %eax
-    mov     %eax, OFF_EIP + x86_other_context    /* user PC */
+    mov     %eax, OFF_XIP + x86_other_context    /* user PC */
 
     /* Restore endpoint */
     mov     save_space, %eax

@@ -3,6 +3,9 @@ PLATFORM=win32
 ROOT=../..
 include ../../$(PLATFORM).cfg
 
+CFLAGS32=-D$(PLATFORM) -std=c99 -g -Wall -Wextra -m32
+CFLAGS64=-D$(PLATFORM) -std=c99 -g -Wall -Wextra -m64
+
 all: tests.ok
 
 clean:

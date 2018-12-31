@@ -29,8 +29,8 @@ static uint8_t          entry_flag = 1;
 uint8_t                 x86_quiet_mode = 0;
 
 static uint8_t          fake_endpoint[8];
-static uint32_t         min_address = 0;
-static uint32_t         max_address = 0;
+static uintptr_t        min_address = 0;
+static uintptr_t        max_address = 0;
 
 static uint32_t         branch_trace_temp = 0;
 static uint32_t         branch_trace_refresh = BRANCH_TRACE_REFRESH_INTERVAL;
@@ -43,60 +43,63 @@ static ZydisDecoder     decoder;
 static ZydisFormatter   formatter;
 
 typedef struct superblock_info {
-    uint32_t size;
-    uint32_t count;
+    size_t size;
+    size_t count;
 } superblock_info;
 
 static superblock_info * superblocks;
 
-extern uint32_t x86_other_context[];
+extern uintptr_t x86_other_context[];
 extern uint8_t x86_switch_from_user[];
 extern uint32_t x86_size_of_indirect_call_instruction;
 
-void x86_switch_to_user (uint32_t endpoint);
-void x86_make_text_writable (uint32_t min_address, uint32_t max_address);
+void x86_switch_to_user (uintptr_t endpoint);
+void x86_make_text_writable (uintptr_t min_address, uintptr_t max_address);
 void x86_begin_single_step (void);
-int x86_is_branch_taken (uint32_t flags, uint8_t opcode);
+int x86_is_branch_taken (uintptr_t flags, uint8_t opcode);
 
-static void dump_regs (uint32_t * gregs)
+static void dump_regs (uintptr_t * gregs)
 {
-    printf (" EAX = %08x  ", gregs[REG_EAX]);
-    printf (" EBX = %08x  ", gregs[REG_EBX]);
-    printf (" ECX = %08x  ", gregs[REG_ECX]);
-    printf (" EDX = %08x  ", gregs[REG_EDX]);
-    printf (" EFL = %08x\n", gregs[REG_EFL]);
-    printf (" EIP = %08x  ", gregs[REG_EIP]);
-    printf (" ESI = %08x  ", gregs[REG_ESI]);
-    printf (" EDI = %08x  ", gregs[REG_EDI]);
-    printf (" EBP = %08x  ", gregs[REG_EBP]);
-    printf (" ESP = %08x\n", gregs[REG_ESP]);
+   char c = REGISTER_PREFIX;
+   printf (" %cAX = %p  ", c, (void *) gregs[REG_XAX]);
+   printf (" %cBX = %p  ", c, (void *) gregs[REG_XBX]);
+   printf (" %cCX = %p  ", c, (void *) gregs[REG_XCX]);
+   printf (" %cDX = %p  ", c, (void *) gregs[REG_XDX]);
+   printf (" %cFL = %p\n", c, (void *) gregs[REG_XFL]);
+   printf (" %cIP = %p  ", c, (void *) gregs[REG_XIP]);
+   printf (" %cSI = %p  ", c, (void *) gregs[REG_XSI]);
+   printf (" %cDI = %p  ", c, (void *) gregs[REG_XDI]);
+   printf (" %cBP = %p  ", c, (void *) gregs[REG_XBP]);
+   printf (" %cSP = %p\n", c, (void *) gregs[REG_XSP]);
 }
 
-static void superblock_decoder (superblock_info * si, uint32_t pc);
+static void superblock_decoder (superblock_info * si, uintptr_t pc);
 
 // encode some element into the branch trace, with correct handling
 // for values greater than 1 << 28
-static void branch_trace_encode (uint32_t trace_opcode, uint32_t addr)
+static void branch_trace_encode (uint32_t trace_opcode, uintptr_t addr)
 {
-    if (branch_trace) {
-        uint32_t top_nibble = addr >> 28;
+   if (branch_trace) {
+      uint32_t top_nibble = addr >> 28;
 
-        if ((top_nibble != branch_trace_temp)
-        || (branch_trace_refresh == 0)) {
-            /* set the value of the top nibble used in the branch trace using
-             * the SM trace opcode */
-            branch_trace_temp = top_nibble;
-            branch_trace_refresh = BRANCH_TRACE_REFRESH_INTERVAL;
-            fprintf (branch_trace, "%08x %08x\n", SM | top_nibble, (uint32_t) inst_count);
-        }
-        /* write an element to the branch trace */
-        fprintf (branch_trace, "%08x %08x\n", trace_opcode | (addr & WORD_DATA_MASK), (uint32_t) inst_count);
-        branch_trace_refresh --;
-    }
+      if ((top_nibble != branch_trace_temp)
+      || (branch_trace_refresh == 0)) {
+         /* set the value of the top nibble used in the branch trace using
+          * the SM trace opcode */
+         branch_trace_temp = top_nibble;
+         branch_trace_refresh = BRANCH_TRACE_REFRESH_INTERVAL;
+         fprintf (branch_trace, "%08x %08x\n",
+            SM | top_nibble, (uint32_t) inst_count);
+      }
+      /* write an element to the branch trace */
+      fprintf (branch_trace, "%08x %08x\n",
+          trace_opcode | (addr & WORD_DATA_MASK), (uint32_t) inst_count);
+      branch_trace_refresh --;
+   }
 }
 
 // write taken branch to branch trace
-static inline void branch_taken (uint32_t src, uint32_t dest)
+static inline void branch_taken (uintptr_t src, uintptr_t dest)
 {
     if (branch_trace
     && (src >= min_address) && (src <= max_address)
@@ -107,7 +110,7 @@ static inline void branch_taken (uint32_t src, uint32_t dest)
 }
 
 // write not taken branch to branch trace
-static inline void branch_not_taken (uint32_t src)
+static inline void branch_not_taken (uintptr_t src)
 {
     if (branch_trace
     && (src >= min_address) && (src <= max_address)) {
@@ -116,53 +119,67 @@ static inline void branch_not_taken (uint32_t src)
 }
 
 // single step print_trigger_counted
-void x86_trap_handler (uint32_t * gregs, uint32_t trapno)
+void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
 {
-    uint32_t pc;
+   uintptr_t pc;
 
-    if (trapno != 1) {
-        fprintf (stderr, "trapno %u not known\n", trapno);
-        dump_regs (gregs);
-        exit (1);
-        return;
-    }
+   if (trapno != 1) {
+      fprintf (stderr, "trapno %u not known\n", trapno);
+      dump_regs (gregs);
+      exit (1);
+      return;
+   }
         
-    pc = gregs[REG_EIP];
+   pc = gregs[REG_XIP];
 #ifdef DEBUG
-    printf ("stepping EIP %08x ESP %08x entry_flag %u\n", pc, gregs[REG_ESP], entry_flag);
+   if (!x86_quiet_mode) {
+      printf ("stepping %cIP %p %cSP %p entry_flag %u\n",
+            REGISTER_PREFIX, (void *) gregs[REG_XIP],
+            REGISTER_PREFIX, (void *) gregs[REG_XSP], entry_flag);
+   }
 #endif
 
-    if (!entry_flag) {
-        // We have now stepped one instruction in the program, time to leave!
-        // Fake an indirect call (to match the other way to exit from user code)
-        gregs[REG_ESP] -= 4;
-        ((uint32_t *) gregs[REG_ESP])[0] = gregs[REG_EIP] + x86_size_of_indirect_call_instruction; 
-        gregs[REG_EIP] = (uint32_t) x86_switch_from_user;
+   if (!entry_flag) {
+      // We have now stepped one instruction in the program, time to leave!
+      // Fake an indirect call (to match the other way to exit from user code)
+      uintptr_t sp = (uintptr_t) gregs[REG_XSP];
+      uintptr_t * tos;
+       
+      sp -= PTR_SIZE;
+      gregs[REG_XSP] = sp;
+      tos = (uintptr_t *) sp;
+      tos[0] = pc + x86_size_of_indirect_call_instruction;
+      gregs[REG_XIP] = (uintptr_t) x86_switch_from_user;
+
 #ifdef DEBUG
-        printf ("switch from user: new EIP %08x ESP %08x\n", gregs[REG_EIP], gregs[REG_ESP]);
+      if (!x86_quiet_mode) {
+         printf ("switch from user: new %cIP %p %cSP %p\n",
+               REGISTER_PREFIX, (void *) gregs[REG_XIP],
+               REGISTER_PREFIX, (void *) gregs[REG_XSP]);
+      }
 #endif
-        gregs[REG_EFL] &= ~SINGLE_STEP_FLAG;
-    } else if ((pc < min_address) || (pc > max_address)) {
-        // Still outside program (probably completing the switch from super -> user)
-        // Keep stepping
-        gregs[REG_EFL] |= SINGLE_STEP_FLAG;
-    } else {
-        // Stepped one instruction
-        entry_flag = 0;
-        gregs[REG_EFL] |= SINGLE_STEP_FLAG;
-    }
+      gregs[REG_XFL] &= ~SINGLE_STEP_FLAG;
+   } else if ((pc < min_address) || (pc > max_address)) {
+      // Still outside program (probably completing the switch from super -> user)
+      // Keep stepping
+      gregs[REG_XFL] |= SINGLE_STEP_FLAG;
+   } else {
+      // Stepped one instruction
+      entry_flag = 0;
+      gregs[REG_XFL] |= SINGLE_STEP_FLAG;
+   }
 }
 
 static int interpret_control_flow (void)
 {
-    uint32_t pc = x86_other_context[REG_EIP];
-    uint32_t src = pc;
+    uintptr_t pc = x86_other_context[REG_XIP];
+    uintptr_t src = pc;
     uint8_t * pc_bytes = (uint8_t *) pc;
-    uint32_t flags = x86_other_context[REG_EFL];
-    uint32_t rm = 0;
-    uint32_t * offset = NULL;
-    uint32_t * stack = NULL;
-    uint32_t v = 0;
+    uintptr_t flags = x86_other_context[REG_XFL];
+    int32_t rm = 0;
+    int32_t * offset = NULL;
+    uintptr_t * stack = NULL;
+    uintptr_t v = 0;
 
     switch (pc_bytes[0]) {
         case 0x70: case 0x71: case 0x72: case 0x73: // various conditional branches
@@ -188,13 +205,13 @@ static int interpret_control_flow (void)
             break;
         case 0xe5: // IN imm8, EAX (get counter value and then reset counter)
             pc += 2;
-            x86_other_context[REG_EAX] = (uint32_t) inst_count;
+            x86_other_context[REG_XAX] = (uint32_t) inst_count;
             inst_count = 0;
             break;
         case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
         case 0xe7: // OUT imm8, EAX
             pc += 2;
-            v = x86_other_context[REG_EAX];
+            v = x86_other_context[REG_XAX];
             if (pc_bytes[0] == 0xe6) {
                 v = v & 0xff;
             }
@@ -223,7 +240,7 @@ static int interpret_control_flow (void)
                 case 0x8c: case 0x8d: case 0x8e: case 0x8f:
                     pc += 6;
                     if (x86_is_branch_taken (flags, pc_bytes[1])) {
-                        offset = (uint32_t *) &pc_bytes[2];
+                        offset = (int32_t *) &pc_bytes[2];
                         pc += offset[0];
                         branch_taken (src, pc);
                     } else {
@@ -231,8 +248,8 @@ static int interpret_control_flow (void)
                     }
                     break;
                 case 0x31: // RDTSC
-                    x86_other_context[REG_EAX] = inst_count;
-                    x86_other_context[REG_EDX] = (uint32_t) (inst_count >> 32);
+                    x86_other_context[REG_XAX] = inst_count;
+                    x86_other_context[REG_XDX] = (uint32_t) (inst_count >> 32);
                     pc += 2;
                     break;
                 default:
@@ -242,18 +259,18 @@ static int interpret_control_flow (void)
 
         case 0xe9: // JMP (long)
             pc += 5;
-            offset = (uint32_t *) &pc_bytes[1];
+            offset = (int32_t *) &pc_bytes[1];
             pc += offset[0];
             branch_taken (src, pc);
             break;
 
         case 0xe8: // CALL
-            offset = (uint32_t *) &pc_bytes[1];
+            offset = (int32_t *) &pc_bytes[1];
             pc += 5;
-            stack = (uint32_t *) x86_other_context[REG_ESP];
+            stack = (uintptr_t *) x86_other_context[REG_XSP];
             stack--;
             stack[0] = pc;
-            x86_other_context[REG_ESP] = (intptr_t) stack;
+            x86_other_context[REG_XSP] = (intptr_t) stack;
             pc += offset[0];
             branch_taken (src, pc);
             break;
@@ -264,36 +281,38 @@ static int interpret_control_flow (void)
             }
             // REPZ RET - fall through:
         case 0xc3: // RET
-            stack = (uint32_t *) x86_other_context[REG_ESP];
+            stack = (uint32_t *) x86_other_context[REG_XSP];
             pc = stack[0];
             stack++;
-            x86_other_context[REG_ESP] = (intptr_t) stack;
+            x86_other_context[REG_XSP] = (intptr_t) stack;
             branch_taken (src, pc);
             break;
 
         case 0xff:
-            stack = (uint32_t *) x86_other_context[REG_ESP];
+            stack = (uint32_t *) x86_other_context[REG_XSP];
             stack--;
 #ifdef DEBUG
-            printf ("Code ff %02x at %08x, mode %u, R/M %u, opcode %u\n",
-                pc_bytes[1], pc, pc_bytes[1] >> 6, pc_bytes[1] & 7, (pc_bytes[1] >> 3) & 7);
+            if (!x86_quiet_mode) {
+               printf ("Code ff %02x at %p, mode %u, R/M %u, opcode %u\n",
+                   pc_bytes[1], pc_bytes, pc_bytes[1] >> 6, pc_bytes[1] & 7, (pc_bytes[1] >> 3) & 7);
+            }
 #endif
 
             // Decode R/M field: says which register is used for effective address
             switch (pc_bytes[1] & 7) {
-                case 0: rm = x86_other_context[REG_EAX]; break;
-                case 1: rm = x86_other_context[REG_ECX]; break;
-                case 2: rm = x86_other_context[REG_EDX]; break;
-                case 3: rm = x86_other_context[REG_EBX]; break;
-                case 6: rm = x86_other_context[REG_ESI]; break;
-                case 7: rm = x86_other_context[REG_EDI]; break;
+                case 0: rm = x86_other_context[REG_XAX]; break;
+                case 1: rm = x86_other_context[REG_XCX]; break;
+                case 2: rm = x86_other_context[REG_XDX]; break;
+                case 3: rm = x86_other_context[REG_XBX]; break;
+                case 6: rm = x86_other_context[REG_XSI]; break;
+                case 7: rm = x86_other_context[REG_XDI]; break;
                 case 5: // EBP or disp32
                     if ((pc_bytes[1] >> 6) == 0) {
-                        offset = (uint32_t *) &pc_bytes[2]; // 32-bit displacement
+                        offset = (int32_t *) &pc_bytes[2]; // 32-bit displacement
                         rm = offset[0];
                         pc += 4;
                     } else {
-                        rm = x86_other_context[REG_EBP];
+                        rm = x86_other_context[REG_XBP];
                     }
                     break;
                 default: // SIB: don't decode that!
@@ -303,24 +322,24 @@ static int interpret_control_flow (void)
             // Decode the Mode field: says how register should be used
             switch (pc_bytes[1] >> 6) {
                 case 0: // dereference with zero offset
-                    offset = (uint32_t *) rm;
-                    offset = (uint32_t *) offset[0];
-                    rm = (uint32_t) offset;
+                    offset = (int32_t *) rm;
+                    offset = (int32_t *) offset[0];
+                    rm = (int32_t) offset;
                     pc += 2;
                     break;
                 case 1: // dereference with short offset
                     rm += (int8_t) pc_bytes[2];
-                    offset = (uint32_t *) rm;
-                    offset = (uint32_t *) offset[0];
-                    rm = (uint32_t) offset;
+                    offset = (int32_t *) rm;
+                    offset = (int32_t *) offset[0];
+                    rm = (int32_t) offset;
                     pc += 3;
                     break;
                 case 2: // dereference with long offset
-                    offset = (uint32_t *) &pc_bytes[2];
+                    offset = (int32_t *) &pc_bytes[2];
                     rm += offset[0];
-                    offset = (uint32_t *) rm;
-                    offset = (uint32_t *) offset[0];
-                    rm = (uint32_t) offset;
+                    offset = (int32_t *) rm;
+                    offset = (int32_t *) offset[0];
+                    rm = (int32_t) offset;
                     pc += 6;
                     break;
                 default: // direct
@@ -335,7 +354,7 @@ static int interpret_control_flow (void)
                 case 1: // DEC
                     return 0;
                 case 2: // CALL
-                    x86_other_context[REG_ESP] = (intptr_t) stack;
+                    x86_other_context[REG_XSP] = (intptr_t) stack;
                     stack[0] = pc;
                     pc = rm;
                     branch_taken (src, pc);
@@ -358,39 +377,42 @@ static int interpret_control_flow (void)
         default:
             return 0;
     }
-    x86_other_context[REG_EIP] = pc;
+    x86_other_context[REG_XIP] = pc;
     return 1;
 }
 
 // interpreter loop
 void x86_interpreter (void)
 {
-    uint32_t pc, pc_end;
+    uintptr_t pc, pc_end;
 
     if (!x86_quiet_mode) {
         printf ("RUNNING: interpreter startup...\n");
     }
 
     // Startup: run until reaching the program
-    pc = x86_other_context[REG_EIP];
+    pc = x86_other_context[REG_XIP];
     entry_flag = 1;
-    x86_other_context[REG_EFL] |= SINGLE_STEP_FLAG;
-    x86_switch_to_user ((uint32_t) fake_endpoint);
-    x86_other_context[REG_EFL] &= ~SINGLE_STEP_FLAG;
-    pc = x86_other_context[REG_EIP];
+    x86_other_context[REG_XFL] |= SINGLE_STEP_FLAG;
+    x86_switch_to_user ((uintptr_t) fake_endpoint);
+    x86_other_context[REG_XFL] &= ~SINGLE_STEP_FLAG;
+    pc = x86_other_context[REG_XIP];
     if ((pc < min_address) || (pc > max_address)) {
-        fprintf (stderr, "Startup did not reach program (at %08x)\n", pc);
+        fprintf (stderr, "Startup did not reach program (at %p)\n", (void *) pc);
+        fflush (stdout);
+        fflush (stderr);
         x86_bp_trap (FAILED_TO_REACH_PROGRAM, NULL);
     }
 
     if (!x86_quiet_mode) {
-        printf ("RUNNING: interpreter ok, entry EIP %08x ESP %08x, program running:\n",
-                    pc, x86_other_context[REG_ESP]);
+        printf ("RUNNING: interpreter ok, entry %cIP %p %cSP %p, program running:\n",
+                    REGISTER_PREFIX, (void *) pc,
+                    REGISTER_PREFIX, (void *) x86_other_context[REG_XSP]);
     }
 
     // here is the main loop
     do {
-        pc = x86_other_context[REG_EIP];
+        pc = x86_other_context[REG_XIP];
 
         if ((pc >= min_address) && (pc <= max_address)) {
             // We're in the program. Attempt to free run to end of superblock.
@@ -407,11 +429,13 @@ void x86_interpreter (void)
             // run the superblock
             if (pc_end != pc) {
 #ifdef DEBUG
-                printf ("RUNNING: Exec from %08x to %08x\n", pc, pc_end);
-                dump_regs (x86_other_context);
+                if (!x86_quiet_mode) {
+                   printf ("RUNNING: Exec from %p to %p\n", (void *) pc, (void *) pc_end);
+                   dump_regs (x86_other_context);
+                }
 #endif
                 x86_switch_to_user (pc_end);
-                pc = (uint32_t) x86_other_context[REG_EIP];
+                pc = (uintptr_t) x86_other_context[REG_XIP];
                 if (pc_end != pc) {
                     fprintf (stderr, "Unexpected PC at end of superblock: %08x\n", pc);
                     x86_bp_trap (FAILED_SUPERBLOCK_DECODE_ERR, NULL);
@@ -420,7 +444,7 @@ void x86_interpreter (void)
 
             // at end of superblock, print out the contents of the superblock
             if (inst_trace || !x86_quiet_mode) {
-               uint32_t address = pc_end - si->size;
+               uintptr_t address = pc_end - si->size;
                ZydisDecodedInstruction instruction;
 
                while (address <= pc_end) {
@@ -450,38 +474,43 @@ void x86_interpreter (void)
             if (!interpret_control_flow ()) {
                 // Forced to single step
 #ifdef DEBUG
-                uint8_t * pc_bytes = (uint8_t *) pc;
-                printf ("Non-interpretable code %02x %02x at %08x\n",
-                    pc_bytes[0], pc_bytes[1], pc);
+                if (!x86_quiet_mode) {
+                   uint8_t * pc_bytes = (uint8_t *) pc;
+                   printf ("Non-interpretable code %02x %02x at %p\n",
+                       pc_bytes[0], pc_bytes[1], pc_bytes);
+                }
 #endif
                 entry_flag = 1;
-                x86_other_context[REG_EFL] |= SINGLE_STEP_FLAG;
-                x86_switch_to_user ((uint32_t) fake_endpoint);
-                x86_other_context[REG_EFL] &= ~SINGLE_STEP_FLAG;
+                x86_other_context[REG_XFL] |= SINGLE_STEP_FLAG;
+                x86_switch_to_user ((uintptr_t) fake_endpoint);
+                x86_other_context[REG_XFL] &= ~SINGLE_STEP_FLAG;
 
-                branch_taken (pc_end, x86_other_context[REG_EIP]);
+                branch_taken (pc_end, x86_other_context[REG_XIP]);
             }
 
         } else {
             // We're outside the program, free run until return
-            pc_end = ((uint32_t *) x86_other_context[REG_ESP])[0];
+            pc_end = ((uintptr_t *) x86_other_context[REG_XSP])[0];
             if ((pc_end < min_address) || (pc_end > max_address)) {
                 if (!x86_quiet_mode) {
                     printf ("exit interpreter by return to %08x: stop interpretation\n", pc);
                 }
-                x86_switch_to_user ((uint32_t) fake_endpoint);
+                x86_switch_to_user ((uintptr_t) fake_endpoint);
                 exit (1);
             }
 #ifdef DEBUG
-            printf ("free run: IP %08x SP %08x end %08x\n",
-                pc, x86_other_context[REG_ESP], pc_end);
+            if (!x86_quiet_mode) {
+               printf ("free run: %cIP %p %cSP %p end %p\n",
+                   REGISTER_PREFIX, (void *) pc,
+                   REGISTER_PREFIX, (void *) x86_other_context[REG_XSP], (void *) pc_end);
+            }
 #endif
             x86_switch_to_user (pc_end);
         }
     } while (1);
 }
 
-static void superblock_decoder (superblock_info * si, uint32_t pc)
+static void superblock_decoder (superblock_info * si, uintptr_t pc)
 {
    uint32_t address;
    char special = 'X';
