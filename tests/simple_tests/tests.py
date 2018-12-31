@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import subprocess, os, time, stat
+import subprocess, os, time, stat, sys
 
 SUFFIX = ".exe"
 ROOT = os.path.join(os.getcwd(), "..", "..")
@@ -8,6 +8,7 @@ LOADER = os.path.join(ROOT, "bin", "x86determiniser" + SUFFIX)
 TMP_FILE = "tmp.txt"
 TMP_FILE_2 = "tmp2.txt"
 TMP_EXE_FILE = "tmp.exe"
+PLATFORM = None
 
 def clean():
    for name in [TMP_FILE, TMP_FILE_2, TMP_EXE_FILE]:
@@ -231,21 +232,29 @@ def example_test(bits):
             raise Exception("All timings should be the same: %s" % line)
 
 if __name__ == "__main__":
+   if len(sys.argv) != 2:
+      raise Exception("Specify the platform on the command line, e.g. python tests.py win32")
+
+   PLATFORM = sys.argv[1]
    clean()
    help_test([], False)
    help_test(["-?"], True)
    help_test(["--"], False)
-   for bits in ["", "64"]:
-      args_test(False, bits)
-      args_test(True, bits)
-      outs_test([], bits)
-      outs_test(["--branch-trace", TMP_FILE_2], bits)
-      outs_test(["--inst-trace", TMP_FILE_2], bits)
-      check_error(bits)
-      pipe_test(bits)
-      example_test(bits)
+
+   bits = ""
+   if PLATFORM.endswith("64"):
+      bits = "64"
+
+   args_test(False, bits)
+   args_test(True, bits)
+   outs_test([], bits)
+   outs_test(["--branch-trace", TMP_FILE_2], bits)
+   outs_test(["--inst-trace", TMP_FILE_2], bits)
+   check_error(bits)
+   pipe_test(bits)
+   example_test(bits)
 
 
-   open("tests.ok", "wt").write("")
+   open("tests." + PLATFORM + ".ok", "wt").write("")
 
 

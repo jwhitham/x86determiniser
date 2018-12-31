@@ -6,16 +6,16 @@ include ../../$(PLATFORM).cfg
 CFLAGS32=-D$(PLATFORM) -std=c99 -g -Wall -Wextra -m32
 CFLAGS64=-D$(PLATFORM) -std=c99 -g -Wall -Wextra -m64
 
-all: tests.ok
+all: tests.$(PLATFORM).ok
 
 clean:
 	-rm -rf args$(EXE) outs$(EXE) ud$(EXE) pipetest$(EXE) example$(EXE) \
 	   args64$(EXE) outs64$(EXE) ud64$(EXE) pipetest64$(EXE) example64$(EXE) \
       *.trace *.ok tmp.*
 
-tests.ok: args$(EXE) outs$(EXE) ud$(EXE) pipetest$(EXE) example$(EXE) \
+tests.$(PLATFORM).ok: args$(EXE) outs$(EXE) ud$(EXE) pipetest$(EXE) example$(EXE) \
       args64$(EXE) outs64$(EXE) ud64$(EXE) pipetest64$(EXE) example64$(EXE)
-	python ./tests.py
+	python ./tests.py $(PLATFORM)
 
 args$(EXE): args.c
 	$(CC) -o $@ $(CFLAGS32) $<
