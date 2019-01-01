@@ -236,15 +236,21 @@ if __name__ == "__main__":
       raise Exception("Specify the platform on the command line, e.g. python tests.py win32")
 
    PLATFORM = sys.argv[1]
-   SUFFIX = PLATFORM
+   SUFFIX = "." + PLATFORM
    EXE = ""
+
    if PLATFORM.startswith("win"):
       EXE = ".exe"
    SUFFIX += EXE
+
    if PLATFORM.endswith("32"):
       LOADER = os.path.join(ROOT, "bin", "x86determiniser" + EXE)
    else:
       LOADER = os.path.join(ROOT, "bin", "x64determiniser" + EXE)
+
+   print ("PLATFORM = " + PLATFORM)
+   print ("LOADER = " + LOADER)
+   print ("SUFFIX = " + SUFFIX)
 
    clean()
    help_test([], False)
@@ -260,7 +266,7 @@ if __name__ == "__main__":
    pipe_test()
    example_test()
 
-
+   print ("simple_tests completed ok for " + PLATFORM)
    open("tests." + PLATFORM + ".ok", "wt").write("")
 
 
