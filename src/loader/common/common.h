@@ -24,8 +24,24 @@
 #define X86D_FIRST_ERROR               (0x000 | X86D_SPECIAL_VALUE)
 #define X86D_LAST_ERROR                (0xfff | X86D_SPECIAL_VALUE)
 
-int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv);
+struct CommStruct;
+
+int X86DeterminiserLoader(struct CommStruct * pcs, int argc, char ** argv);
 const char * X86Error(int code);
+
+#ifdef WIN64
+#define IS_64_BIT
+#elif LINUX64
+#define IS_64_BIT
+#endif
+
+#ifdef IS_64_BIT
+#define X86_OR_X64   "x64"
+#define PTR_SIZE     8
+#else
+#define X86_OR_X64   "x86"
+#define PTR_SIZE     4
+#endif
 
 #endif
 

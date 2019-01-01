@@ -4,11 +4,15 @@
 #define MAX_PROC_NAME_SIZE 128
 
 #include "x86d_version.h"
+#include "common.h"
 
 #define MAX_INTERNAL_VERSION_SIZE (sizeof (INTERNAL_VERSION) + 1)
 
 typedef struct CommStruct {
    void * unused;
+#ifdef IS_64_BIT
+   char shadow_space[32];
+#endif
    struct CommStruct * myself;
 
    char libraryName[MAX_FILE_NAME_SIZE];

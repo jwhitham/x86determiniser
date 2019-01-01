@@ -98,7 +98,6 @@ int main (void)
    table ("XIP", REG_XIP);
    table ("XFL", REG_XFL);
 #ifdef IS_64_BIT
-   printf ("#define IS_64_BIT\n");
    table ("R8", REG_R8);
    table ("R9", REG_R9);
    table ("R10", REG_R10);
@@ -110,7 +109,6 @@ int main (void)
 #endif
    table ("LIMIT", REG_LIMIT);
    printf ("#define REGISTER_PREFIX '%c'\n", REGISTER_PREFIX);
-   printf ("#define PTR_SIZE %u\n", (unsigned) sizeof (void *));
    return 0;
 }
 

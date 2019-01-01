@@ -194,7 +194,8 @@ void StartRemoteLoader
 
    // build data structure to load into the remote stack
    pcs->myself = (void *) get_stack_ptr(context);
-   snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/x86determiniser.dll", binFolder);
+   snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/%sdeterminiser.dll",
+      binFolder, X86_OR_X64);
    strncpy (pcs->procName, "X86DeterminiserStartup", MAX_PROC_NAME_SIZE);
    pcs->loadLibraryProc = 
       (void *) ((char *) kernel32Base + loadLibraryOffset);
@@ -215,6 +216,11 @@ void StartRemoteLoader
       err_printf (0, "REMOTE_LOADER: Unable to fill remote stack");
       exit (1);
    }
+
+#ifdef IS_64_BIT
+   // first parameter is "myself"
+   context->Rcx = (uintptr_t) pcs->myself;
+#endif
 
    // run RemoteLoader procedure until breakpoint
    set_pc(context, (uintptr_t) ((void *) ((char *) remoteBuf +
@@ -367,7 +373,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       }
       *finalSlash = '\0';
    } else {
-      err_printf (1, "GetModuleFileName('x86determiniser.exe')");
+      err_printf (1, "GetModuleFileName('" X86_OR_X64 "determiniser.exe')");
       return 1;
    }
 
@@ -494,6 +500,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          err_printf (1, "AWAIT_FIRST: WaitForDebugEvent");
          exit (1);
       }
+      dbg_printf ("d = %x\n", (unsigned) debugEvent.dwDebugEventCode);
       switch (debugEvent.dwDebugEventCode) {
          case EXCEPTION_DEBUG_EVENT:
             if ((debugEvent.dwProcessId == processInformation.dwProcessId)
@@ -506,6 +513,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   err_printf (1, "AWAIT_FIRST: GetThreadContext");
                   exit (1);
                }
+               dbg_printf ("e = %x\n", (unsigned) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_BREAKPOINT:
                      // Are we in the right place?
@@ -566,6 +574,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                0);
             buf[len] = 0;
             CloseHandle (debugEvent.u.LoadDll.hFile);
+            dbg_printf ("AWAIT_FIRST: load DLL = %s\n", buf);
 
             /* if buf == kernel32.dll, we have the addresses for LoadLibrary
              * and GetProcAddress, so we can switch the process over to use
@@ -573,6 +582,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
             if (strstr (buf, "\\kernel32.dll") != NULL) {
                kernel32Base = debugEvent.u.LoadDll.lpBaseOfDll;
+               dbg_printf ("AWAIT_FIRST: kernel32base = %p\n", (void *) kernel32Base);
             }
             break;
          default:
@@ -594,6 +604,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          err_printf (1, "AWAIT_REMOTE_LOADER_BP: WaitForDebugEvent");
          exit (1);
       }
+      dbg_printf ("d1 = %x\n", (unsigned) debugEvent.dwDebugEventCode);
       switch (debugEvent.dwDebugEventCode) {
          case EXCEPTION_DEBUG_EVENT:
             if ((debugEvent.dwProcessId == processInformation.dwProcessId)
@@ -605,6 +616,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   err_printf (1, "AWAIT_REMOTE_LOADER_BP: GetThreadContext");
                   exit (1);
                }
+               //dbg_printf ("e1 = %x\n", (unsigned) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_BREAKPOINT:
                      // EAX contains an error code, or 0x101 on success
@@ -629,8 +641,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   case STATUS_SINGLE_STEP:
                      // There is some single-stepping at the end of the loader,
                      // this is normal, let it continue
-                     context.EFlags |= SINGLE_STEP_FLAG;
+                     set_single_step_flag(&context);
                      SetThreadContext (processInformation.hThread, &context);
+                     //dbg_printf ("pc = %p\n", (void *) get_pc(&context));
+                     //dbg_printf ("rax = %p\n", (void *) context.Rax);
+                     //dbg_printf ("rcx = %p\n", (void *) context.Rcx);
                      break;
                   default:
                      todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
