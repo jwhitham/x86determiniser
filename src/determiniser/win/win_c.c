@@ -16,7 +16,7 @@
 
 static void single_step_handler (PCONTEXT ContextRecord)
 {
-   uint32_t * gregs = (uint32_t *) ContextRecord;
+   uintptr_t * gregs = (uintptr_t *) ContextRecord;
 
    // Run single step handler
    x86_trap_handler (gregs, 1);

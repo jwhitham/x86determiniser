@@ -14,7 +14,7 @@
 
 #define TRIGGER_LEVEL   0x1000000
 
-// branch trace encoding data (see ../doc/branch_trace_format.pdf)
+// branch trace encoding data (see ../../doc/branch_trace_format.pdf)
 #define WORD_DATA_MASK  0x0fffffffU
 #define CEM             0x00000000U
 #define BNT             0x10000000U
@@ -171,14 +171,18 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
    }
 }
 
+static ptrdiff_t get_disp32 (uint8_t * imm_value_ptr)
+{
+   return (ptrdiff_t) (((int32_t *) imm_value_ptr)[0]);
+}
+
 static int interpret_control_flow (void)
 {
     uintptr_t pc = x86_other_context[REG_XIP];
     uintptr_t src = pc;
     uint8_t * pc_bytes = (uint8_t *) pc;
     uintptr_t flags = x86_other_context[REG_XFL];
-    int32_t rm = 0;
-    int32_t * offset = NULL;
+    ptrdiff_t rm = 0;
     uintptr_t * stack = NULL;
     uintptr_t v = 0;
 
@@ -230,7 +234,7 @@ static int interpret_control_flow (void)
                 //  value (AL or EAX)
                 fprintf (out_trace, "%02x %08x %08x\n",
                      (uint32_t) pc_bytes[1],
-                     (uint32_t) inst_count, v);
+                     (uint32_t) inst_count, (uint32_t) v);
             }
             break;
         case 0x0f: // Two-byte instructions
@@ -241,8 +245,7 @@ static int interpret_control_flow (void)
                 case 0x8c: case 0x8d: case 0x8e: case 0x8f:
                     pc += 6;
                     if (x86_is_branch_taken (flags, pc_bytes[1])) {
-                        offset = (int32_t *) &pc_bytes[2];
-                        pc += offset[0];
+                        pc += get_disp32 (&pc_bytes[2]);
                         branch_taken (src, pc);
                     } else {
                         branch_not_taken (src);
@@ -260,19 +263,17 @@ static int interpret_control_flow (void)
 
         case 0xe9: // JMP (long)
             pc += 5;
-            offset = (int32_t *) &pc_bytes[1];
-            pc += offset[0];
+            pc += get_disp32 (&pc_bytes[1]);
             branch_taken (src, pc);
             break;
 
         case 0xe8: // CALL
-            offset = (int32_t *) &pc_bytes[1];
             pc += 5;
             stack = (uintptr_t *) x86_other_context[REG_XSP];
             stack--;
             stack[0] = pc;
-            x86_other_context[REG_XSP] = (intptr_t) stack;
-            pc += offset[0];
+            x86_other_context[REG_XSP] = (uintptr_t) stack;
+            pc += get_disp32 (&pc_bytes[1]);
             branch_taken (src, pc);
             break;
 
@@ -282,16 +283,14 @@ static int interpret_control_flow (void)
             }
             // REPZ RET - fall through:
         case 0xc3: // RET
-            stack = (uint32_t *) x86_other_context[REG_XSP];
+            stack = (uintptr_t *) x86_other_context[REG_XSP];
             pc = stack[0];
             stack++;
-            x86_other_context[REG_XSP] = (intptr_t) stack;
+            x86_other_context[REG_XSP] = (uintptr_t) stack;
             branch_taken (src, pc);
             break;
 
         case 0xff:
-            stack = (uint32_t *) x86_other_context[REG_XSP];
-            stack--;
 #ifdef DEBUG
             if (!x86_quiet_mode) {
                printf ("Code ff %02x at %p, mode %u, R/M %u, opcode %u\n",
@@ -309,8 +308,7 @@ static int interpret_control_flow (void)
                 case 7: rm = x86_other_context[REG_XDI]; break;
                 case 5: // EBP or disp32
                     if ((pc_bytes[1] >> 6) == 0) {
-                        offset = (int32_t *) &pc_bytes[2]; // 32-bit displacement
-                        rm = offset[0];
+                        rm = get_disp32 (&pc_bytes[2]);
                         pc += 4;
                     } else {
                         rm = x86_other_context[REG_XBP];
@@ -323,24 +321,17 @@ static int interpret_control_flow (void)
             // Decode the Mode field: says how register should be used
             switch (pc_bytes[1] >> 6) {
                 case 0: // dereference with zero offset
-                    offset = (int32_t *) rm;
-                    offset = (int32_t *) offset[0];
-                    rm = (int32_t) offset;
+                    rm = ((uintptr_t *) rm)[0];
                     pc += 2;
                     break;
                 case 1: // dereference with short offset
                     rm += (int8_t) pc_bytes[2];
-                    offset = (int32_t *) rm;
-                    offset = (int32_t *) offset[0];
-                    rm = (int32_t) offset;
+                    rm = ((uintptr_t *) rm)[0];
                     pc += 3;
                     break;
                 case 2: // dereference with long offset
-                    offset = (int32_t *) &pc_bytes[2];
-                    rm += offset[0];
-                    offset = (int32_t *) rm;
-                    offset = (int32_t *) offset[0];
-                    rm = (int32_t) offset;
+                    rm += get_disp32 (&pc_bytes[2]);
+                    rm = ((uintptr_t *) rm)[0];
                     pc += 6;
                     break;
                 default: // direct
@@ -355,7 +346,9 @@ static int interpret_control_flow (void)
                 case 1: // DEC
                     return 0;
                 case 2: // CALL
-                    x86_other_context[REG_XSP] = (intptr_t) stack;
+                    stack = (uintptr_t *) x86_other_context[REG_XSP];
+                    stack--;
+                    x86_other_context[REG_XSP] = (uintptr_t) stack;
                     stack[0] = pc;
                     pc = rm;
                     branch_taken (src, pc);
@@ -438,7 +431,8 @@ void x86_interpreter (void)
                 x86_switch_to_user (pc_end);
                 pc = (uintptr_t) x86_other_context[REG_XIP];
                 if (pc_end != pc) {
-                    fprintf (stderr, "Unexpected PC at end of superblock: %08x\n", pc);
+                    fprintf (stderr, "Unexpected PC at end of superblock: %p\n",
+                        (void *) pc);
                     x86_bp_trap (FAILED_SUPERBLOCK_DECODE_ERR, NULL);
                 }
             }
@@ -459,10 +453,13 @@ void x86_interpreter (void)
                        (&formatter, &instruction, buffer, sizeof(buffer));
                   }
                   if (!x86_quiet_mode) {
-                     printf ("RUNNING: %08x: %s\n", address, buffer);
+                     printf ("RUNNING: %p: %s\n", (void *) address, buffer);
                   }
                   if (inst_trace) {
-                     fprintf (inst_trace, "%08x: %s\n", address, buffer);
+#ifdef IS_64_BIT
+                     fprintf (inst_trace, "%08x", (uint32_t) ((uint64_t) address >> (uint64_t) 32));
+#endif
+                     fprintf (inst_trace, "%08x: %s\n", (uint32_t) address, buffer);
                   }
                   address += instruction.length;
                }
@@ -494,7 +491,7 @@ void x86_interpreter (void)
             pc_end = ((uintptr_t *) x86_other_context[REG_XSP])[0];
             if ((pc_end < min_address) || (pc_end > max_address)) {
                 if (!x86_quiet_mode) {
-                    printf ("exit interpreter by return to %08x: stop interpretation\n", pc);
+                    printf ("exit interpreter by return to %p: stop interpretation\n", (void *) pc);
                 }
                 x86_switch_to_user ((uintptr_t) fake_endpoint);
                 exit (1);
@@ -513,11 +510,11 @@ void x86_interpreter (void)
 
 static void superblock_decoder (superblock_info * si, uintptr_t pc)
 {
-   uint32_t address;
+   uintptr_t address;
    char special = 'X';
 
    if (!x86_quiet_mode) {
-      printf ("DECODE: new superblock: %08x\n", pc);
+      printf ("DECODE: new superblock: %p\n", (void *) pc);
    }
 
    address = pc;
@@ -570,7 +567,7 @@ static void superblock_decoder (superblock_info * si, uintptr_t pc)
          char buffer[256];
          ZydisFormatterFormatInstruction
            (&formatter, &instruction, buffer, sizeof(buffer));
-         printf ("DECODE: %08x: %s\n", address, buffer);
+         printf ("DECODE: %p: %s\n", (void *) address, buffer);
       }
       if (special) {
          // End of superblock reached
@@ -580,8 +577,9 @@ static void superblock_decoder (superblock_info * si, uintptr_t pc)
    }
    si->size = address - pc;
    if (!x86_quiet_mode) {
-      printf ("DECODE: superblock %08x has %u instructions "
-               "and ends at %08x with %c\n", pc, si->count, address, special);
+      printf ("DECODE: superblock %p has %u instructions "
+               "and ends at %p with %c\n",
+                  (void *) pc, (unsigned) si->count, (void *) address, special);
       fflush (stdout);
    }
 }
@@ -590,8 +588,8 @@ void x86_check_version (CommStruct * pcs)
 {
    if (strcmp (pcs->internalVersionCheck, INTERNAL_VERSION) != 0)
    {
-      printf ("pcs ivc = '%s' %d\n", pcs->internalVersionCheck, strlen (pcs->internalVersionCheck));
-      printf ("internal= '%s' %d\n", INTERNAL_VERSION , strlen (INTERNAL_VERSION));
+      printf ("pcs ivc = '%s' %d\n", pcs->internalVersionCheck, (int) strlen (pcs->internalVersionCheck));
+      printf ("internal= '%s' %d\n", INTERNAL_VERSION , (int) strlen (INTERNAL_VERSION));
       fflush (stdout);
       x86_bp_trap (FAILED_VERSION_CHECK, NULL);
    }
@@ -614,7 +612,8 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
       x86_bp_trap (FAILED_MALLOC, NULL);
    }
    if (!x86_quiet_mode) {
-      printf ("RUNNING: program address range: %08x .. %08x\n", min_address, max_address);
+      printf ("RUNNING: program address range: %p .. %p\n",
+         (void *) min_address, (void *) max_address);
    }
 
    if (strlen (pcs->branchTrace)) {
@@ -648,7 +647,11 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
       fflush (stdout);
    }
 
+#ifdef IS_64_BIT
+   ZydisDecoderInit (&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_32);
+#else
    ZydisDecoderInit (&decoder, ZYDIS_MACHINE_MODE_LEGACY_32, ZYDIS_ADDRESS_WIDTH_32);
+#endif
    ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
 
    //x86_make_text_writable (min_address, max_address);

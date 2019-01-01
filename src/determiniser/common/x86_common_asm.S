@@ -80,7 +80,7 @@ user_start_point:
 
 .align 4
 
-/* void x86_switch_to_user (uint32_t endpoint); */
+/* void x86_switch_to_user (uintptr_t endpoint); */
 x86_switch_to_user:
 _x86_switch_to_user:
     pushl   %ebp

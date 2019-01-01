@@ -17,8 +17,8 @@ LOADER_SRCS=\
    $(LOADER_PLATFORM_SRCS)
 DETERMINISER_SRCS=\
    $(DETERMINISER_COMMON)/x86_common_c.c \
-   $(DETERMINISER_COMMON)/x86_common_asm.S \
    $(DETERMINISER_PLATFORM_SRCS) \
+   $(DETERMINISER_PLATFORM_CPU_SRCS) \
    $(ZYDIS)/src/Decoder.c \
    $(ZYDIS)/src/DecoderData.c \
    $(ZYDIS)/src/Formatter.c \

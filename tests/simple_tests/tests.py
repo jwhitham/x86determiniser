@@ -2,13 +2,13 @@
 
 import subprocess, os, time, sys
 
-SUFFIX = ".exe"
 ROOT = os.path.join(os.getcwd(), "..", "..")
-LOADER = os.path.join(ROOT, "bin", "x86determiniser" + SUFFIX)
+LOADER = None
 TMP_FILE = "tmp.txt"
 TMP_FILE_2 = "tmp2.txt"
 TMP_EXE_FILE = "tmp.exe"
 PLATFORM = None
+SUFFIX = None
 
 def clean():
    for name in [TMP_FILE, TMP_FILE_2, TMP_EXE_FILE]:
@@ -22,11 +22,11 @@ def clean():
 
 # Here is a test of the args program, with and without the x86determiniser loader.
 # Weird parameters should be passed through without change.
-def args_test(use_loader, bits):
+def args_test(use_loader):
 
    def sub_args_test(args_list):
       loader = []
-      args_list = ["args" + bits + SUFFIX] + args_list
+      args_list = ["args" + SUFFIX] + args_list
       if use_loader:
          loader = [LOADER, "--inst-trace", TMP_FILE_2, "--"]
       clean()
@@ -75,10 +75,10 @@ def args_test(use_loader, bits):
             "@LATER", "%1", "like to play with things a while",
             "\"\"BEFORE ANNIHILATION\"\"", "%TEMP%", "$SHELL" ])
 
-def outs_test(args, bits):
+def outs_test(args):
    clean()
    rc = subprocess.call([LOADER, "--out-trace", TMP_FILE] + args +
-            ["--", "outs" + bits + SUFFIX])
+            ["--", "outs" + SUFFIX])
    if rc != 0:
       raise Exception("outs_test should have rc = 0, rc = %d" % rc)
 
@@ -138,7 +138,7 @@ def help_test(args, unknown_option):
       if not ok:
          raise Exception("No unknown option message printed for %s" % args)
 
-def check_error(bits):
+def check_error():
    clean()
 
    def sub_check_error(args):
@@ -171,7 +171,7 @@ def check_error(bits):
 
    for name in ["c:\\this path does not exist\\some file.txt", "."]:
       for option in ["--branch-trace", "--inst-trace", "--out-trace"]:
-         s = sub_check_error([option, name, "args" + bits + SUFFIX])
+         s = sub_check_error([option, name, "args" + SUFFIX])
          if not ((s.find("Failed to open") > 0) and (s.find(option) > 0)):
             raise Exception("Did not see expected error message for %s" % option)
 
@@ -187,7 +187,7 @@ def check_error(bits):
    if not (s.find(name) and (s.find("is not compatible") > 0)):
       raise Exception("Did not see expected error message for non-executable file")
 
-   name = "ud" + bits + SUFFIX
+   name = "ud" + SUFFIX
    for i in range(1, 4):
       s = sub_check_error([name, str(i)])
       if not s.startswith("Illegal instruction"):
@@ -198,11 +198,11 @@ def check_error(bits):
       if not s.startswith("Segmentation fault"):
          raise Exception("Did not see expected error message for segfault i = %d" % i)
 
-def pipe_test(bits):
+def pipe_test():
    clean()
    fd = open(TMP_FILE, "wt")
    fd2 = open(TMP_FILE_2, "wt")
-   p = subprocess.Popen([LOADER, "pipetest" + bits + SUFFIX],
+   p = subprocess.Popen([LOADER, "pipetest" + SUFFIX],
          stdout = fd, stderr = fd2, stdin = subprocess.PIPE)
    
    p.stdin.write("0a1b2c3d4e")
@@ -218,9 +218,9 @@ def pipe_test(bits):
    if not open(TMP_FILE, "rb").read().startswith("abcdefghij"):
       raise Exception("stdout file should contain letters")
 
-def example_test(bits):
+def example_test():
    clean()
-   subprocess.call([LOADER, "example" + bits + SUFFIX],
+   subprocess.call([LOADER, "example" + SUFFIX],
             stdout = open(TMP_FILE, "wt"))
 
    for line in open(TMP_FILE, "rt"):
@@ -236,23 +236,29 @@ if __name__ == "__main__":
       raise Exception("Specify the platform on the command line, e.g. python tests.py win32")
 
    PLATFORM = sys.argv[1]
+   SUFFIX = PLATFORM
+   EXE = ""
+   if PLATFORM.startswith("win"):
+      EXE = ".exe"
+   SUFFIX += EXE
+   if PLATFORM.endswith("32"):
+      LOADER = os.path.join(ROOT, "bin", "x86determiniser" + EXE)
+   else:
+      LOADER = os.path.join(ROOT, "bin", "x64determiniser" + EXE)
+
    clean()
    help_test([], False)
    help_test(["-?"], True)
    help_test(["--"], False)
 
-   bits = ""
-   if PLATFORM.endswith("64"):
-      bits = "64"
-
-   args_test(False, bits)
-   args_test(True, bits)
-   outs_test([], bits)
-   outs_test(["--branch-trace", TMP_FILE_2], bits)
-   outs_test(["--inst-trace", TMP_FILE_2], bits)
-   check_error(bits)
-   pipe_test(bits)
-   example_test(bits)
+   args_test(False)
+   args_test(True)
+   outs_test([])
+   outs_test(["--branch-trace", TMP_FILE_2])
+   outs_test(["--inst-trace", TMP_FILE_2])
+   check_error()
+   pipe_test()
+   example_test()
 
 
    open("tests." + PLATFORM + ".ok", "wt").write("")

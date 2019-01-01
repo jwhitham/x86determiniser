@@ -34,8 +34,17 @@ static CONTEXT c;
 #define REG_XAX (oof(Rax))
 #define REG_XIP (oof(Rip))
 #define REG_XFL (oof(EFlags))
+#define REG_R8 (oof(R8))
+#define REG_R9 (oof(R9))
+#define REG_R10 (oof(R10))
+#define REG_R11 (oof(R11))
+#define REG_R12 (oof(R12))
+#define REG_R13 (oof(R13))
+#define REG_R14 (oof(R14))
+#define REG_R15 (oof(R15))
 #define REG_LIMIT (sizeof (CONTEXT))
 #define REGISTER_PREFIX 'R'
+#define IS_64_BIT
 
 #else
 #ifdef WIN32
@@ -88,6 +97,17 @@ int main (void)
    table ("XAX", REG_XAX);
    table ("XIP", REG_XIP);
    table ("XFL", REG_XFL);
+#ifdef IS_64_BIT
+   printf ("#define IS_64_BIT\n");
+   table ("R8", REG_R8);
+   table ("R9", REG_R9);
+   table ("R10", REG_R10);
+   table ("R11", REG_R11);
+   table ("R12", REG_R12);
+   table ("R13", REG_R13);
+   table ("R14", REG_R14);
+   table ("R15", REG_R15);
+#endif
    table ("LIMIT", REG_LIMIT);
    printf ("#define REGISTER_PREFIX '%c'\n", REGISTER_PREFIX);
    printf ("#define PTR_SIZE %u\n", (unsigned) sizeof (void *));
