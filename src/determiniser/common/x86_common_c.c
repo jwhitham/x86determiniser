@@ -28,7 +28,7 @@
 static uint8_t          entry_flag = 1;
 uint8_t                 x86_quiet_mode = 0;
 
-static uint8_t          fake_endpoint[8];
+static uint8_t          fake_endpoint[16];
 static uintptr_t        min_address = 0;
 static uintptr_t        max_address = 0;
 
@@ -410,7 +410,7 @@ void x86_interpreter (void)
     uintptr_t pc, pc_end;
 
     if (!x86_quiet_mode) {
-        printf ("X86D: interpreter startup...\n");
+        printf ("X86D: interpreter startup... pc = %p\n", (void *) x86_other_context[REG_XIP]);
     }
 
     // Startup: run until reaching the program

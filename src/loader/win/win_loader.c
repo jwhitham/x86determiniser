@@ -811,14 +811,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                            return 1;
                         }
                         // context restored
-                        dbg_printf ("location of context: %p\n", (void *) get_xbx (&context));
+                        dbg_printf ("SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
                         ReadProcessMemory
                           (processInformation.hProcess,
                            (void *) get_xbx (&context),
                            (void *) &context,
                            sizeof (CONTEXT),
                            NULL);
-                        dbg_printf ("flags word is %p\n", (void *) context.EFlags);
+                        dbg_printf ("SINGLE_STEP: flags word is %x\n", (unsigned) context.EFlags);
                         context.ContextFlags = CONTEXT_FULL;
                         SetThreadContext (processInformation.hThread, &context);
                         run = TRUE;
