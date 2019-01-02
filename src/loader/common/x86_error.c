@@ -30,6 +30,8 @@ const char * X86Error(int code)
          return "Failed to reach the start of the program";
       case FAILED_SUPERBLOCK_DECODE_ERR:
          return "Failed to decode a superblock";
+      case FAILED_BAD_TRAP_NUMBER:
+         return "Bad trap number - internal error";
       case FAILED_UNKNOWN: // 0x003
       default:
          return "Unknown error";

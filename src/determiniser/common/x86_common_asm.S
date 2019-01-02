@@ -54,7 +54,7 @@ x86_begin_single_step:
     mov     %esi, OFF_XSI + x86_other_context
     mov     %edi, OFF_XDI + x86_other_context
     pushf
-    popl    OFF_XFL + x86_other_context          /* FLAGS */
+    popl    OFF_EFL + x86_other_context          /* FLAGS */
     mov     $user_start_point, %eax
     mov     %eax, OFF_XIP + x86_other_context    /* program counter (return point) */
 
@@ -114,7 +114,7 @@ _x86_switch_to_user:
     mov     OFF_XBP + x86_other_context, %ebp
     xchg    OFF_XSI + x86_other_context, %esi
     mov     OFF_XDI + x86_other_context, %edi
-    pushl   OFF_XFL + x86_other_context          /* user FLAGS, once restored */
+    pushl   OFF_EFL + x86_other_context          /* user FLAGS, once restored */
     popf                                         /* may cause single-stepping */
     xchg    %esp, OFF_XSP + x86_other_context
     jmp     *(OFF_XIP + x86_other_context)       /* user PC */
@@ -134,7 +134,7 @@ x86_switch_from_user:
     mov     %edi, OFF_XDI + x86_other_context
 
     pushf
-    popl    OFF_XFL + x86_other_context          /* user FLAGS */
+    popl    OFF_EFL + x86_other_context          /* user FLAGS */
     subl    $CALL_SIZE, %eax
     mov     %eax, OFF_XIP + x86_other_context    /* user PC */
 

@@ -12,6 +12,7 @@ static const char api_name[] = "LINUX32";
 
 #define REG_LIMIT (sizeof (gregset_t))
 #define REGISTER_PREFIX 'E'
+#define OFF_EFL (4 * REG_EFL)
 
 #else
 #ifdef WIN64
@@ -33,7 +34,6 @@ static CONTEXT c;
 #define REG_XCX (oof(Rcx))
 #define REG_XAX (oof(Rax))
 #define REG_XIP (oof(Rip))
-#define REG_XFL (oof(EFlags))
 #define REG_R8 (oof(R8))
 #define REG_R9 (oof(R9))
 #define REG_R10 (oof(R10))
@@ -45,6 +45,7 @@ static CONTEXT c;
 #define REG_LIMIT (sizeof (CONTEXT))
 #define REGISTER_PREFIX 'R'
 #define IS_64_BIT
+#define OFF_EFL (((uint8_t *) (&(c.EFlags))) - ((uint8_t *) (&c)))
 
 #else
 #ifdef WIN32
@@ -66,9 +67,9 @@ static CONTEXT c;
 #define REG_XCX (oof(Ecx))
 #define REG_XAX (oof(Eax))
 #define REG_XIP (oof(Eip))
-#define REG_XFL (oof(EFlags))
 #define REG_LIMIT (sizeof (CONTEXT))
 #define REGISTER_PREFIX 'E'
+#define OFF_EFL (4 * oof(EFlags))
 
 #endif
 #endif
@@ -96,7 +97,6 @@ int main (void)
    table ("XCX", REG_XCX);
    table ("XAX", REG_XAX);
    table ("XIP", REG_XIP);
-   table ("XFL", REG_XFL);
 #ifdef IS_64_BIT
    table ("R8", REG_R8);
    table ("R9", REG_R9);
@@ -108,6 +108,7 @@ int main (void)
    table ("R15", REG_R15);
 #endif
    table ("LIMIT", REG_LIMIT);
+   printf ("#define OFF_EFL (%u)\n", (unsigned) OFF_EFL);
    printf ("#define REGISTER_PREFIX '%c'\n", REGISTER_PREFIX);
    return 0;
 }

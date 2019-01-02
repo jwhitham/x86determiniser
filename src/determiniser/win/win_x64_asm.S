@@ -75,7 +75,8 @@ x86_begin_single_step:
     mov     %r14, OFF_R14 + x86_other_context
     mov     %r15, OFF_R15 + x86_other_context
     pushfq
-    popq    OFF_XFL + x86_other_context          /* FLAGS */
+    popq    %rax
+    mov     %eax, OFF_EFL + x86_other_context          /* FLAGS */
     mov     $user_start_point, %rax
     mov     %rax, OFF_XIP + x86_other_context    /* program counter (return point) */
 
@@ -135,6 +136,8 @@ _x86_switch_to_user:
     /* XXX - what if the displacement is more than 2^31?? */
 
     /* restore the user context */
+    mov     OFF_EFL + x86_other_context, %eax /* user FLAGS */
+    pushq   %rax
     mov     OFF_XAX + x86_other_context, %rax /* GPRs */
     mov     OFF_XBX + x86_other_context, %rbx
     mov     OFF_XCX + x86_other_context, %rcx
@@ -150,8 +153,7 @@ _x86_switch_to_user:
     mov     OFF_R13 + x86_other_context, %r13
     mov     OFF_R14 + x86_other_context, %r14
     mov     OFF_R15 + x86_other_context, %r15
-    pushq   OFF_XFL + x86_other_context          /* user FLAGS, once restored */
-    popfq                                        /* may cause single-stepping */
+    popfq                                        /* restoring FLAGS may cause single-stepping */
     xchg    %rsp, OFF_XSP + x86_other_context
     jmp     *(OFF_XIP + x86_other_context)       /* user PC */
 
@@ -178,7 +180,8 @@ x86_switch_from_user:
     mov     %r15, OFF_R15 + x86_other_context
 
     pushfq
-    popq    OFF_XFL + x86_other_context          /* user FLAGS */
+    popq    %rax
+    mov     %eax, OFF_EFL + x86_other_context          /* user FLAGS */
     subq    $CALL_SIZE, %rax
     mov     %rax, OFF_XIP + x86_other_context    /* user PC */
 

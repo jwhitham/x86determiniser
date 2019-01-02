@@ -1,4 +1,4 @@
-//#define DEBUG
+#define DEBUG
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -58,6 +58,28 @@ void x86_make_text_writable (uintptr_t min_address, uintptr_t max_address);
 void x86_begin_single_step (void);
 int x86_is_branch_taken (uintptr_t flags, uint8_t opcode);
 
+static uint32_t * get_flags_ptr (uintptr_t * gregs)
+{
+   uint8_t * gregs_start = (uint8_t *) gregs;
+   uint8_t * eflags_start = gregs_start + OFF_EFL;
+   return (uint32_t *) eflags_start;
+}
+
+static uint32_t get_flags (uintptr_t * gregs)
+{
+   return get_flags_ptr (gregs)[0];
+}
+
+static void set_single_step_flag (uintptr_t * gregs)
+{
+   get_flags_ptr (gregs)[0] |= SINGLE_STEP_FLAG;
+}
+
+static void clear_single_step_flag (uintptr_t * gregs)
+{
+   get_flags_ptr (gregs)[0] &= ~SINGLE_STEP_FLAG;
+}
+
 static void dump_regs (uintptr_t * gregs)
 {
    char c = REGISTER_PREFIX;
@@ -65,7 +87,7 @@ static void dump_regs (uintptr_t * gregs)
    printf (" %cBX = %p  ", c, (void *) gregs[REG_XBX]);
    printf (" %cCX = %p  ", c, (void *) gregs[REG_XCX]);
    printf (" %cDX = %p  ", c, (void *) gregs[REG_XDX]);
-   printf (" %cFL = %p\n", c, (void *) gregs[REG_XFL]);
+   printf (" %cFL = %x\n", c, get_flags (gregs));
    printf (" %cIP = %p  ", c, (void *) gregs[REG_XIP]);
    printf (" %cSI = %p  ", c, (void *) gregs[REG_XSI]);
    printf (" %cDI = %p  ", c, (void *) gregs[REG_XDI]);
@@ -127,16 +149,17 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
    if (trapno != 1) {
       fprintf (stderr, "trapno %u not known\n", trapno);
       dump_regs (gregs);
-      exit (1);
+      x86_bp_trap (FAILED_BAD_TRAP_NUMBER, NULL);
       return;
    }
         
    pc = gregs[REG_XIP];
 #ifdef DEBUG
    if (!x86_quiet_mode) {
-      printf ("stepping %cIP %p %cSP %p entry_flag %u\n",
+      printf ("X86D: stepping %cIP %p %cSP %p entry_flag %u context %p\n",
             REGISTER_PREFIX, (void *) gregs[REG_XIP],
-            REGISTER_PREFIX, (void *) gregs[REG_XSP], entry_flag);
+            REGISTER_PREFIX, (void *) gregs[REG_XSP], entry_flag,
+            (void *) gregs);
    }
 #endif
 
@@ -154,20 +177,26 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
 
 #ifdef DEBUG
       if (!x86_quiet_mode) {
-         printf ("switch from user: new %cIP %p %cSP %p\n",
+         printf ("X86D: switch from user: new %cIP %p %cSP %p\n",
                REGISTER_PREFIX, (void *) gregs[REG_XIP],
                REGISTER_PREFIX, (void *) gregs[REG_XSP]);
       }
 #endif
-      gregs[REG_XFL] &= ~SINGLE_STEP_FLAG;
+      clear_single_step_flag (gregs);
    } else if ((pc < min_address) || (pc > max_address)) {
       // Still outside program (probably completing the switch from super -> user)
       // Keep stepping
-      gregs[REG_XFL] |= SINGLE_STEP_FLAG;
+      set_single_step_flag (gregs);
+      if (!x86_quiet_mode) {
+         printf ("X86D: keep stepping: %x\n", get_flags (gregs));
+      }
    } else {
       // Stepped one instruction
       entry_flag = 0;
-      gregs[REG_XFL] |= SINGLE_STEP_FLAG;
+      set_single_step_flag (gregs);
+      if (!x86_quiet_mode) {
+         printf ("X86D: initial step: %x\n", get_flags (gregs));
+      }
    }
 }
 
@@ -181,7 +210,7 @@ static int interpret_control_flow (void)
     uintptr_t pc = x86_other_context[REG_XIP];
     uintptr_t src = pc;
     uint8_t * pc_bytes = (uint8_t *) pc;
-    uintptr_t flags = x86_other_context[REG_XFL];
+    uint32_t flags = get_flags (x86_other_context);
     ptrdiff_t rm = 0;
     uintptr_t * stack = NULL;
     uintptr_t v = 0;
@@ -381,15 +410,15 @@ void x86_interpreter (void)
     uintptr_t pc, pc_end;
 
     if (!x86_quiet_mode) {
-        printf ("RUNNING: interpreter startup...\n");
+        printf ("X86D: interpreter startup...\n");
     }
 
     // Startup: run until reaching the program
     pc = x86_other_context[REG_XIP];
     entry_flag = 1;
-    x86_other_context[REG_XFL] |= SINGLE_STEP_FLAG;
+    set_single_step_flag (x86_other_context);
     x86_switch_to_user ((uintptr_t) fake_endpoint);
-    x86_other_context[REG_XFL] &= ~SINGLE_STEP_FLAG;
+    clear_single_step_flag (x86_other_context);
     pc = x86_other_context[REG_XIP];
     if ((pc < min_address) || (pc > max_address)) {
         fprintf (stderr, "Startup did not reach program (at %p)\n", (void *) pc);
@@ -399,7 +428,7 @@ void x86_interpreter (void)
     }
 
     if (!x86_quiet_mode) {
-        printf ("RUNNING: interpreter ok, entry %cIP %p %cSP %p, program running:\n",
+        printf ("X86D: interpreter ok, entry %cIP %p %cSP %p, program running:\n",
                     REGISTER_PREFIX, (void *) pc,
                     REGISTER_PREFIX, (void *) x86_other_context[REG_XSP]);
     }
@@ -424,7 +453,7 @@ void x86_interpreter (void)
             if (pc_end != pc) {
 #ifdef DEBUG
                 if (!x86_quiet_mode) {
-                   printf ("RUNNING: Exec from %p to %p\n", (void *) pc, (void *) pc_end);
+                   printf ("X86D: Exec from %p to %p\n", (void *) pc, (void *) pc_end);
                    dump_regs (x86_other_context);
                 }
 #endif
@@ -453,7 +482,7 @@ void x86_interpreter (void)
                        (&formatter, &instruction, buffer, sizeof(buffer));
                   }
                   if (!x86_quiet_mode) {
-                     printf ("RUNNING: %p: %s\n", (void *) address, buffer);
+                     printf ("X86D: %p: %s\n", (void *) address, buffer);
                   }
                   if (inst_trace) {
 #ifdef IS_64_BIT
@@ -479,9 +508,9 @@ void x86_interpreter (void)
                 }
 #endif
                 entry_flag = 1;
-                x86_other_context[REG_XFL] |= SINGLE_STEP_FLAG;
+                set_single_step_flag (x86_other_context);
                 x86_switch_to_user ((uintptr_t) fake_endpoint);
-                x86_other_context[REG_XFL] &= ~SINGLE_STEP_FLAG;
+                clear_single_step_flag (x86_other_context);
 
                 branch_taken (pc_end, x86_other_context[REG_XIP]);
             }
@@ -612,13 +641,13 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
       x86_bp_trap (FAILED_MALLOC, NULL);
    }
    if (!x86_quiet_mode) {
-      printf ("RUNNING: program address range: %p .. %p\n",
+      printf ("X86D: program address range: %p .. %p\n",
          (void *) min_address, (void *) max_address);
    }
 
    if (strlen (pcs->branchTrace)) {
       if (!x86_quiet_mode) {
-         printf ("RUNNING: writing branch trace to: %s\n", pcs->branchTrace);
+         printf ("X86D: writing branch trace to: %s\n", pcs->branchTrace);
       }
       branch_trace = fopen (pcs->branchTrace, "wt");
       if (!branch_trace) {
@@ -627,7 +656,7 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
    }
    if (strlen (pcs->instTrace)) {
       if (!x86_quiet_mode) {
-         printf ("RUNNING: writing instruction trace to: %s\n", pcs->instTrace);
+         printf ("X86D: writing instruction trace to: %s\n", pcs->instTrace);
       }
       inst_trace = fopen (pcs->instTrace, "wt");
       if (!inst_trace) {
@@ -636,7 +665,7 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
    }
    if (strlen (pcs->outTrace)) {
       if (!x86_quiet_mode) {
-         printf ("RUNNING: writing out trace to: %s\n", pcs->outTrace);
+         printf ("X86D: writing out trace to: %s\n", pcs->outTrace);
       }
       out_trace = fopen (pcs->outTrace, "wt");
       if (!out_trace) {
