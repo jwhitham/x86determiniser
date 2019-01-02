@@ -10,10 +10,8 @@
 
 typedef struct CommStruct {
    void * unused;
-#ifdef IS_64_BIT
-   char shadow_space[32];
-#endif
    struct CommStruct * myself;
+   char shadow_space[32]; /* required by Windows x64 calling convention */
 
    char libraryName[MAX_FILE_NAME_SIZE];
    void * loadLibraryProc;

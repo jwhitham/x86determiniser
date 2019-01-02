@@ -1,8 +1,6 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#include "remote_loader.h"
-
 #define X86D_SPECIAL_VALUE 0x80e86000U
 
 #define FAILED_LOADLIBRARY             (0x001 | X86D_SPECIAL_VALUE)
