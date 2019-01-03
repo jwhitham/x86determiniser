@@ -133,10 +133,11 @@ x86_switch_from_user:
     xchg    %esi, OFF_XSI + x86_other_context
     mov     %edi, OFF_XDI + x86_other_context
 
-    pushf
-    popl    OFF_EFL + x86_other_context          /* user FLAGS */
     subl    $CALL_SIZE, %eax
     mov     %eax, OFF_XIP + x86_other_context    /* user PC */
+
+    pushf
+    popl    OFF_EFL + x86_other_context          /* user FLAGS */
 
     /* Restore endpoint */
     mov     save_space, %eax

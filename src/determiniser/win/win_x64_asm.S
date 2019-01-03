@@ -39,7 +39,7 @@
 
 
 .bss
-.align 4
+.align 8
 save_space:
     .space  16
 switch_from_user_ptr:
@@ -47,6 +47,7 @@ switch_from_user_ptr:
 _x86_size_of_indirect_call_instruction:
 x86_size_of_indirect_call_instruction:
     .space  4
+.align 8
 _x86_other_context:
 x86_other_context:
     .space OFF_LIMIT
@@ -179,11 +180,12 @@ x86_switch_from_user:
     mov     %r14, OFF_R14 + x86_other_context
     mov     %r15, OFF_R15 + x86_other_context
 
+    subq    $CALL_SIZE, %rax
+    mov     %rax, OFF_XIP + x86_other_context    /* user PC */
+
     pushfq
     popq    %rax
     mov     %eax, OFF_EFL + x86_other_context          /* user FLAGS */
-    subq    $CALL_SIZE, %rax
-    mov     %rax, OFF_XIP + x86_other_context    /* user PC */
 
     /* Restore endpoint */
     mov     save_space, %rax
@@ -237,7 +239,7 @@ _x86_is_branch_taken:
     andq    $15, %rdx           /* opcode: keep low nibble only */
     lea     .Ljump_base(,%rdx,4), %rcx  /* dispatch within table (below) */
 
-    popf                        /* update flags */
+    popfq                       /* update flags */
     jmp     *%rcx
 
 .Ljump_base:

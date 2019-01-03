@@ -14,7 +14,7 @@
 
 #define TRIGGER_LEVEL   0x1000000
 
-// branch trace encoding data (see ../../doc/branch_trace_format.pdf)
+// branch trace encoding data (see doc/branch_trace_format.pdf)
 #define WORD_DATA_MASK  0x0fffffffU
 #define CEM             0x00000000U
 #define BNT             0x10000000U
