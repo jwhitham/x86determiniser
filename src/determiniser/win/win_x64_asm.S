@@ -180,12 +180,12 @@ x86_switch_from_user:
     mov     %r14, OFF_R14 + x86_other_context
     mov     %r15, OFF_R15 + x86_other_context
 
+    pushfq
+    popq    %rbx
+    mov     %ebx, OFF_EFL + x86_other_context          /* user FLAGS */
+
     subq    $CALL_SIZE, %rax
     mov     %rax, OFF_XIP + x86_other_context    /* user PC */
-
-    pushfq
-    popq    %rax
-    mov     %eax, OFF_EFL + x86_other_context          /* user FLAGS */
 
     /* Restore endpoint */
     mov     save_space, %rax

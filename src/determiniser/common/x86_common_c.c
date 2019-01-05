@@ -124,21 +124,21 @@ static void branch_trace_encode (uint32_t trace_opcode, uintptr_t addr)
 // write taken branch to branch trace
 static inline void branch_taken (uintptr_t src, uintptr_t dest)
 {
-    if (branch_trace
-    && (src >= min_address) && (src <= max_address)
-    && (dest >= min_address) && (dest <= max_address)) {
-         branch_trace_encode (SA, src);
-         branch_trace_encode (BT, dest);
-    }
+   if (branch_trace
+   && (src >= min_address) && (src <= max_address)
+   && (dest >= min_address) && (dest <= max_address)) {
+       branch_trace_encode (SA, src);
+       branch_trace_encode (BT, dest);
+   }
 }
 
 // write not taken branch to branch trace
 static inline void branch_not_taken (uintptr_t src)
 {
-    if (branch_trace
-    && (src >= min_address) && (src <= max_address)) {
-         branch_trace_encode (BNT, src);
-    }
+   if (branch_trace
+   && (src >= min_address) && (src <= max_address)) {
+       branch_trace_encode (BNT, src);
+   }
 }
 
 // single step print_trigger_counted
@@ -677,7 +677,7 @@ void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
    }
 
 #ifdef IS_64_BIT
-   ZydisDecoderInit (&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_32);
+   ZydisDecoderInit (&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
 #else
    ZydisDecoderInit (&decoder, ZYDIS_MACHINE_MODE_LEGACY_32, ZYDIS_ADDRESS_WIDTH_32);
 #endif
