@@ -128,28 +128,28 @@ _x86_switch_to_user:
 
    /* The registers RBX, RBP, RDI, RSI, RSP, R12, R13, R14, and R15 are
     * considered non-volatile (callee-saved) on Windows.
-    * On other platforms, RDI and RSI are volatile, but there is no harm in saving them.
-    * Well... it costs time, but this approach to simulation is not that fast.
+    * On other platforms, RDI and RSI are volatile.
     */
     pushq   %rbx
+#ifdef WIN64
     pushq   %rdi
     pushq   %rsi
+#endif
     pushq   %r12
     pushq   %r13
     pushq   %r14
     pushq   %r15
 
     /* Save endpoint (parameter 1) */
-    mov     PARAM_1, %rsi   /* endpoint parameter */
-    mov     0(%rsi), %rax
+    mov     0(PARAM_1), %rax
     mov     %rax, save_space
 
     /* modify endpoint with call */
     mov     $x86_switch_from_user - CALL_SIZE, %rax     /* target PC (absolute) */
-    sub     %rsi, %rax      /* make target PC relative */
+    sub     PARAM_1, %rax      /* make target PC relative */
     mov     $0xe8, %bl
-    movb    %bl, 0(%rsi)    /* call opcode */
-    mov     %eax, 1(%rsi)   /* call target (as relative address) */
+    movb    %bl, 0(PARAM_1)    /* call opcode */
+    mov     %eax, 1(PARAM_1)   /* call target (as relative address) */
     /* XXX - what if the displacement is more than 2^31?? */
 
     /* restore the user context */
@@ -157,11 +157,16 @@ _x86_switch_to_user:
     pushq   %rax
     mov     OFF_XAX + x86_other_context, %rax /* GPRs */
     mov     OFF_XBX + x86_other_context, %rbx
-    mov     OFF_XCX + x86_other_context, %rcx
     mov     OFF_XDX + x86_other_context, %rdx
     mov     OFF_XBP + x86_other_context, %rbp
-    xchg    OFF_XSI + x86_other_context, %rsi
+    mov     OFF_XSI + x86_other_context, %rsi
+#ifdef WIN64
+    xchg    OFF_XCX + x86_other_context, %rcx /* contains PARAM_1 on Windows */
     mov     OFF_XDI + x86_other_context, %rdi
+#else
+    mov     OFF_XCX + x86_other_context, %rcx
+    xchg    OFF_XDI + x86_other_context, %rdi /* contains PARAM_1 on Linux */
+#endif
     mov     OFF_R8 + x86_other_context, %r8
     mov     OFF_R9 + x86_other_context, %r9
     mov     OFF_R10 + x86_other_context, %r10
@@ -182,11 +187,16 @@ x86_switch_from_user:
     pop     %rax                                 /* PC + CALL_SIZE */
     xchg    %rsp, OFF_XSP + x86_other_context
     mov     %rbx, OFF_XBX + x86_other_context
-    mov     %rcx, OFF_XCX + x86_other_context
     mov     %rdx, OFF_XDX + x86_other_context
     mov     %rbp, OFF_XBP + x86_other_context
-    xchg    %rsi, OFF_XSI + x86_other_context
+    mov     %rsi, OFF_XSI + x86_other_context
+#ifdef WIN64
+    xchg    %rcx, OFF_XCX + x86_other_context    /* contains x86_switch_to_user PARAM_1 on Windows */
     mov     %rdi, OFF_XDI + x86_other_context
+#else
+    mov     %rcx, OFF_XCX + x86_other_context
+    xchg    %rdi, OFF_XDI + x86_other_context    /* contains x86_switch_to_user PARAM_1 on Linux */
+#endif
     mov     %r8, OFF_R8 + x86_other_context
     mov     %r9, OFF_R9 + x86_other_context
     mov     %r10, OFF_R10 + x86_other_context
@@ -205,15 +215,17 @@ x86_switch_from_user:
 
     /* Restore endpoint */
     mov     save_space, %rax
-    mov     %rax, 0(%rsi)
+    mov     %rax, 0(PARAM_1)
 
     /* Restore callee-save registers and return */
     popq    %r15
     popq    %r14
     popq    %r13
     popq    %r12
+#ifdef WIN64
     popq    %rdi
     popq    %rsi
+#endif
     popq    %rbx
     popq    %rbp
 
