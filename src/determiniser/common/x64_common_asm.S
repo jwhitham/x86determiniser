@@ -21,7 +21,7 @@
 
 #include "offsets.h"
 
-#define CALL_SIZE 5
+#define CALL_SIZE 6
 #define SUPER_STACK_SIZE 0x10000
 #define SHADOW_SIZE 32
 
@@ -29,14 +29,14 @@
 .global x86_switch_from_user
 .global x86_begin_single_step
 .global x86_other_context
-.global x86_size_of_indirect_call_instruction
+.global x86_size_of_call_instruction
 .global x86_bp_trap
 .global x86_is_branch_taken 
 .global _x86_switch_to_user
 .global _x86_switch_from_user
 .global _x86_begin_single_step
 .global _x86_other_context
-.global _x86_size_of_indirect_call_instruction
+.global _x86_size_of_call_instruction
 .global _x86_bp_trap
 .global _x86_is_branch_taken 
 .text
@@ -56,11 +56,11 @@
 .bss
 .align 8
 save_space:
-    .space  8
+    .space  16
 switch_from_user_ptr:
     .space  8
-_x86_size_of_indirect_call_instruction:
-x86_size_of_indirect_call_instruction:
+_x86_size_of_call_instruction:
+x86_size_of_call_instruction:
     .space  4
 .align 8
 _x86_other_context:
@@ -103,7 +103,7 @@ x86_begin_single_step:
     mov     %rax, switch_from_user_ptr
 
     mov     $CALL_SIZE, %eax
-    mov     %eax, x86_size_of_indirect_call_instruction
+    mov     %eax, x86_size_of_call_instruction
 
     /* enter interpreter loop */
     sub     $SHADOW_SIZE, %rsp
@@ -140,17 +140,18 @@ _x86_switch_to_user:
     pushq   %r14
     pushq   %r15
 
-    /* Save endpoint (parameter 1) */
+    /* Save whatever is already at the endpoint - need to save 14 bytes */
     mov     0(PARAM_1), %rax
+    mov     8(PARAM_1), %rdx
     mov     %rax, save_space
+    mov     %rdx, save_space + 8
 
-    /* modify endpoint with call */
-    mov     $x86_switch_from_user - CALL_SIZE, %rax     /* target PC (absolute) */
-    sub     PARAM_1, %rax      /* make target PC relative */
-    mov     $0xe8, %bl
-    movb    %bl, 0(PARAM_1)    /* call opcode */
-    mov     %eax, 1(PARAM_1)   /* call target (as relative address) */
-    /* XXX - what if the displacement is more than 2^31?? */
+    /* encode PC-relative indirect call followed by absolute address */
+
+    mov     $0x15ff, %rax        
+    mov     %rax, 0(PARAM_1)     /* call with PC-relative address: ff 15 00 00 00 00 XX XX */
+    mov     $x86_switch_from_user, %rdx
+    mov     %rdx, 6(PARAM_1)     /* absolute 64-bit target address */
 
     /* restore the user context */
     mov     OFF_EFL + x86_other_context, %eax /* user FLAGS */
@@ -184,7 +185,7 @@ _x86_switch_from_user:
 x86_switch_from_user:
     /* save the user context */
     mov     %rax, OFF_XAX + x86_other_context    /* GPRs */
-    pop     %rax                                 /* PC + CALL_SIZE */
+    pop     %rax                                 /* PC + call instruction size (5 bytes) */
     xchg    %rsp, OFF_XSP + x86_other_context
     mov     %rbx, OFF_XBX + x86_other_context
     mov     %rdx, OFF_XDX + x86_other_context
@@ -215,7 +216,9 @@ x86_switch_from_user:
 
     /* Restore endpoint */
     mov     save_space, %rax
+    mov     save_space + 8, %rdx
     mov     %rax, 0(PARAM_1)
+    mov     %rdx, 8(PARAM_1)
 
     /* Restore callee-save registers and return */
     popq    %r15

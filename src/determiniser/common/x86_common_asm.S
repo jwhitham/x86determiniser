@@ -11,14 +11,14 @@
 .global x86_switch_from_user
 .global x86_begin_single_step
 .global x86_other_context
-.global x86_size_of_indirect_call_instruction
+.global x86_size_of_call_instruction
 .global x86_bp_trap
 .global x86_is_branch_taken 
 .global _x86_switch_to_user
 .global _x86_switch_from_user
 .global _x86_begin_single_step
 .global _x86_other_context
-.global _x86_size_of_indirect_call_instruction
+.global _x86_size_of_call_instruction
 .global _x86_bp_trap
 .global _x86_is_branch_taken 
 .text
@@ -31,8 +31,8 @@ save_space:
     .space  8
 switch_from_user_ptr:
     .space  4
-_x86_size_of_indirect_call_instruction:
-x86_size_of_indirect_call_instruction:
+_x86_size_of_call_instruction:
+x86_size_of_call_instruction:
     .space  4
 _x86_other_context:
 x86_other_context:
@@ -65,7 +65,7 @@ x86_begin_single_step:
     mov     %eax, switch_from_user_ptr
 
     mov     $CALL_SIZE, %eax
-    mov     %eax, x86_size_of_indirect_call_instruction
+    mov     %eax, x86_size_of_call_instruction
 
     /* enter interpreter loop */
     call    x86_interpreter

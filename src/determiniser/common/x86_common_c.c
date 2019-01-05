@@ -51,7 +51,7 @@ static superblock_info * superblocks;
 
 extern uintptr_t x86_other_context[];
 extern uint8_t x86_switch_from_user[];
-extern uint32_t x86_size_of_indirect_call_instruction;
+extern uint32_t x86_size_of_call_instruction;
 
 void x86_switch_to_user (uintptr_t endpoint);
 void x86_make_text_writable (uintptr_t min_address, uintptr_t max_address);
@@ -165,14 +165,14 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
 
    if (!entry_flag) {
       // We have now stepped one instruction in the program, time to leave!
-      // Fake an indirect call (to match the other way to exit from user code)
+      // Fake a call (to match the other way to exit from user code)
       uintptr_t sp = (uintptr_t) gregs[REG_XSP];
       uintptr_t * tos;
        
       sp -= PTR_SIZE;
       gregs[REG_XSP] = sp;
       tos = (uintptr_t *) sp;
-      tos[0] = pc + x86_size_of_indirect_call_instruction;
+      tos[0] = pc + x86_size_of_call_instruction;
       gregs[REG_XIP] = (uintptr_t) x86_switch_from_user;
 
 #ifdef DEBUG
