@@ -10,8 +10,13 @@
  * The registers RAX, RCX, RDX, R8, R9, R10, R11 are considered volatile
  * (caller-saved).
  * The registers RBX, RBP, RDI, RSI, RSP, R12, R13, R14, and R15 are
- * considered nonvolatile (callee-saved).
+ * considered non-volatile (callee-saved).
  *
+ * x64 calling convention (System V)
+ * The first six integer or pointer arguments are passed in registers
+ * RDI, RSI, RDX, RCX, R8, R9.
+ *
+ * The registers RBX, RBP and R12 .. R15 are considered non-volatile (callee-saved).
  */
 
 #include "offsets.h"
@@ -36,7 +41,17 @@
 .global _x86_is_branch_taken 
 .text
 
-
+#ifdef WIN64
+#define PARAM_1      %rcx
+#define PARAM_2      %rdx
+#else
+#ifdef LINUX64
+#define PARAM_1      %rdi
+#define PARAM_2      %rsi
+#else
+#error "WIN64 or LINUX64 must be defined"
+#endif
+#endif
 
 .bss
 .align 8
@@ -96,7 +111,7 @@ x86_begin_single_step:
     add     $SHADOW_SIZE, %rsp
 
     /* supervisor should not have returned */
-    mov     $1, %rcx
+    mov     $1, PARAM_1
     jmp     _exit
 
 user_start_point:
@@ -112,7 +127,9 @@ _x86_switch_to_user:
     movq    %rsp, %rbp
 
    /* The registers RBX, RBP, RDI, RSI, RSP, R12, R13, R14, and R15 are
-    * considered nonvolatile (callee-saved).  */
+    * considered non-volatile (callee-saved) on Windows.
+    * On other platforms, RDI and RSI are volatile, but there is no harm in saving them.
+    */
     pushq   %rbx
     pushq   %rdi
     pushq   %rsi
@@ -122,7 +139,7 @@ _x86_switch_to_user:
     pushq   %r15
 
     /* Save endpoint (parameter 1) */
-    mov     %rcx, %rsi   /* endpoint parameter */
+    mov     PARAM_1, %rsi   /* endpoint parameter */
     mov     0(%rsi), %rax
     mov     8(%rsi), %rbx
     mov     %rax, save_space
@@ -208,9 +225,9 @@ x86_switch_from_user:
 _x86_bp_trap:
 x86_bp_trap:
     /* (int code, void * arg) */
-    /* uses registers RCX, RDX, R8, R9 for the first four integer arguments. */
-    mov     %rcx,%rax  /* code - parameter 1 */
-    mov     %rdx,%rbx  /* arg - parameter 2 */
+
+    mov     PARAM_1,%rax  /* code */
+    mov     PARAM_2,%rbx  /* arg */
     int3
     mov     $0x9999,%rax    /* should never be reached */
     int3
@@ -226,21 +243,22 @@ x86_bp_trap:
 /* int x86_is_branch_taken (uint32_t flags, uint8_t opcode) */
 x86_is_branch_taken:
 _x86_is_branch_taken:
- /* The registers RAX, RCX, RDX, R8, R9, R10, R11 are considered volatile */
+ /* The registers RAX, RCX, RDX, R8, R9, R10, R11 are considered volatile
+  * on all platforms */
     pushfq                      /* get CPU flags */
     popq    %rax
     andq    $~FLAG_MASK, %rax   /* zero bits CF/PF/ZF/SF/OF */
-    andq    $FLAG_MASK, %rcx    /* keep only bits CF/PF/ZF/SF/OF */
-    orq     %rcx, %rax
+    andq    $FLAG_MASK, PARAM_1 /* keep only bits CF/PF/ZF/SF/OF */
+    orq     PARAM_1, %rax
     pushq   %rax                /* store new CPU flags on stack */
 
     xorq    %rax, %rax          /* return value is zero by default */
 
-    andq    $15, %rdx           /* opcode: keep low nibble only */
-    lea     .Ljump_base(,%rdx,4), %rcx  /* dispatch within table (below) */
+    andq    $15, PARAM_2                     /* opcode: keep low nibble only */
+    lea     .Ljump_base(,PARAM_2,4), PARAM_1 /* dispatch within table (below) */
 
     popfq                       /* update flags */
-    jmp     *%rcx
+    jmp     *PARAM_1
 
 .Ljump_base:
     jo      .Ltaken
