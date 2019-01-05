@@ -56,7 +56,7 @@
 .bss
 .align 8
 save_space:
-    .space  16
+    .space  8
 switch_from_user_ptr:
     .space  8
 _x86_size_of_indirect_call_instruction:
@@ -129,6 +129,7 @@ _x86_switch_to_user:
    /* The registers RBX, RBP, RDI, RSI, RSP, R12, R13, R14, and R15 are
     * considered non-volatile (callee-saved) on Windows.
     * On other platforms, RDI and RSI are volatile, but there is no harm in saving them.
+    * Well... it costs time, but this approach to simulation is not that fast.
     */
     pushq   %rbx
     pushq   %rdi
@@ -141,9 +142,7 @@ _x86_switch_to_user:
     /* Save endpoint (parameter 1) */
     mov     PARAM_1, %rsi   /* endpoint parameter */
     mov     0(%rsi), %rax
-    mov     8(%rsi), %rbx
     mov     %rax, save_space
-    mov     %rbx, save_space+8
 
     /* modify endpoint with call */
     mov     $x86_switch_from_user - CALL_SIZE, %rax     /* target PC (absolute) */
@@ -206,9 +205,7 @@ x86_switch_from_user:
 
     /* Restore endpoint */
     mov     save_space, %rax
-    mov     save_space+8, %rbx
     mov     %rax, 0(%rsi)
-    mov     %rbx, 8(%rsi)
 
     /* Restore callee-save registers and return */
     popq    %r15
