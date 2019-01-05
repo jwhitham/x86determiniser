@@ -87,7 +87,7 @@ static void dump_regs (uintptr_t * gregs)
    printf (" %cBX = %p  ", c, (void *) gregs[REG_XBX]);
    printf (" %cCX = %p  ", c, (void *) gregs[REG_XCX]);
    printf (" %cDX = %p  ", c, (void *) gregs[REG_XDX]);
-   printf (" %cFL = %x\n", c, get_flags (gregs));
+   printf (" EFL = %x\n", get_flags (gregs));
    printf (" %cIP = %p  ", c, (void *) gregs[REG_XIP]);
    printf (" %cSI = %p  ", c, (void *) gregs[REG_XSI]);
    printf (" %cDI = %p  ", c, (void *) gregs[REG_XDI]);
@@ -207,201 +207,232 @@ static ptrdiff_t get_disp32 (uint8_t * imm_value_ptr)
 
 static int interpret_control_flow (void)
 {
-    uintptr_t pc = x86_other_context[REG_XIP];
-    uintptr_t src = pc;
-    uint8_t * pc_bytes = (uint8_t *) pc;
-    uint32_t flags = get_flags (x86_other_context);
-    ptrdiff_t rm = 0;
-    uintptr_t * stack = NULL;
-    uintptr_t v = 0;
+   uintptr_t pc = x86_other_context[REG_XIP];
+   uintptr_t src = pc;
+   uint8_t * pc_bytes = (uint8_t *) pc;
+   uint32_t flags = get_flags (x86_other_context);
+   ptrdiff_t rm = 0;
+   uintptr_t * stack = NULL;
+   uintptr_t v = 0;
 
-    switch (pc_bytes[0]) {
-        case 0x70: case 0x71: case 0x72: case 0x73: // various conditional branches
-        case 0x74: case 0x75: case 0x76: case 0x77:
-        case 0x78: case 0x79: case 0x7a: case 0x7b:
-        case 0x7c: case 0x7d: case 0x7e: case 0x7f:
-            pc += 2;
-            if (x86_is_branch_taken (flags, pc_bytes[0])) {
-                pc += (int8_t) pc_bytes[1];
-                branch_taken (src, pc);
-            } else {
-                branch_not_taken (src);
-            }
-            break;
-        case 0xeb: // JMP (short)
-            pc += 2;
+   switch (pc_bytes[0]) {
+      case 0x70: case 0x71: case 0x72: case 0x73: // various conditional branches
+      case 0x74: case 0x75: case 0x76: case 0x77:
+      case 0x78: case 0x79: case 0x7a: case 0x7b:
+      case 0x7c: case 0x7d: case 0x7e: case 0x7f:
+         pc += 2;
+         if (x86_is_branch_taken (flags, pc_bytes[0])) {
             pc += (int8_t) pc_bytes[1];
             branch_taken (src, pc);
-            break;
-        case 0xe4: // IN imm8, AL (reset counter)
-            pc += 2;
-            inst_count = 0;
-            break;
-        case 0xe5: // IN imm8, EAX (get counter value and then reset counter)
-            pc += 2;
-            x86_other_context[REG_XAX] = (uint32_t) inst_count;
-            inst_count = 0;
-            break;
-        case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
-        case 0xe7: // OUT imm8, EAX
-            pc += 2;
-            v = x86_other_context[REG_XAX];
-            if (pc_bytes[0] == 0xe6) {
-                v = v & 0xff;
-            }
-            if (pc_bytes[1] == 0x30) {
-                // write to port 0x30 (cem_io_port)
-                branch_trace_encode (CEM, v & WORD_DATA_MASK);
-                if (!x86_quiet_mode) {
-                    printf ("marker %u\n", (uint32_t) v);
-                }
-            }
-            if (out_trace) {
-                // fields:
-                //  port number
-                //  inst count
-                //  value (AL or EAX)
-                fprintf (out_trace, "%02x %08x %08x\n",
-                     (uint32_t) pc_bytes[1],
-                     (uint32_t) inst_count, (uint32_t) v);
-            }
-            break;
-        case 0x0f: // Two-byte instructions
-            switch (pc_bytes[1]) {
-                case 0x80: case 0x81: case 0x82: case 0x83: // various conditional branches
-                case 0x84: case 0x85: case 0x86: case 0x87:
-                case 0x88: case 0x89: case 0x8a: case 0x8b:
-                case 0x8c: case 0x8d: case 0x8e: case 0x8f:
-                    pc += 6;
-                    if (x86_is_branch_taken (flags, pc_bytes[1])) {
-                        pc += get_disp32 (&pc_bytes[2]);
-                        branch_taken (src, pc);
-                    } else {
-                        branch_not_taken (src);
-                    }
-                    break;
-                case 0x31: // RDTSC
-                    x86_other_context[REG_XAX] = inst_count;
-                    x86_other_context[REG_XDX] = (uint32_t) (inst_count >> 32);
-                    pc += 2;
-                    break;
-                default:
-                    return 0;
-            }
-            break;
-
-        case 0xe9: // JMP (long)
-            pc += 5;
-            pc += get_disp32 (&pc_bytes[1]);
-            branch_taken (src, pc);
-            break;
-
-        case 0xe8: // CALL
-            pc += 5;
-            stack = (uintptr_t *) x86_other_context[REG_XSP];
-            stack--;
-            stack[0] = pc;
-            x86_other_context[REG_XSP] = (uintptr_t) stack;
-            pc += get_disp32 (&pc_bytes[1]);
-            branch_taken (src, pc);
-            break;
-
-        case 0xf3: // REPZ
-            if (pc_bytes[1] != 0xc3) {
-                return 0; // not REPZ RET
-            }
-            // REPZ RET - fall through:
-        case 0xc3: // RET
-            stack = (uintptr_t *) x86_other_context[REG_XSP];
-            pc = stack[0];
-            stack++;
-            x86_other_context[REG_XSP] = (uintptr_t) stack;
-            branch_taken (src, pc);
-            break;
-
-        case 0xff:
-#ifdef DEBUG
+         } else {
+            branch_not_taken (src);
+         }
+         break;
+      case 0xeb: // JMP (short)
+         pc += 2;
+         pc += (int8_t) pc_bytes[1];
+         branch_taken (src, pc);
+         break;
+      case 0xe4: // IN imm8, AL (reset counter)
+         pc += 2;
+         inst_count = 0;
+         break;
+      case 0xe5: // IN imm8, EAX (get counter value and then reset counter)
+         pc += 2;
+         x86_other_context[REG_XAX] = (uint32_t) inst_count;
+         inst_count = 0;
+         break;
+      case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
+      case 0xe7: // OUT imm8, EAX
+         pc += 2;
+         v = x86_other_context[REG_XAX];
+         if (pc_bytes[0] == 0xe6) {
+            v = v & 0xff;
+         }
+         if (pc_bytes[1] == 0x30) {
+            // write to port 0x30 (cem_io_port)
+            branch_trace_encode (CEM, v & WORD_DATA_MASK);
             if (!x86_quiet_mode) {
-               printf ("Code ff %02x at %p, mode %u, R/M %u, opcode %u\n",
-                   pc_bytes[1], pc_bytes, pc_bytes[1] >> 6, pc_bytes[1] & 7, (pc_bytes[1] >> 3) & 7);
+               printf ("marker %u\n", (uint32_t) v);
             }
+         }
+         if (out_trace) {
+            // fields:
+            //  port number
+            //  inst count
+            //  value (AL or EAX)
+            fprintf (out_trace, "%02x %08x %08x\n",
+                (uint32_t) pc_bytes[1],
+                (uint32_t) inst_count, (uint32_t) v);
+         }
+         break;
+      case 0x0f: // Two-byte instructions
+         switch (pc_bytes[1]) {
+            case 0x80: case 0x81: case 0x82: case 0x83: // various conditional branches
+            case 0x84: case 0x85: case 0x86: case 0x87:
+            case 0x88: case 0x89: case 0x8a: case 0x8b:
+            case 0x8c: case 0x8d: case 0x8e: case 0x8f:
+               pc += 6;
+               if (x86_is_branch_taken (flags, pc_bytes[1])) {
+                  pc += get_disp32 (&pc_bytes[2]);
+                  branch_taken (src, pc);
+               } else {
+                  branch_not_taken (src);
+               }
+               break;
+            case 0x31: // RDTSC
+               x86_other_context[REG_XAX] = inst_count;
+               x86_other_context[REG_XDX] = (uint32_t) (inst_count >> 32);
+               pc += 2;
+               break;
+            default:
+               return 0;
+         }
+         break;
+
+      case 0xe9: // JMP (long)
+         pc += 5;
+         pc += get_disp32 (&pc_bytes[1]);
+         branch_taken (src, pc);
+         break;
+
+      case 0xe8: // CALL
+         pc += 5;
+         stack = (uintptr_t *) x86_other_context[REG_XSP];
+         stack--;
+         stack[0] = pc;
+         x86_other_context[REG_XSP] = (uintptr_t) stack;
+         pc += get_disp32 (&pc_bytes[1]);
+         branch_taken (src, pc);
+         break;
+
+      case 0xf3: // REPZ
+         if (pc_bytes[1] != 0xc3) {
+            return 0; // not REPZ RET
+         }
+         // REPZ RET - fall through:
+      case 0xc3: // RET
+         stack = (uintptr_t *) x86_other_context[REG_XSP];
+         pc = stack[0];
+         stack++;
+         x86_other_context[REG_XSP] = (uintptr_t) stack;
+         branch_taken (src, pc);
+         break;
+
+      case 0xff:
+#ifdef DEBUG
+         if (!x86_quiet_mode) {
+            printf ("X86D: Code ff %02x at %p, mode %u, R/M %u, opcode %u\n",
+               pc_bytes[1], pc_bytes, pc_bytes[1] >> 6, pc_bytes[1] & 7, (pc_bytes[1] >> 3) & 7);
+            fflush (stdout);
+         }
 #endif
 
-            // Decode R/M field: says which register is used for effective address
-            switch (pc_bytes[1] & 7) {
-                case 0: rm = x86_other_context[REG_XAX]; break;
-                case 1: rm = x86_other_context[REG_XCX]; break;
-                case 2: rm = x86_other_context[REG_XDX]; break;
-                case 3: rm = x86_other_context[REG_XBX]; break;
-                case 6: rm = x86_other_context[REG_XSI]; break;
-                case 7: rm = x86_other_context[REG_XDI]; break;
-                case 5: // EBP or disp32
-                    if ((pc_bytes[1] >> 6) == 0) {
-                        rm = get_disp32 (&pc_bytes[2]);
-                        pc += 4;
-                    } else {
-                        rm = x86_other_context[REG_XBP];
-                    }
-                    break;
-                default: // SIB: don't decode that!
-                    return 0;
-            }
+         // Decode R/M field: says which register is used for effective address
+         switch (pc_bytes[1] & 7) {
+            case 0: rm = x86_other_context[REG_XAX]; break;
+            case 1: rm = x86_other_context[REG_XCX]; break;
+            case 2: rm = x86_other_context[REG_XDX]; break;
+            case 3: rm = x86_other_context[REG_XBX]; break;
+            case 6: rm = x86_other_context[REG_XSI]; break;
+            case 7: rm = x86_other_context[REG_XDI]; break;
+            case 5:
+               if ((pc_bytes[1] >> 6) == 0) {
+                  // disp32
+                  rm = get_disp32 (&pc_bytes[2]);
+                  pc += 4;
+               } else {
+                  // XBP
+                  rm = x86_other_context[REG_XBP];
+               }
+               break;
+            default: // SIB: don't decode that!
+               return 0;
+         }
 
-            // Decode the Mode field: says how register should be used
-            switch (pc_bytes[1] >> 6) {
-                case 0: // dereference with zero offset
-                    rm = ((uintptr_t *) rm)[0];
-                    pc += 2;
-                    break;
-                case 1: // dereference with short offset
-                    rm += (int8_t) pc_bytes[2];
-                    rm = ((uintptr_t *) rm)[0];
-                    pc += 3;
-                    break;
-                case 2: // dereference with long offset
-                    rm += get_disp32 (&pc_bytes[2]);
-                    rm = ((uintptr_t *) rm)[0];
-                    pc += 6;
-                    break;
-                default: // direct
-                    pc += 2;
-                    break;
-            }
+#ifdef DEBUG
+         if (!x86_quiet_mode) {
+            printf ("X86D: R/M value: (before mode) %p ", (void *) rm);
+            fflush (stdout);
+         }
+#endif
 
-            // Decode Opcode field
-            switch ((pc_bytes[1] >> 3) & 7) {
-                case 0: // INC
-                    return 0;
-                case 1: // DEC
-                    return 0;
-                case 2: // CALL
-                    stack = (uintptr_t *) x86_other_context[REG_XSP];
-                    stack--;
-                    x86_other_context[REG_XSP] = (uintptr_t) stack;
-                    stack[0] = pc;
-                    pc = rm;
-                    branch_taken (src, pc);
-                    break;
-                case 3: // CALLF
-                    return 0;
-                case 4: // JMP
-                    pc = rm;
-                    branch_taken (src, pc);
-                    break;
-                case 5: // JMPF
-                    return 0;
-                case 6: // PUSH
-                    return 0;
-                default: // illegal?
-                    return 0;
-            }
-            break;
+         // Decode the Mode field: says how register should be used
+         switch (pc_bytes[1] >> 6) {
+            case 0:
+               if ((PTR_SIZE == 8) && ((pc_bytes[1] & 7) == 5)) {
+                  // dereference with PC offset in 64-bit mode
+                  pc += 2; // relative to PC at end of instruction
+                  rm += pc;
+#ifdef DEBUG
+                  if (!x86_quiet_mode) {
+                     printf (" (before deref) %p ", (void *) rm);
+                     fflush (stdout);
+                  }
+#endif
+                  rm = ((uintptr_t *) rm)[0];
+               } else {
+                  // dereference with zero offset
+                  rm = ((uintptr_t *) rm)[0];
+                  pc += 2;
+               }
+               break;
+            case 1: // dereference with short offset
+               rm += (int8_t) pc_bytes[2];
+               rm = ((uintptr_t *) rm)[0];
+               pc += 3;
+               break;
+            case 2: // dereference with long offset
+               rm += get_disp32 (&pc_bytes[2]);
+               rm = ((uintptr_t *) rm)[0];
+               pc += 6;
+               break;
+            default: // direct
+               pc += 2;
+               break;
+         }
 
-        default:
-            return 0;
-    }
-    x86_other_context[REG_XIP] = pc;
-    return 1;
+#ifdef DEBUG
+         if (!x86_quiet_mode) {
+            printf ("(after mode) %p\n", (void *) rm);
+            fflush (stdout);
+         }
+#endif
+
+         // Decode Opcode field
+         switch ((pc_bytes[1] >> 3) & 7) {
+            case 0: // INC
+               return 0;
+            case 1: // DEC
+               return 0;
+            case 2: // CALL
+               stack = (uintptr_t *) x86_other_context[REG_XSP];
+               stack--;
+               x86_other_context[REG_XSP] = (uintptr_t) stack;
+               stack[0] = pc;
+               pc = rm;
+               branch_taken (src, pc);
+               break;
+            case 3: // CALLF
+               return 0;
+            case 4: // JMP
+               pc = rm;
+               branch_taken (src, pc);
+               break;
+            case 5: // JMPF
+               return 0;
+            case 6: // PUSH
+               return 0;
+            default: // illegal?
+               return 0;
+         }
+         break;
+
+      default:
+         return 0;
+   }
+   x86_other_context[REG_XIP] = pc;
+   return 1;
 }
 
 // interpreter loop
@@ -455,6 +486,7 @@ void x86_interpreter (void)
                 if (!x86_quiet_mode) {
                    printf ("X86D: Exec from %p to %p\n", (void *) pc, (void *) pc_end);
                    dump_regs (x86_other_context);
+                   fflush (stdout);
                 }
 #endif
                 x86_switch_to_user (pc_end);
@@ -527,7 +559,7 @@ void x86_interpreter (void)
             }
 #ifdef DEBUG
             if (!x86_quiet_mode) {
-               printf ("free run: %cIP %p %cSP %p end %p\n",
+               printf ("X86D: free run: %cIP %p %cSP %p end %p\n",
                    REGISTER_PREFIX, (void *) pc,
                    REGISTER_PREFIX, (void *) x86_other_context[REG_XSP], (void *) pc_end);
             }
