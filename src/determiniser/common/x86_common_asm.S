@@ -107,16 +107,17 @@ _x86_switch_to_user:
     mov     %eax, 1(%edi)   /* call target (as relative address) */
 
     /* restore the user context */
-    mov     OFF_XAX + x86_other_context, %eax /* GPRs */
-    mov     OFF_XBX + x86_other_context, %ebx
-    mov     OFF_XCX + x86_other_context, %ecx
-    mov     OFF_XDX + x86_other_context, %edx
-    mov     OFF_XBP + x86_other_context, %ebp
-    mov     OFF_XSI + x86_other_context, %esi
-    xchg    OFF_XDI + x86_other_context, %edi
-    pushl   OFF_EFL + x86_other_context          /* user FLAGS, once restored */
-    popf                                         /* may cause single-stepping */
-    xchg    %esp, OFF_XSP + x86_other_context
+    mov     $x86_other_context + OFF_XAX, %esi
+    mov     OFF_XAX - OFF_XAX(%esi), %eax /* GPRs */
+    mov     OFF_XBX - OFF_XAX(%esi), %ebx
+    mov     OFF_XCX - OFF_XAX(%esi), %ecx
+    mov     OFF_XDX - OFF_XAX(%esi), %edx
+    mov     OFF_XBP - OFF_XAX(%esi), %ebp
+    xchg    OFF_XDI - OFF_XAX(%esi), %edi
+    pushl   OFF_EFL - OFF_XAX(%esi)          /* user FLAGS, once restored */
+    popf                                     /* may cause single-stepping */
+    xchg    %esp, OFF_XSP - OFF_XAX(%esi)
+    xchg    OFF_XSI - OFF_XAX(%esi), %esi
     jmp     *(OFF_XIP + x86_other_context)       /* user PC */
 
 .align 4
