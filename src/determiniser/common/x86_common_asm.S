@@ -93,18 +93,18 @@ _x86_switch_to_user:
     pushl   %edi
 
     /* Save endpoint */
-    mov     PARAM_1(%ebp), %esi   /* endpoint */
-    mov     0(%esi), %eax
-    mov     4(%esi), %ebx
+    mov     PARAM_1(%ebp), %edi   /* endpoint */
+    mov     0(%edi), %eax
+    mov     4(%edi), %ebx
     mov     %eax, save_space
     mov     %ebx, save_space+4
 
     /* modify endpoint with call */
     mov     $x86_switch_from_user - CALL_SIZE, %eax     /* target PC (absolute) */
-    sub     %esi, %eax      /* make target PC relative */
+    sub     %edi, %eax      /* make target PC relative */
     mov     $0xe8, %bl
-    movb    %bl, 0(%esi)    /* call opcode */
-    mov     %eax, 1(%esi)   /* call target (as relative address) */
+    movb    %bl, 0(%edi)    /* call opcode */
+    mov     %eax, 1(%edi)   /* call target (as relative address) */
 
     /* restore the user context */
     mov     OFF_XAX + x86_other_context, %eax /* GPRs */
@@ -112,8 +112,8 @@ _x86_switch_to_user:
     mov     OFF_XCX + x86_other_context, %ecx
     mov     OFF_XDX + x86_other_context, %edx
     mov     OFF_XBP + x86_other_context, %ebp
-    xchg    OFF_XSI + x86_other_context, %esi
-    mov     OFF_XDI + x86_other_context, %edi
+    mov     OFF_XSI + x86_other_context, %esi
+    xchg    OFF_XDI + x86_other_context, %edi
     pushl   OFF_EFL + x86_other_context          /* user FLAGS, once restored */
     popf                                         /* may cause single-stepping */
     xchg    %esp, OFF_XSP + x86_other_context
@@ -130,8 +130,8 @@ x86_switch_from_user:
     mov     %ecx, OFF_XCX + x86_other_context
     mov     %edx, OFF_XDX + x86_other_context
     mov     %ebp, OFF_XBP + x86_other_context
-    xchg    %esi, OFF_XSI + x86_other_context
-    mov     %edi, OFF_XDI + x86_other_context
+    mov     %esi, OFF_XSI + x86_other_context
+    xchg    %edi, OFF_XDI + x86_other_context
 
     pushf
     popl    OFF_EFL + x86_other_context          /* user FLAGS */
@@ -142,8 +142,8 @@ x86_switch_from_user:
     /* Restore endpoint */
     mov     save_space, %eax
     mov     save_space+4, %ebx
-    mov     %eax, 0(%esi)
-    mov     %ebx, 4(%esi)
+    mov     %eax, 0(%edi)
+    mov     %ebx, 4(%edi)
 
     /* Restore callee-save registers and return */
     popl    %edi
