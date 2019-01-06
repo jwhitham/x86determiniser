@@ -118,6 +118,9 @@ static void branch_trace_encode (uint32_t trace_opcode, uintptr_t addr)
           (uint32_t) (trace_opcode | (addr & WORD_DATA_MASK)),
           (uint32_t) inst_count);
       branch_trace_refresh --;
+#ifdef DEBUG
+      fflush (branch_trace);
+#endif
    }
 }
 
@@ -479,6 +482,14 @@ void x86_interpreter (void)
             }
             pc_end = pc + si->size;
             inst_count += si->count;
+
+#ifdef DEBUG
+             if (!x86_quiet_mode) {
+                void ** address = (void **) 0x408178;
+                printf ("X86D: probe %p = %p\n", (void *) address, (void *) address[0]);
+                fflush (stdout);
+             }
+#endif
 
             // run the superblock
             if (pc_end != pc) {

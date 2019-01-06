@@ -90,6 +90,22 @@ x86_begin_single_step:
     mov     %r13, OFF_R13 + x86_other_context
     mov     %r14, OFF_R14 + x86_other_context
     mov     %r15, OFF_R15 + x86_other_context
+    movsd   %xmm0, OFF_Xmm0 + x86_other_context
+    movsd   %xmm1, OFF_Xmm1 + x86_other_context
+    movsd   %xmm2, OFF_Xmm2 + x86_other_context
+    movsd   %xmm3, OFF_Xmm3 + x86_other_context
+    movsd   %xmm4, OFF_Xmm4 + x86_other_context
+    movsd   %xmm5, OFF_Xmm5 + x86_other_context
+    movsd   %xmm6, OFF_Xmm6 + x86_other_context
+    movsd   %xmm7, OFF_Xmm7 + x86_other_context
+    movsd   %xmm8, OFF_Xmm8 + x86_other_context
+    movsd   %xmm9, OFF_Xmm9 + x86_other_context
+    movsd   %xmm10, OFF_Xmm10 + x86_other_context
+    movsd   %xmm11, OFF_Xmm11 + x86_other_context
+    movsd   %xmm12, OFF_Xmm12 + x86_other_context
+    movsd   %xmm13, OFF_Xmm13 + x86_other_context
+    movsd   %xmm14, OFF_Xmm14 + x86_other_context
+    movsd   %xmm15, OFF_Xmm15 + x86_other_context
     pushfq
     popq    %rax
     mov     %eax, OFF_EFL + x86_other_context          /* FLAGS */
@@ -176,6 +192,22 @@ _x86_switch_to_user:
     mov     OFF_R13 + x86_other_context, %r13
     mov     OFF_R14 + x86_other_context, %r14
     mov     OFF_R15 + x86_other_context, %r15
+    movsd   OFF_Xmm0 + x86_other_context, %xmm0
+    movsd   OFF_Xmm1 + x86_other_context, %xmm1
+    movsd   OFF_Xmm2 + x86_other_context, %xmm2
+    movsd   OFF_Xmm3 + x86_other_context, %xmm3
+    movsd   OFF_Xmm4 + x86_other_context, %xmm4
+    movsd   OFF_Xmm5 + x86_other_context, %xmm5
+    movsd   OFF_Xmm6 + x86_other_context, %xmm6
+    movsd   OFF_Xmm7 + x86_other_context, %xmm7
+    movsd   OFF_Xmm8 + x86_other_context, %xmm8
+    movsd   OFF_Xmm9 + x86_other_context, %xmm9
+    movsd   OFF_Xmm10 + x86_other_context, %xmm10
+    movsd   OFF_Xmm11 + x86_other_context, %xmm11
+    movsd   OFF_Xmm12 + x86_other_context, %xmm12
+    movsd   OFF_Xmm13 + x86_other_context, %xmm13
+    movsd   OFF_Xmm14 + x86_other_context, %xmm14
+    movsd   OFF_Xmm15 + x86_other_context, %xmm15
     popfq                                        /* restoring FLAGS may cause single-stepping */
     xchg    %rsp, OFF_XSP + x86_other_context
     jmp     *(OFF_XIP + x86_other_context)       /* user PC */
@@ -206,6 +238,22 @@ x86_switch_from_user:
     mov     %r13, OFF_R13 + x86_other_context
     mov     %r14, OFF_R14 + x86_other_context
     mov     %r15, OFF_R15 + x86_other_context
+    movsd   %xmm0, OFF_Xmm0 + x86_other_context
+    movsd   %xmm1, OFF_Xmm1 + x86_other_context
+    movsd   %xmm2, OFF_Xmm2 + x86_other_context
+    movsd   %xmm3, OFF_Xmm3 + x86_other_context
+    movsd   %xmm4, OFF_Xmm4 + x86_other_context
+    movsd   %xmm5, OFF_Xmm5 + x86_other_context
+    movsd   %xmm6, OFF_Xmm6 + x86_other_context
+    movsd   %xmm7, OFF_Xmm7 + x86_other_context
+    movsd   %xmm8, OFF_Xmm8 + x86_other_context
+    movsd   %xmm9, OFF_Xmm9 + x86_other_context
+    movsd   %xmm10, OFF_Xmm10 + x86_other_context
+    movsd   %xmm11, OFF_Xmm11 + x86_other_context
+    movsd   %xmm12, OFF_Xmm12 + x86_other_context
+    movsd   %xmm13, OFF_Xmm13 + x86_other_context
+    movsd   %xmm14, OFF_Xmm14 + x86_other_context
+    movsd   %xmm15, OFF_Xmm15 + x86_other_context
 
     pushfq
     popq    %rbx

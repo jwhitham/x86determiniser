@@ -3,7 +3,11 @@ PLATFORM=win32
 ROOT=..
 include ../$(PLATFORM).cfg
 
-all: complex_test/ctest.$(PLATFORM).ok simple_tests/tests.$(PLATFORM).ok
+OK_FILES=complex_test/ctest.$(PLATFORM).ok simple_tests/tests.$(PLATFORM).ok
+
+all:
+	rm -f $(OK_FILES)
+	make $(OK_FILES)
 
 clean:
 	make -C complex_test clean PLATFORM=$(PLATFORM)

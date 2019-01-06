@@ -896,6 +896,10 @@ static DWORD DefaultHandler (
                   err_printf (0, "Segmentation fault at %p", (void *) get_pc (&context));
                   exit (1);
                   break;
+               case STATUS_INTEGER_DIVIDE_BY_ZERO:
+                  err_printf (0, "Divide by zero at %p", (void *) get_pc (&context));
+                  exit (1);
+                  break;
                default:
                   // pass through
                   dbg_printf ("%s: Exception at %p code 0x%0x\n",

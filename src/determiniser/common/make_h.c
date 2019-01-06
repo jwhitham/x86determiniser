@@ -42,6 +42,22 @@ static CONTEXT c;
 #define REG_R13 (oof(R13))
 #define REG_R14 (oof(R14))
 #define REG_R15 (oof(R15))
+#define REG_Xmm0 (oof(Xmm0))
+#define REG_Xmm1 (oof(Xmm1))
+#define REG_Xmm2 (oof(Xmm2))
+#define REG_Xmm3 (oof(Xmm3))
+#define REG_Xmm4 (oof(Xmm4))
+#define REG_Xmm5 (oof(Xmm5))
+#define REG_Xmm6 (oof(Xmm6))
+#define REG_Xmm7 (oof(Xmm7))
+#define REG_Xmm8 (oof(Xmm8))
+#define REG_Xmm9 (oof(Xmm9))
+#define REG_Xmm10 (oof(Xmm10))
+#define REG_Xmm11 (oof(Xmm11))
+#define REG_Xmm12 (oof(Xmm12))
+#define REG_Xmm13 (oof(Xmm13))
+#define REG_Xmm14 (oof(Xmm14))
+#define REG_Xmm15 (oof(Xmm15))
 #define REG_LIMIT (sizeof (CONTEXT))
 #define REGISTER_PREFIX 'R'
 #define IS_64_BIT
@@ -106,6 +122,22 @@ int main (void)
    table ("R13", REG_R13);
    table ("R14", REG_R14);
    table ("R15", REG_R15);
+   table ("Xmm0", REG_Xmm0);
+   table ("Xmm1", REG_Xmm1);
+   table ("Xmm2", REG_Xmm2);
+   table ("Xmm3", REG_Xmm3);
+   table ("Xmm4", REG_Xmm4);
+   table ("Xmm5", REG_Xmm5);
+   table ("Xmm6", REG_Xmm6);
+   table ("Xmm7", REG_Xmm7);
+   table ("Xmm8", REG_Xmm8);
+   table ("Xmm9", REG_Xmm9);
+   table ("Xmm10", REG_Xmm10);
+   table ("Xmm11", REG_Xmm11);
+   table ("Xmm12", REG_Xmm12);
+   table ("Xmm13", REG_Xmm13);
+   table ("Xmm14", REG_Xmm14);
+   table ("Xmm15", REG_Xmm15);
 #endif
    table ("LIMIT", REG_LIMIT);
    printf ("#define OFF_EFL (%u)\n", (unsigned) OFF_EFL);
