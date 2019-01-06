@@ -124,21 +124,22 @@ _x86_switch_to_user:
 _x86_switch_from_user:
 x86_switch_from_user:
     /* save the user context */
-    mov     %eax, OFF_XAX + x86_other_context    /* GPRs */
+    xchg    %esi, OFF_XSI + x86_other_context
+    mov     %eax, OFF_XAX - OFF_XAX(%esi)    /* GPRs */
+    mov     %ebx, OFF_XBX - OFF_XAX(%esi)
+    mov     %ecx, OFF_XCX - OFF_XAX(%esi)
+    mov     %edx, OFF_XDX - OFF_XAX(%esi)
+    mov     %ebp, OFF_XBP - OFF_XAX(%esi)
+    xchg    %edi, OFF_XDI - OFF_XAX(%esi)
     pop     %eax                                 /* PC + CALL_SIZE */
-    xchg    %esp, OFF_XSP + x86_other_context
-    mov     %ebx, OFF_XBX + x86_other_context
-    mov     %ecx, OFF_XCX + x86_other_context
-    mov     %edx, OFF_XDX + x86_other_context
-    mov     %ebp, OFF_XBP + x86_other_context
-    mov     %esi, OFF_XSI + x86_other_context
-    xchg    %edi, OFF_XDI + x86_other_context
+
+    xchg    %esp, OFF_XSP - OFF_XAX(%esi)
 
     pushf
-    popl    OFF_EFL + x86_other_context          /* user FLAGS */
+    popl    OFF_EFL - OFF_XAX(%esi)          /* user FLAGS */
 
     subl    $CALL_SIZE, %eax
-    mov     %eax, OFF_XIP + x86_other_context    /* user PC */
+    mov     %eax, OFF_XIP - OFF_XAX(%esi)    /* user PC */
 
     /* Restore endpoint */
     mov     save_space, %eax
