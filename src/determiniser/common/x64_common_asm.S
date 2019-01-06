@@ -170,97 +170,98 @@ _x86_switch_to_user:
     mov     %rdx, 6(PARAM_1)     /* absolute 64-bit target address */
 
     /* restore the user context */
-    mov     OFF_EFL + x86_other_context, %eax /* user FLAGS */
+    mov     $x86_other_context + OFF_XAX, %rsi
+    mov     OFF_EFL - OFF_XAX(%rsi), %eax /* user FLAGS */
     pushq   %rax
-    mov     OFF_XAX + x86_other_context, %rax /* GPRs */
-    mov     OFF_XBX + x86_other_context, %rbx
-    mov     OFF_XDX + x86_other_context, %rdx
-    mov     OFF_XBP + x86_other_context, %rbp
-    mov     OFF_XSI + x86_other_context, %rsi
+    mov     OFF_XAX - OFF_XAX(%rsi), %rax /* GPRs */
+    mov     OFF_XBX - OFF_XAX(%rsi), %rbx
+    mov     OFF_XDX - OFF_XAX(%rsi), %rdx
+    mov     OFF_XBP - OFF_XAX(%rsi), %rbp
 #ifdef WIN64
-    xchg    OFF_XCX + x86_other_context, %rcx /* contains PARAM_1 on Windows */
-    mov     OFF_XDI + x86_other_context, %rdi
+    xchg    OFF_XCX - OFF_XAX(%rsi), %rcx /* contains PARAM_1 on Windows */
+    mov     OFF_XDI - OFF_XAX(%rsi), %rdi
 #else
-    mov     OFF_XCX + x86_other_context, %rcx
-    xchg    OFF_XDI + x86_other_context, %rdi /* contains PARAM_1 on Linux */
+    mov     OFF_XCX - OFF_XAX(%rsi), %rcx
+    xchg    OFF_XDI - OFF_XAX(%rsi), %rdi /* contains PARAM_1 on Linux */
 #endif
-    mov     OFF_R8 + x86_other_context, %r8
-    mov     OFF_R9 + x86_other_context, %r9
-    mov     OFF_R10 + x86_other_context, %r10
-    mov     OFF_R11 + x86_other_context, %r11
-    mov     OFF_R12 + x86_other_context, %r12
-    mov     OFF_R13 + x86_other_context, %r13
-    mov     OFF_R14 + x86_other_context, %r14
-    mov     OFF_R15 + x86_other_context, %r15
-    movsd   OFF_Xmm0 + x86_other_context, %xmm0
-    movsd   OFF_Xmm1 + x86_other_context, %xmm1
-    movsd   OFF_Xmm2 + x86_other_context, %xmm2
-    movsd   OFF_Xmm3 + x86_other_context, %xmm3
-    movsd   OFF_Xmm4 + x86_other_context, %xmm4
-    movsd   OFF_Xmm5 + x86_other_context, %xmm5
-    movsd   OFF_Xmm6 + x86_other_context, %xmm6
-    movsd   OFF_Xmm7 + x86_other_context, %xmm7
-    movsd   OFF_Xmm8 + x86_other_context, %xmm8
-    movsd   OFF_Xmm9 + x86_other_context, %xmm9
-    movsd   OFF_Xmm10 + x86_other_context, %xmm10
-    movsd   OFF_Xmm11 + x86_other_context, %xmm11
-    movsd   OFF_Xmm12 + x86_other_context, %xmm12
-    movsd   OFF_Xmm13 + x86_other_context, %xmm13
-    movsd   OFF_Xmm14 + x86_other_context, %xmm14
-    movsd   OFF_Xmm15 + x86_other_context, %xmm15
+    mov     OFF_R8 - OFF_XAX(%rsi), %r8
+    mov     OFF_R9 - OFF_XAX(%rsi), %r9
+    mov     OFF_R10 - OFF_XAX(%rsi), %r10
+    mov     OFF_R11 - OFF_XAX(%rsi), %r11
+    mov     OFF_R12 - OFF_XAX(%rsi), %r12
+    mov     OFF_R13 - OFF_XAX(%rsi), %r13
+    mov     OFF_R14 - OFF_XAX(%rsi), %r14
+    mov     OFF_R15 - OFF_XAX(%rsi), %r15
+    movsd   OFF_Xmm0 - OFF_XAX(%rsi), %xmm0
+    movsd   OFF_Xmm1 - OFF_XAX(%rsi), %xmm1
+    movsd   OFF_Xmm2 - OFF_XAX(%rsi), %xmm2
+    movsd   OFF_Xmm3 - OFF_XAX(%rsi), %xmm3
+    movsd   OFF_Xmm4 - OFF_XAX(%rsi), %xmm4
+    movsd   OFF_Xmm5 - OFF_XAX(%rsi), %xmm5
+    movsd   OFF_Xmm6 - OFF_XAX(%rsi), %xmm6
+    movsd   OFF_Xmm7 - OFF_XAX(%rsi), %xmm7
+    movsd   OFF_Xmm8 - OFF_XAX(%rsi), %xmm8
+    movsd   OFF_Xmm9 - OFF_XAX(%rsi), %xmm9
+    movsd   OFF_Xmm10 - OFF_XAX(%rsi), %xmm10
+    movsd   OFF_Xmm11 - OFF_XAX(%rsi), %xmm11
+    movsd   OFF_Xmm12 - OFF_XAX(%rsi), %xmm12
+    movsd   OFF_Xmm13 - OFF_XAX(%rsi), %xmm13
+    movsd   OFF_Xmm14 - OFF_XAX(%rsi), %xmm14
+    movsd   OFF_Xmm15 - OFF_XAX(%rsi), %xmm15
     popfq                                        /* restoring FLAGS may cause single-stepping */
-    xchg    %rsp, OFF_XSP + x86_other_context
+    xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
+    xchg    OFF_XSI - OFF_XAX(%rsi), %rsi
     jmp     *(OFF_XIP + x86_other_context)       /* user PC */
 
 .align 4
 _x86_switch_from_user:
 x86_switch_from_user:
     /* save the user context */
-    mov     %rax, OFF_XAX + x86_other_context    /* GPRs */
-    pop     %rax                                 /* PC + call instruction size (5 bytes) */
-    xchg    %rsp, OFF_XSP + x86_other_context
-    mov     %rbx, OFF_XBX + x86_other_context
-    mov     %rdx, OFF_XDX + x86_other_context
-    mov     %rbp, OFF_XBP + x86_other_context
-    mov     %rsi, OFF_XSI + x86_other_context
+    xchg    %rsi, OFF_XSI + x86_other_context
+    mov     %rax, OFF_XAX - OFF_XAX(%rsi)    /* GPRs */
+    mov     %rbx, OFF_XBX - OFF_XAX(%rsi)
+    mov     %rdx, OFF_XDX - OFF_XAX(%rsi)
+    mov     %rbp, OFF_XBP - OFF_XAX(%rsi)
 #ifdef WIN64
-    xchg    %rcx, OFF_XCX + x86_other_context    /* contains x86_switch_to_user PARAM_1 on Windows */
-    mov     %rdi, OFF_XDI + x86_other_context
+    xchg    %rcx, OFF_XCX - OFF_XAX(%rsi)    /* contains x86_switch_to_user PARAM_1 on Windows */
+    mov     %rdi, OFF_XDI - OFF_XAX(%rsi)
 #else
-    mov     %rcx, OFF_XCX + x86_other_context
-    xchg    %rdi, OFF_XDI + x86_other_context    /* contains x86_switch_to_user PARAM_1 on Linux */
+    mov     %rcx, OFF_XCX - OFF_XAX(%rsi)
+    xchg    %rdi, OFF_XDI - OFF_XAX(%rsi)    /* contains x86_switch_to_user PARAM_1 on Linux */
 #endif
-    mov     %r8, OFF_R8 + x86_other_context
-    mov     %r9, OFF_R9 + x86_other_context
-    mov     %r10, OFF_R10 + x86_other_context
-    mov     %r11, OFF_R11 + x86_other_context
-    mov     %r12, OFF_R12 + x86_other_context
-    mov     %r13, OFF_R13 + x86_other_context
-    mov     %r14, OFF_R14 + x86_other_context
-    mov     %r15, OFF_R15 + x86_other_context
-    movsd   %xmm0, OFF_Xmm0 + x86_other_context
-    movsd   %xmm1, OFF_Xmm1 + x86_other_context
-    movsd   %xmm2, OFF_Xmm2 + x86_other_context
-    movsd   %xmm3, OFF_Xmm3 + x86_other_context
-    movsd   %xmm4, OFF_Xmm4 + x86_other_context
-    movsd   %xmm5, OFF_Xmm5 + x86_other_context
-    movsd   %xmm6, OFF_Xmm6 + x86_other_context
-    movsd   %xmm7, OFF_Xmm7 + x86_other_context
-    movsd   %xmm8, OFF_Xmm8 + x86_other_context
-    movsd   %xmm9, OFF_Xmm9 + x86_other_context
-    movsd   %xmm10, OFF_Xmm10 + x86_other_context
-    movsd   %xmm11, OFF_Xmm11 + x86_other_context
-    movsd   %xmm12, OFF_Xmm12 + x86_other_context
-    movsd   %xmm13, OFF_Xmm13 + x86_other_context
-    movsd   %xmm14, OFF_Xmm14 + x86_other_context
-    movsd   %xmm15, OFF_Xmm15 + x86_other_context
+    mov     %r8, OFF_R8 - OFF_XAX(%rsi)
+    mov     %r9, OFF_R9 - OFF_XAX(%rsi)
+    mov     %r10, OFF_R10 - OFF_XAX(%rsi)
+    mov     %r11, OFF_R11 - OFF_XAX(%rsi)
+    mov     %r12, OFF_R12 - OFF_XAX(%rsi)
+    mov     %r13, OFF_R13 - OFF_XAX(%rsi)
+    mov     %r14, OFF_R14 - OFF_XAX(%rsi)
+    mov     %r15, OFF_R15 - OFF_XAX(%rsi)
+    movsd   %xmm0, OFF_Xmm0 - OFF_XAX(%rsi)
+    movsd   %xmm1, OFF_Xmm1 - OFF_XAX(%rsi)
+    movsd   %xmm2, OFF_Xmm2 - OFF_XAX(%rsi)
+    movsd   %xmm3, OFF_Xmm3 - OFF_XAX(%rsi)
+    movsd   %xmm4, OFF_Xmm4 - OFF_XAX(%rsi)
+    movsd   %xmm5, OFF_Xmm5 - OFF_XAX(%rsi)
+    movsd   %xmm6, OFF_Xmm6 - OFF_XAX(%rsi)
+    movsd   %xmm7, OFF_Xmm7 - OFF_XAX(%rsi)
+    movsd   %xmm8, OFF_Xmm8 - OFF_XAX(%rsi)
+    movsd   %xmm9, OFF_Xmm9 - OFF_XAX(%rsi)
+    movsd   %xmm10, OFF_Xmm10 - OFF_XAX(%rsi)
+    movsd   %xmm11, OFF_Xmm11 - OFF_XAX(%rsi)
+    movsd   %xmm12, OFF_Xmm12 - OFF_XAX(%rsi)
+    movsd   %xmm13, OFF_Xmm13 - OFF_XAX(%rsi)
+    movsd   %xmm14, OFF_Xmm14 - OFF_XAX(%rsi)
+    movsd   %xmm15, OFF_Xmm15 - OFF_XAX(%rsi)
+    pop     %rax                                 /* PC + call instruction size (5 bytes) */
+    xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
 
     pushfq
     popq    %rbx
-    mov     %ebx, OFF_EFL + x86_other_context          /* user FLAGS */
+    mov     %ebx, OFF_EFL - OFF_XAX(%rsi)          /* user FLAGS */
 
     subq    $CALL_SIZE, %rax
-    mov     %rax, OFF_XIP + x86_other_context    /* user PC */
+    mov     %rax, OFF_XIP - OFF_XAX(%rsi)    /* user PC */
 
     /* Restore endpoint */
     mov     save_space, %rax
