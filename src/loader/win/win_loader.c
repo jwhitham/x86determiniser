@@ -86,6 +86,15 @@ static uintptr_t get_xbx (PCONTEXT context)
 #endif
 }
 
+static uintptr_t get_xsp (PCONTEXT context)
+{
+#ifdef WIN64
+   return context->Rsp;
+#else
+   return context->Esp;
+#endif
+}
+
 static uintptr_t get_pc (PCONTEXT context)
 {
 #ifdef WIN64
@@ -898,6 +907,12 @@ static DWORD DefaultHandler (
                   break;
                case STATUS_INTEGER_DIVIDE_BY_ZERO:
                   err_printf (0, "Divide by zero at %p", (void *) get_pc (&context));
+                  exit (1);
+                  break;
+               case STATUS_STACK_OVERFLOW:
+                  err_printf (0, "Stack overflow at %p, sp = %p",
+                     (void *) get_pc (&context),
+                     (void *) get_xsp (&context));
                   exit (1);
                   break;
                default:

@@ -483,14 +483,6 @@ void x86_interpreter (void)
             pc_end = pc + si->size;
             inst_count += si->count;
 
-#ifdef DEBUG
-             if (!x86_quiet_mode) {
-                void ** address = (void **) 0x408178;
-                printf ("X86D: probe %p = %p\n", (void *) address, (void *) address[0]);
-                fflush (stdout);
-             }
-#endif
-
             // run the superblock
             if (pc_end != pc) {
 #ifdef DEBUG
