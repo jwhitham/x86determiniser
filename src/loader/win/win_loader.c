@@ -50,6 +50,14 @@ static void err_printf (unsigned err_code, const char * fmt, ...)
    }
 }
 
+static void err_wrong_architecture (const char * exe)
+{
+   fprintf (stderr, "%s: executable appears to be %d-bit, try x%ddeterminiser instead\n",
+      exe,
+      PTR_SIZE * 8,
+      (PTR_SIZE == 4) ? 86 : 64);
+}
+
 static uintptr_t get_stack_ptr (PCONTEXT context)
 {
 #ifdef WIN64
@@ -428,43 +436,13 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
      /* _Out_       LPPROCESS_INFORMATION */ &processInformation
    );
    if (!rc) {
+      if ((PTR_SIZE == 4) && (GetLastError () == ERROR_NOT_SUPPORTED)) {
+         /* Loading 64-bit .exe using x86determiniser */
+         err_wrong_architecture (argv[0]);
+         return 1;      
+      }
       err_printf (1, "CreateProcess ('%s')", argv[0]);
       return 1;
-   }
-
-   // Determine offset of LoadLibrary and GetProcAddress
-   // within kernel32.dll
-   {
-      const char * kernel32_name = "kernel32.dll";
-      HMODULE kernel32 = LoadLibrary (kernel32_name);
-      MODULEINFO modinfo;
-      LPVOID pa;
-
-      if (!kernel32) {
-         err_printf (1, "LoadLibrary ('%s')", kernel32_name);
-         return 1;
-      }
-      if (!GetModuleInformation
-            (GetCurrentProcess(), kernel32, &modinfo, sizeof(MODULEINFO))) {
-         err_printf (1, "GetModuleInformation ('%s')", kernel32_name);
-         return 1;
-      }
-      dbg_printf ("INITIAL: %s: base %p size %u\n", kernel32_name,
-            modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
-
-      pa = GetProcAddress (kernel32, "GetProcAddress");
-      if (!pa) {
-         err_printf (1, "GetProcAddress ('GetProcAddress') within '%s'", kernel32_name);
-         return 1;
-      }
-      getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-
-      pa = GetProcAddress (kernel32, "LoadLibraryA");
-      if (!pa) {
-         err_printf (1, "GetProcAddress ('LoadLibraryA') within '%s'", kernel32_name);
-         return 1;
-      }
-      loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
    }
 
    // INITIAL STAGE
@@ -620,9 +598,53 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
              * the determiniser. */
 
             if (strstr (buf, "\\kernel32.dll") != NULL) {
+               // Determine offset of LoadLibrary and GetProcAddress
+               // within kernel32.dll
+               const char * kernel32_name = buf;
+               HMODULE kernel32;
+               MODULEINFO modinfo;
+               LPVOID pa;
+
+               if (strncmp (kernel32_name, "\\\\?\\", 4) == 0) {
+                  // remove prefix of path (not allowed for LoadLibrary)
+                  kernel32_name += 4;
+               }
+               kernel32 = LoadLibraryA (kernel32_name);
+               if (!kernel32) {
+                  if (GetLastError () == ERROR_BAD_EXE_FORMAT) {
+                     err_wrong_architecture (argv[0]);
+                     return 1;
+                  }
+                  err_printf (1, "LoadLibrary ('%s')", kernel32_name);
+                  return 1;
+               }
+               if (!GetModuleInformation
+                     (GetCurrentProcess(), kernel32, &modinfo, sizeof(MODULEINFO))) {
+                  err_printf (1, "GetModuleInformation ('%s')", kernel32_name);
+                  return 1;
+               }
+               dbg_printf ("AWAIT_FIRST: %s: base %p size %u\n", kernel32_name,
+                     modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
+
+               pa = GetProcAddress (kernel32, "GetProcAddress");
+               if (!pa) {
+                  err_printf (1, "GetProcAddress ('GetProcAddress') within '%s'", kernel32_name);
+                  return 1;
+               }
+               getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+
+               pa = GetProcAddress (kernel32, "LoadLibraryA");
+               if (!pa) {
+                  err_printf (1, "GetProcAddress ('LoadLibraryA') within '%s'", kernel32_name);
+                  return 1;
+               }
+               loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+
+               // We also have the load address of the the DLL, since we saw it loading
                kernel32Base = debugEvent.u.LoadDll.lpBaseOfDll;
                dbg_printf ("AWAIT_FIRST: kernel32base = %p\n", (void *) kernel32Base);
             }
+
             break;
          default:
             todo = DefaultHandler (pcs, "AWAIT_FIRST", &debugEvent, &processInformation);
