@@ -5,6 +5,7 @@ include ../$(PLATFORM).cfg
 
 LOADER_LIBS=-lpsapi
 ZYDIS=determiniser/zydis-2.0.2
+LDFLAGS=-static-libgcc
 
 VERSION=2.0
 
@@ -57,11 +58,11 @@ $(GENERATED)/x86d_version.h:
 	echo ' !"' >> $(GENERATED)/x86d_version.h
 
 $(LOADER_EXE): $(LOADER_SRCS) $(HEADERS) ../bin
-	$(CC) -o $@ $(LOADER_SRCS) $(CFLAGS) $(LOADER_LIBS) $(INCS)
+	$(CC) -o $@ $(LOADER_SRCS) $(CFLAGS) $(LOADER_LIBS) $(INCS) $(LDFLAGS)
 
 $(DETERMINISER_DLL): $(DETERMINISER_SRCS) $(HEADERS) $(OFFSETS_H)
 	$(CC) -o $@ -shared $(DETERMINISER_SRCS) $(CFLAGS) \
-      $(INCS)
+      $(INCS) $(LDFLAGS)
 
 $(OFFSETS_H): $(MAKE_H_SRCS)
 	$(CC) -o $(MAKE_H) $(MAKE_H_SRCS) $(CFLAGS)
