@@ -18,7 +18,7 @@ int main (int argc, char ** argv)
    while (1) {
       static const char version[] =
          "X86Determiniser version " X86D_VERSION "\n"
-         "copyright (c) 2015-2018 by Jack Whitham\n"
+         "copyright (c) 2015-2020 by Jack Whitham\n"
          "https://github.com/jwhitham/x86determiniser\n";
       static const char help[] =
          "\n"
@@ -37,12 +37,14 @@ int main (int argc, char ** argv)
          "   --branch-trace <file name>  write addresses of branches to <file name>\n"
          "   --inst-trace <file name>    disassemble + write instructions to <file name>\n"
          "   --debug                     debug x86determiniser itself (more output)\n"
+         "   --remote-debug              debug x86determiniser's loader (even more output)\n"
          "   --version / --help          print information about x86determiniser itself\n\n";
       static struct option long_options[] = {
          {"out-trace", 1, 0, 'o'},
          {"branch-trace", 1, 0, 'b'},
          {"inst-trace", 1, 0, 'i'},
          {"debug", 0, 0, 'd'},
+         {"remote-debug", 0, 0, 'D'},
          {"version", 0, 0, 'v'},
          {"help", 0, 0, '?'},
          {NULL, 0, 0, 0},
@@ -63,6 +65,10 @@ int main (int argc, char ** argv)
             break;
          case 'd':
             cs.debugEnabled = 1;
+            break;
+         case 'D':
+            cs.debugEnabled = 1;
+            cs.remoteDebugEnabled = 1;
             break;
          case 'v':
             fputs (version, stdout);

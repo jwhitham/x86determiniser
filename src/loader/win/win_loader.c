@@ -121,6 +121,19 @@ static void set_pc (PCONTEXT context, uintptr_t pc)
 #endif
 }
 
+static void dbg_state(PCONTEXT context)
+{
+   uint8_t * c;
+   printf ("xpc = %p\n", (void *) get_pc (context));
+   printf ("xax = %p\n", (void *) get_xax (context));
+   printf ("xbx = %p\n", (void *) get_xbx (context));
+   printf ("xsp = %p\n", (void *) get_xsp (context));
+
+   c = (uint8_t *) get_pc(context);
+   printf ("pc = %02x %02x %02x %02x\n",
+      c[0], c[1], c[2], c[3]);
+}
+
 static void set_single_step_flag (PCONTEXT context)
 {
    context->EFlags |= SINGLE_STEP_FLAG;
@@ -181,6 +194,7 @@ void StartRemoteLoader
   (CommStruct * pcs,
    size_t getProcAddressOffset,
    size_t loadLibraryOffset,
+   size_t getLastErrorOffset,
    void * kernel32Base,
    void * startAddress,
    HANDLE hProcess,
@@ -242,6 +256,8 @@ void StartRemoteLoader
       (void *) ((char *) kernel32Base + loadLibraryOffset);
    pcs->getProcAddressProc =
       (void *) ((char *) kernel32Base + getProcAddressOffset);
+   pcs->getLastErrorProc =
+      (void *) ((char *) kernel32Base + getLastErrorOffset);
    pcs->startAddress = startAddress;
 
    // fill remote stack
@@ -393,6 +409,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    //CONTEXT stepContext;
    size_t getProcAddressOffset = 0;
    size_t loadLibraryOffset = 0;
+   size_t getLastErrorOffset = 0;
    LPVOID kernel32Base = NULL;
    LPVOID startAddress = NULL;
    LPVOID singleStepProc = NULL;
@@ -563,14 +580,15 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                        (pcs,
                         getProcAddressOffset,
                         loadLibraryOffset,
+                        getLastErrorOffset,
                         kernel32Base,
                         (void *) startAddress,
                         processInformation.hProcess,
                         binFolder,
                         &context);
-#ifdef REMOTE_DEBUG
-                     set_single_step_flag(&context);
-#endif
+                     if (pcs->remoteDebugEnabled) {
+                        set_single_step_flag(&context);
+                     }
                      SetThreadContext (processInformation.hThread, &context);
 
                      break;
@@ -633,6 +651,13 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                }
                getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
 
+               pa = GetProcAddress (kernel32, "GetLastError");
+               if (!pa) {
+                  err_printf (1, "GetProcAddress ('GetLastError') within '%s'", kernel32_name);
+                  return 1;
+               }
+               getLastErrorOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+
                pa = GetProcAddress (kernel32, "LoadLibraryA");
                if (!pa) {
                   err_printf (1, "GetProcAddress ('LoadLibraryA') within '%s'", kernel32_name);
@@ -684,6 +709,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   case STATUS_BREAKPOINT:
                      dbg_printf ("AWAIT_REMOTE_LOADER_BP: breakpoint at %p\n",
                            (void *) get_pc (&context));
+                     if (pcs->remoteDebugEnabled) {
+                        dbg_state(&context);
+                     }
+
                      // EAX contains an error code, or 0x101 on success
                      if (get_xax (&context) != COMPLETED_LOADER) {
                         todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
@@ -708,21 +737,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      // this is normal, let it continue
                      dbg_printf ("AWAIT_REMOTE_LOADER_BP: single step at %p\n",
                            (void *) get_pc (&context));
+                     if (pcs->remoteDebugEnabled) {
+                        dbg_state(&context);
+                     }
                      set_single_step_flag(&context);
                      SetThreadContext (processInformation.hThread, &context);
-#ifdef REMOTE_DEBUG
-                     dbg_printf ("rax = %p\n", (void *) context.Rax);
-                     dbg_printf ("rcx = %p\n", (void *) context.Rcx);
-                     dbg_printf ("rdx = %p\n", (void *) context.Rdx);
-                     dbg_printf ("rsp = %p\n", (void *) context.Rsp);
-                     {
-                        uint8_t * c;
-
-                        c = (uint8_t *) get_pc(&context);
-                        dbg_printf ("pc = %02x %02x %02x %02x\n",
-                           c[0], c[1], c[2], c[3]);
-                     }
-#endif
                      break;
                   default:
                      todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
@@ -908,7 +927,21 @@ static DWORD DefaultHandler (
                case STATUS_BREAKPOINT:
                   if ((get_xax (&context) >= X86D_FIRST_ERROR)
                   && (get_xax (&context) <= X86D_LAST_ERROR)) {
-                     err_printf (get_xax (&context), "x86determiniser");
+                     // Error from the remote loader:
+                     // Parse as a Win32 error if possible (Windows error code in xBX register)
+                     switch (get_xax (&context)) {
+                        case FAILED_LOADLIBRARY:
+                           SetLastError ((DWORD) get_xbx (&context));
+                           err_printf (1, "x86determiniser LoadLibrary('%s')", pcs->libraryName);
+                           break;
+                        case FAILED_GETPROCADDRESS:
+                           SetLastError ((DWORD) get_xbx (&context));
+                           err_printf (1, "x86determiniser GetProcAddress('%s')", pcs->procName);
+                           break;
+                        default:
+                           err_printf (get_xax (&context), "x86determiniser");
+                           break;
+                     }
                   } else {
                      err_printf (0, "Breakpoint instruction at %p", (void *) get_pc (&context));
                   }

@@ -17,6 +17,7 @@ typedef struct CommStruct {
    void * loadLibraryProc;
    char procName[MAX_PROC_NAME_SIZE];
    void * getProcAddressProc;
+   void * getLastErrorProc;
 
    char internalVersionCheck[MAX_INTERNAL_VERSION_SIZE];
 
@@ -25,6 +26,7 @@ typedef struct CommStruct {
    char instTrace[MAX_FILE_NAME_SIZE];
    void * startAddress;
    int debugEnabled;
+   int remoteDebugEnabled;
 } CommStruct;
 
 void RemoteLoaderStart (void);
