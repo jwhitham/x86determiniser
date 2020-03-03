@@ -313,7 +313,8 @@ static int interpret_control_flow (void)
          if (pc_bytes[1] != 0xc3) {
             return 0; // not REPZ RET
          }
-         // REPZ RET - fall through:
+         // REPZ RET
+         // falls through
       case 0xc3: // RET
          stack = (uintptr_t *) x86_other_context[REG_XSP];
          pc = stack[0];

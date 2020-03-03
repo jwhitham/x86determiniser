@@ -1,7 +1,9 @@
 # x86determiniser
 x86determiniser is a 
-"simulator" with branch tracing and deterministic timing for x86 32-bit
-and 64-bit programs, with system call passthrough.
+"simulator" with branch tracing, instruction tracing
+and deterministic timing for x86 32-bit and 64-bit programs
+on Windows and Linux. It operates by "system call passthrough"
+and loads native executables.
 
 # Example:
 
@@ -18,32 +20,45 @@ a deterministic environment. That is,
 no matter how many times a program is executed
 with particular inputs, it will always take the same time to run. Here,
 "time" is execution time measured using the RDTSC instruction, rather than
-any external clock.
+any external clock. Instructions are only counted if they are part of
+the main thread of the executable: instructions in a DLL, other threads
+and the operating system are ignored.
 
-Generally, programs running on x86 CPUs do not have precisely predictable
-execution times, because the execution time is affected by the state of
-the CPU caches, pipeline, branch predictor and virtual memory system, and
-also the activities of other CPU cores. This state is not predictable
-at the beginning of the program, and every system call or context switch
-introduces more entropy.
+# Branch tracing
 
-This was a problem, because the timing analysis tool made by my company
-must ship with example software and tutorials which demonstrate how a 
-program's execution time is measured. It's convenient if the programs
-being measured can run natively on the user's PC - however, if we do that,
-then we can't have predictable timing. The initial solution was to run
-the example programs in a simulator for a simple embedded system, but this meant
-shipping a cross compiler with our tools, which was not practical,
-particularly as the complexity of the examples grew to include the
-Ada runtime. I found that I really wanted an x86 simulator, but one with
-system call passthrough, so that a native x86 program could be
-executed in simulation and produce a predictable execution time. This
-would be easy on Linux - we might use the "qemu-i386" program, for example,
-and modify QEMU so that RDTSC produces an instruction count. Or we might
-make a frontend for "valgrind". But on Windows, for whatever reason,
-nobody had made a simulator like that. There are full-system simulators
-for x86 (QEMU is one) but nothing has system call passthrough. If you want
-to simulate a Windows program, you must also simulate Windows.
+x86determiniser also generates branch traces. These capture the
+execution path through a program. The branch trace records the source
+and destination address of every branch that is taken, including
+unconditional branches, calls and returns. It also records the address
+of every branch that is not taken. Each trace record is "timestamped"
+with an instruction count. The "doc" subdirectory contains a
+description of the branch trace format.
+
+# Purposes of x86determiniser
+
+x86determiniser was created to help test a timing analysis tool named
+RapiTime, made by [Rapita Systems](https://www.rapitasystems.com/).
+Programs running on x86 CPUs do not have precisely predictable
+execution times, but deterministic execution was needed in order to make
+reliable test cases for continuous integration.
+
+Other simulators did not meet the requirements for this, because
+we wanted to compile programs on both Windows and Linux hosts, and then
+run them in simulation. Usually, simulators do not support
+"[syscall emulation](https://qemu.weilnetz.de/doc/qemu-doc.html#QEMU-User-space-emulator)", also known as "system call passthrough"
+or "userspace emulation". Instead, it simulates
+an entire system, which means that we cannot take native programs from
+the host and run them in the simulator, because we must also simulate the
+OS and the hardware. [QEMU](https://www.qemu.org/)
+does "userspace emulation" on Linux
+but not on Windows, while the [valgrind](https://www.valgrind.org/)
+family of simulators do
+not work on Windows at all. A search for Windows-based simulators
+with such features came up with nothing.
+
+x86determiniser was subsequently extended to generate branch traces in order
+to support another tool being developed at Rapita, allowing
+repeatable tests to be written.
 
 I set out to try to build a simulator that did as little simulating as
 possible, because x86 is a very complex architecture and simulators are
@@ -53,11 +68,9 @@ far as possible by executing code directly - instrumentation is added
 but the instructions are counted, and instructions such as RDTSC and OUT
 are treated specially.
 
-Library calls and system calls do not form part of the instruction count.
-They are executed normally, at full speed, by native code.
-
 x86determiniser initially relied on GNU objdump to disassemble code,
-but now uses the Zydis disassembler. It also once required programs
+but now uses the [Zydis](https://zydis.re) disassembler. 
+It also once required programs
 to link directly against x86determiniser.dll and execute a setup function
 on startup, but now, programs do not have to be modified because they
 are started by x86determiniser.exe, which acts as a debugger and program
@@ -66,22 +79,27 @@ text format) and branch traces (in an encoded format) and this may be
 useful as a way to debug and analyse any program, not necessarily one
 requiring deterministic execution.
 
+Initially x86determiniser only supported 32-bit code but it now supports
+both 32-bit and 64-bit programs via two different entry points:
+x86determiniser.exe (32-bit) and x64determiniser.exe (64-bit).
+
+
 # Limitations
 
 x86determiniser is unlikely to be very fast. There is a lot of context
 switching. There is nothing like QEMU or valgrind's system for
-JIT translation of machine code. It is however faster than single-stepping.
+JIT translation of machine code. It is much faster than single-stepping,
+though I recognise that this is a low barrier.
 
 The interpreter will work with 32-bit and 64-bit x86 code. It uses the Zydis
 x86 disassembler. It has only been tested with code compiled with GCC.
 
-The interpreter can be trivially extended to produce a trace of
-executed instructions, register values, memory accesses and so forth.
+The interpreter can be trivially extended to produce other traces.
 
 # Licensing and credits
 
 Aside from the Zydis disassembler,
-the code is copyright (c) 2015-2019 by Jack Whitham.
+the code is copyright (c) 2015-2020 by Jack Whitham.
 
 x86determiniser has been relicenced under the MIT License (same as Zydis)
 so that non-GPL software may be linked to it and distributed.

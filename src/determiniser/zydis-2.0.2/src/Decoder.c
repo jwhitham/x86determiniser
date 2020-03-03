@@ -4157,7 +4157,7 @@ static ZydisStatus ZydisCheckErrorConditions(ZydisDecoderContext* context,
         {
             return ZYDIS_STATUS_BAD_REGISTER;
         }
-        ZYDIS_FALLTHROUGH;
+        ZYDIS_FALLTHROUGH; // falls through
     case ZYDIS_REG_CONSTRAINTS_SR:
     {
         if (instruction->raw.modrm.reg > 5)
@@ -4219,7 +4219,7 @@ static ZydisStatus ZydisCheckErrorConditions(ZydisDecoderContext* context,
         {
             return ZYDIS_STATUS_BAD_REGISTER;
         }
-        ZYDIS_FALLTHROUGH;
+        ZYDIS_FALLTHROUGH; // falls through
     case ZYDIS_REG_CONSTRAINTS_SR:
     {
         if (instruction->raw.modrm.rm > 6)
