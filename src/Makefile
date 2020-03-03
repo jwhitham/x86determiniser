@@ -5,7 +5,6 @@ include ../$(PLATFORM).cfg
 
 LOADER_LIBS=-lpsapi
 ZYDIS=determiniser/zydis-2.0.2
-LDFLAGS=-static-libgcc
 
 VERSION=2.0
 
