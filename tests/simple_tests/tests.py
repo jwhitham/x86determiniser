@@ -24,6 +24,8 @@ def clean():
 # Weird parameters should be passed through without change.
 def args_test(use_loader):
 
+   print("running args_test with use_loader = %s" % use_loader)
+
    def sub_args_test(args_list):
       loader = []
       args_list = ["args" + SUFFIX] + args_list
@@ -31,6 +33,7 @@ def args_test(use_loader):
          loader = [LOADER, "--inst-trace", TMP_FILE_2, "--"]
       clean()
 
+      print ("running: %s" % " ".join(loader + args_list))
       fd = open(TMP_FILE, "wt")
       rc = subprocess.call(loader + args_list, stdout = fd)
       fd.close()

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+int _CRT_glob = 0; /* don't expand wildcards when parsing command-line args */
 
 int main (int argc, char ** argv)
 {
