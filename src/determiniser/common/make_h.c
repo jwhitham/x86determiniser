@@ -7,12 +7,30 @@ static const char api_name[] = "LINUX32";
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/user.h>
 #include <unistd.h>
-#include <ucontext.h>
+#include <stdint.h>
 
-#define REG_LIMIT (sizeof (gregset_t))
+static struct user_regs_struct c;
+#define oof(x) (((uintptr_t *) (&(c.x))) - ((uintptr_t *) (&c)))
+
+#define REG_XDI (oof(edi))
+#define REG_XSI (oof(esi))
+#define REG_XBP (oof(ebp))
+#define REG_XSP (oof(esp))
+#define REG_XBX (oof(ebx))
+#define REG_XDX (oof(edx))
+#define REG_XCX (oof(ecx))
+#define REG_XAX (oof(eax))
+#define REG_XIP (oof(eip))
+#define REG_LIMIT (sizeof (struct user_regs_struct))
 #define REGISTER_PREFIX 'E'
-#define OFF_EFL (4 * REG_EFL)
+#define OFF_EFL (4 * oof(eflags))
+
+
+#else
+#ifdef LINUX64
+#error "NOT YET SUPPORTED"
 
 #else
 #ifdef WIN64
@@ -87,6 +105,7 @@ static CONTEXT c;
 #define REGISTER_PREFIX 'E'
 #define OFF_EFL (4 * oof(EFlags))
 
+#endif
 #endif
 #endif
 #endif

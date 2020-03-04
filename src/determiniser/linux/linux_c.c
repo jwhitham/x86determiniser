@@ -1,12 +1,9 @@
-#define _WIN32_WINNT 0x0600
 
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-
-#include <windows.h>
-#include <excpt.h>
+#include <sys/user.h>
 
 #include "offsets.h"
 #include "remote_loader.h"
@@ -14,9 +11,14 @@
 #include "common.h"
 
 
-static void single_step_handler (PCONTEXT ContextRecord)
+static void single_step_handler (struct user_regs_struct * context)
 {
-   uintptr_t * gregs = (uintptr_t *) ContextRecord;
+   // Convert user_regs_struct, which is used by ptrace, to gregset_t, which is used by
+   // signal handlers.
+   // "struct user_regs_struct" -> /usr/include/i386-linux-gnu/sys/user.h
+   // "gregset_t" -> /usr/include/i386-linux-gnu/sys/ucontext.h
+   
+   uintptr_t * gregs = (uintptr_t *) context;
 
    // Run single step handler
    x86_trap_handler (gregs, 1);
@@ -26,11 +28,10 @@ static void single_step_handler (PCONTEXT ContextRecord)
    x86_bp_trap (COMPLETED_SINGLE_STEP_HANDLER, gregs);
 }
 
-__declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
+void X86DeterminiserStartup (CommStruct * pcs)
 {
-   SYSTEM_INFO systemInfo;
-   MEMORY_BASIC_INFORMATION mbi;
    size_t pageSize, pageMask, minPage, maxPage;
+   minPage = maxPage = 0;
 
    // Here is the entry point from the RemoteLoader procedure
    // Check internal version first
@@ -38,6 +39,10 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
 
    // Discover the bounds of the executable .text segment
    // which is known to contain pcs->startAddress
+
+   // TODO
+
+/*
    GetSystemInfo (&systemInfo);
    pageSize = systemInfo.dwPageSize;
    pageMask = ~ (pageSize - 1);
@@ -63,6 +68,7 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
       // Error code EAX = 0x103
       x86_bp_trap (FAILED_MEMORY_PERMISSIONS, NULL);
    }
+*/
 
    x86_startup (minPage, maxPage, pcs);
 

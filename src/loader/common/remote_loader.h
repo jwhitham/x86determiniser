@@ -30,7 +30,7 @@ typedef struct CommStruct {
 } CommStruct;
 
 void RemoteLoaderStart (void);
-void RemoteLoader (CommStruct * cs);
+void RemoteLoader (CommStruct * pcs);
 void RemoteLoaderEnd (void);
 
 #endif

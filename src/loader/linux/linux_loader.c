@@ -25,7 +25,7 @@
 typedef struct SingleStepStruct {
    void * unused;
    struct user_regs_struct * pcontext;
-   struct user_regs_struct * context;
+   struct user_regs_struct context;
 } SingleStepStruct;
 
 static void err_printf (unsigned err_code, const char * fmt, ...)
@@ -301,8 +301,15 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
          // child process stopped - this is the initial stop, after the execv call
+         struct user_regs_struct context;
 
          // TODO check that the process is 32-bit or 64-bit, matching expectations
+
+         // capture entry point for the program: this tells us where the .text segment is
+         if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
+            err_printf (1, "AWAIT_FIRST_STAGE: PTRACE_GETREGS");
+         }
+         pcs->startAddress = get_pc (&context);
 
          // continue to breakpoint
          ptrace (PTRACE_CONT, childPid, NULL, NULL);
