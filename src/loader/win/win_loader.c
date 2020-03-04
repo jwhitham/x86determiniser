@@ -403,7 +403,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    DEBUG_EVENT debugEvent;
    DWORD dwCreationFlags;
    BOOL rc, run = TRUE;
-   char buf[128];
+   char buf[BUFSIZ];
    SIZE_T len;
    CONTEXT startContext;
    //CONTEXT stepContext;
@@ -790,10 +790,12 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                      case STATUS_SINGLE_STEP:
                         // Reached single step; run single step handler.
-                        dbg_printf
-                          ("RUNNING: Single step at %p, go to handler at %p\n", 
-                           (void *) get_pc (&context), (void *) singleStepProc);
-                        fflush (stdout);
+                        if (pcs->debugEnabled) {
+                           dbg_printf
+                             ("RUNNING: Single step at %p, go to handler at %p\n", 
+                              (void *) get_pc (&context), (void *) singleStepProc);
+                           fflush (stdout);
+                        }
                         run = FALSE;
                         StartSingleStepProc
                           (singleStepProc,

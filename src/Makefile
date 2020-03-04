@@ -3,7 +3,6 @@ PLATFORM=win32
 ROOT=..
 include ../$(PLATFORM).cfg
 
-LOADER_LIBS=-lpsapi
 ZYDIS=determiniser/zydis-2.0.2
 
 VERSION=2.0
