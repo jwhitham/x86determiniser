@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #include <sys/ptrace.h>
 #include <sys/types.h>
@@ -117,21 +118,9 @@ static void set_pc (struct user_regs_struct * context, uintptr_t pc)
 #endif
 }
 
-/*
-static void set_single_step_flag (struct user_regs_struct * context)
-{
-   context->eflags |= SINGLE_STEP_FLAG;
-}
-*/
-
 static void clear_single_step_flag (struct user_regs_struct * context)
 {
    context->eflags &= ~SINGLE_STEP_FLAG;
-}
-
-static int is_single_step (struct user_regs_struct * context)
-{
-   return !!(context->eflags & SINGLE_STEP_FLAG);
 }
 
 static uintptr_t align_64 (uintptr_t v)
@@ -143,13 +132,15 @@ static uintptr_t align_64 (uintptr_t v)
 static void GetData
   (pid_t childPid,
    uintptr_t childAddress,
-   char * parentAddress,
+   void * parentAddress,
    size_t size)
 {
+   uint8_t * parentAddressCopy = (uint8_t *) parentAddress;
+
    // copy full words
    while (size >= sizeof (uintptr_t)) {
-      *((uintptr_t *) parentAddress) = ptrace (PTRACE_PEEKDATA, childPid, childAddress, NULL);
-      parentAddress += sizeof (uintptr_t);
+      *((uintptr_t *) parentAddressCopy) = ptrace (PTRACE_PEEKDATA, childPid, childAddress, NULL);
+      parentAddressCopy += sizeof (uintptr_t);
       childAddress += sizeof (uintptr_t);
       size -= sizeof (uintptr_t);
    }
@@ -160,7 +151,7 @@ static void GetData
          char bytes[sizeof(uintptr_t)];
       } data;
       data.word = ptrace (PTRACE_PEEKDATA, childPid, childAddress, NULL);
-      memcpy (parentAddress, &data.bytes, size);
+      memcpy (parentAddressCopy, &data.bytes, size);
    }
 }
 
@@ -168,13 +159,15 @@ static void GetData
 static void PutData
   (pid_t childPid,
    uintptr_t childAddress,
-   const char * parentAddress,
+   const void * parentAddress,
    size_t size)
 {
+   const uint8_t * parentAddressCopy = (uint8_t *) parentAddress;
+
    // copy full words
    while (size >= sizeof (uintptr_t)) {
-      ptrace (PTRACE_POKEDATA, childPid, childAddress, *((uintptr_t *) parentAddress));
-      parentAddress += sizeof (uintptr_t);
+      ptrace (PTRACE_POKEDATA, childPid, childAddress, *((uintptr_t *) parentAddressCopy));
+      parentAddressCopy += sizeof (uintptr_t);
       childAddress += sizeof (uintptr_t);
       size -= sizeof (uintptr_t);
    }
@@ -185,10 +178,30 @@ static void PutData
          char bytes[sizeof(uintptr_t)];
       } data;
       data.word = ptrace (PTRACE_PEEKDATA, childPid, childAddress, NULL);
-      memcpy (&data.bytes, parentAddress, size);
+      memcpy (&data.bytes, parentAddressCopy, size);
       ptrace (PTRACE_POKEDATA, childPid, childAddress, data.word);
    }
 }
+
+static int IsSingleStep (pid_t childPid, struct user_regs_struct * context)
+{ 
+   // https://sourceware.org/gdb/wiki/LinuxKernelWishList
+   // "It would be useful for the kernel to tell us whether a SIGTRAP corresponds to a
+   //  breakpoint hit or a finished single-step (or something else), without having to
+   //  resort to heuristics. Checking for the existence of an int3 in memory at PC-1
+   //  is not a complete solution, as the breakpoint might be gone already...
+   //  Some archs started encoding trap discrimination on SIGTRAPs si_code..."
+
+   uint8_t previous_byte[1];
+
+   GetData (childPid, get_pc (context) - 1, previous_byte, 1);
+   if (previous_byte[0] == 0xcc) {
+      return 0; // breakpoint
+   } else {
+      return 1; // single step
+   }
+}
+
 
 // Read the memory maps 'file' for a particular process.
 // Find the first .text section that excludes the specified address
@@ -320,7 +333,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       *finalSlash = '\0';
    } else {
       err_printf (1, "readlink('" X86_OR_X64 "determiniser')");
-      return 1;
+      exit (1);
    }
 
    // library name
@@ -332,7 +345,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    testFd = fopen (pcs->libraryName, "rb");
    if (!testFd) {
       err_printf (1, "open('%s')", pcs->libraryName);
-      return 1;
+      exit (1);
    }
    fclose (testFd);
 
@@ -340,18 +353,18 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    testFd = fopen (argv[0], "rb");
    if (!testFd) {
       err_printf (1, "program '%s' not found", argv[0]);
-      return 1;
+      exit (1);
    }
    if (fread (elfHeader, 1, sizeof (elfHeader), testFd) != sizeof (elfHeader)) {
       err_printf (1, "program '%s' not readable", argv[0]);
-      return 1;
+      exit (1);
    }
    fclose (testFd);
    dbg_printf ("INITIAL: program is '%s'\n", argv[0]);
 
    if (memcmp (elfHeader, "\x7f" "ELF", 4) != 0) {
       err_printf (0, "program '%s' must be an ELF executable", argv[0]);
-      return 1;
+      exit (1);
    }
 
    // an ELF header is fairly complex but apparently there is an easy method to determine 32/64 bit:
@@ -365,14 +378,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          break;
       default:
          err_printf (0, "program '%s' must be an x86 ELF executable", argv[0]);
-         return 1;
+         exit (1);
    }
    if (elfType != (PTR_SIZE * 8)) {
       fprintf (stderr, "%s: executable appears to be %d-bit, try x%ddeterminiser instead\n",
          argv[0],
          (PTR_SIZE == 4) ? 64 : 32,
          (PTR_SIZE == 4) ? 64 : 86);
-      return 1;
+      exit (1);
    }
 
    // run the subprocess, preloading the library
@@ -409,6 +422,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
             err_printf (1, "INITIAL: PTRACE_GETREGS");
+            exit (1);
          }
          dbg_printf ("INITIAL: entry PC = %p\n", (void *) get_pc (&context));
 
@@ -419,6 +433,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             if (!ReadMaps (childPid, 0, pcs)) {
                // Nothing can be found - give up
                err_printf (0, "INITIAL: unable to determine bounds of .text section for '%s'", argv[0]);
+               exit (1);
             }
          }
          dbg_printf ("INITIAL: minAddress = %p\n", pcs->minAddress);
@@ -453,6 +468,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
             err_printf (1, "AWAIT_FIRST_STAGE: PTRACE_GETREGS");
+            exit (1);
          }
 
          dbg_printf ("AWAIT_FIRST_STAGE: breakpoint at %p\n", (void *) get_pc (&context));
@@ -504,10 +520,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
             err_printf (1, "AWAIT_REMOTE_LOADER_BP: PTRACE_GETREGS");
+            exit (1);
          }
 
-         // check we stopped in the right place (look for magic string in executable code)
-         if (is_single_step (&context)) {
+         // check we stopped in the right place (got the correct message after a breakpoint)
+         if (IsSingleStep (childPid, &context)) {
             // There is some single-stepping at the end of the loader,
             // this is normal, let it continue
             dbg_printf ("AWAIT_REMOTE_LOADER_BP: single step at %p\n",
@@ -550,14 +567,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
             // Stopped by single-step or stopped by breakpoint?
-            // TODO how do I tell?
             struct user_regs_struct context;
 
             if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "RUNNING: PTRACE_GETREGS");
+               exit (1);
             }
 
-            if (is_single_step (&context)) {
+            if (IsSingleStep (childPid, &context)) {
                // Reached single step; run single step handler.
                if (pcs->debugEnabled) {
                   dbg_printf
@@ -572,6 +589,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   &context);
                if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
                   err_printf (1, "RUNNING: PTRACE_SETREGS");
+                  exit (1);
                }
             }
             // continue to next event (from determiniser)
@@ -599,17 +617,19 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
             if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "SINGLE_STEP: PTRACE_GETREGS");
+               exit (1);
             }
 
-            if (is_single_step (&context)) {
+            if (IsSingleStep (childPid, &context)) {
                err_printf (1, "SINGLE_STEP: single-stepping in single step handler?");
+               exit (1);
             }
 
             // EAX contains an error code, or 0x102 on success
             // EBX is pointer to context, altered by remote
             if (get_xax (&context) != COMPLETED_SINGLE_STEP_HANDLER) {
                err_printf (get_xax (&context), "SINGLE_STEP");
-               return 1;
+               exit (1);
             }
 
             // context restored
@@ -618,6 +638,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             dbg_printf ("SINGLE_STEP: flags word is %x\n", (unsigned) context.eflags);
             if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "RUNNING: PTRACE_SETREGS");
+               exit (1);
+            }
+            if (pcs->debugEnabled) {
+               fflush (stdout);
             }
             ptrace (PTRACE_CONT, childPid, NULL, NULL);
             run = 1;
@@ -628,6 +652,5 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          }
       }
    }
-   return 0;
 }
 

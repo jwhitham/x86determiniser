@@ -43,7 +43,7 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
    GetSystemInfo (&systemInfo);
    pageSize = systemInfo.dwPageSize;
    pageMask = ~ (pageSize - 1);
-   pcs->minAddress = ((size_t) pcs->startAddress) & pageMask;
+   pcs->minAddress = (void *) (((size_t) pcs->startAddress) & pageMask);
    ZeroMemory (&mbi, sizeof (mbi));
 
    // find minimum page
