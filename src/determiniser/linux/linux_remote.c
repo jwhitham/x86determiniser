@@ -4,7 +4,7 @@
 
 
 
-void x86DeterminiserStartup (CommStruct * pcs);
+void X86DeterminiserStartup (CommStruct * pcs);
 
 
 void RemoteLoader (CommStruct * pcs)
@@ -18,7 +18,7 @@ void RemoteLoader (CommStruct * pcs)
       ".ascii \"RemoteLoader\"\n"
       "0:\n" : : "r"(pcs));
 
-   x86DeterminiserStartup (pcs);
+   X86DeterminiserStartup (pcs);
 }
 
 
