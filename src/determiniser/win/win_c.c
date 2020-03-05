@@ -30,7 +30,7 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
 {
    SYSTEM_INFO systemInfo;
    MEMORY_BASIC_INFORMATION mbi;
-   size_t pageSize, pageMask, minPage, maxPage;
+   size_t pageSize, pageMask;
 
    // Here is the entry point from the RemoteLoader procedure
    // Check internal version first
@@ -38,33 +38,35 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
 
    // Discover the bounds of the executable .text segment
    // which is known to contain pcs->startAddress
+   // (On Linux the parent process works out the min/max address for the .text section
+   // and sets minAddress/maxAddress, and startAddress is not available.)
    GetSystemInfo (&systemInfo);
    pageSize = systemInfo.dwPageSize;
    pageMask = ~ (pageSize - 1);
-   minPage = ((size_t) pcs->startAddress) & pageMask;
+   pcs->minAddress = ((size_t) pcs->startAddress) & pageMask;
    ZeroMemory (&mbi, sizeof (mbi));
 
    // find minimum page
-   while ((VirtualQuery ((void *) (minPage - pageSize), &mbi, sizeof (mbi)) != 0)
+   while ((VirtualQuery ((void *) (pcs->minAddress - pageSize), &mbi, sizeof (mbi)) != 0)
    && mbi.RegionSize > pageSize) {
-      minPage -= pageSize;
+      pcs->minAddress -= pageSize;
    }
 
    // calculate maximum page
-   if (VirtualQuery ((void *) minPage, &mbi, sizeof (mbi)) == 0) {
+   if (VirtualQuery ((void *) pcs->minAddress, &mbi, sizeof (mbi)) == 0) {
       // Error code EAX = 0x104
       x86_bp_trap (FAILED_MEMORY_BOUND_DISCOVERY, NULL);
    }
-   maxPage = mbi.RegionSize + minPage;
+   pcs->maxAddress = mbi.RegionSize + pcs->minAddress;
 
    // make this memory region writable
-   if (!VirtualProtect ((void *) minPage, maxPage - minPage,
+   if (!VirtualProtect ((void *) pcs->minAddress, pcs->maxAddress - pcs->minAddress,
          PAGE_EXECUTE_READWRITE, &mbi.Protect)) {
       // Error code EAX = 0x103
       x86_bp_trap (FAILED_MEMORY_PERMISSIONS, NULL);
    }
 
-   x86_startup (minPage, maxPage, pcs);
+   x86_startup (pcs);
 
    // Now ready for the user program
    // Breakpoint with EAX = 0x101 and EBX = pointer to single_step_handler

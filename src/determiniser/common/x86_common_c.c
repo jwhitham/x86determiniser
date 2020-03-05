@@ -661,15 +661,15 @@ void x86_check_version (CommStruct * pcs)
 }
 
 // entry point
-void x86_startup (size_t minPage, size_t maxPage, CommStruct * pcs)
+void x86_startup (CommStruct * pcs)
 {
 
    if (superblocks) {
       x86_bp_trap (FAILED_DOUBLE_LOAD, NULL);
    }
    x86_quiet_mode = !pcs->debugEnabled;
-   min_address = minPage;
-   max_address = maxPage;
+   min_address = (uintptr_t) pcs->minAddress;
+   max_address = (uintptr_t) pcs->maxAddress;
 
    superblocks = calloc (sizeof (superblock_info), max_address + 1 - min_address);
 

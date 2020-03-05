@@ -140,7 +140,7 @@ static uintptr_t align_64 (uintptr_t v)
 }
 
 // parent receives data from child
-static void getdata
+static void GetData
   (pid_t childPid,
    uintptr_t childAddress,
    char * parentAddress,
@@ -165,7 +165,7 @@ static void getdata
 }
 
 // parent sends data to child
-static void putdata
+static void PutData
   (pid_t childPid,
    uintptr_t childAddress,
    const char * parentAddress,
@@ -189,6 +189,75 @@ static void putdata
       ptrace (PTRACE_POKEDATA, childPid, childAddress, data.word);
    }
 }
+
+// Read the memory maps 'file' for a particular process.
+// Find the first .text section that excludes the specified address
+static int ReadMaps (pid_t childPid, uintptr_t excludeAddress, CommStruct * pcs)
+{
+   FILE * fd;
+   char mapFileName[BUFSIZ];
+
+   pcs->minAddress = pcs->maxAddress = NULL;
+   snprintf (mapFileName, sizeof (mapFileName), "/proc/%d/maps", (int) childPid);
+   mapFileName[BUFSIZ - 1] = '\0';
+
+   fd = fopen (mapFileName, "rt");
+   if (!fd) {
+      return 0;
+   }
+
+   if (pcs->debugEnabled) {
+      // copy map contents to stdout
+      char buf[BUFSIZ];
+      while (fgets (buf, sizeof (buf), fd)) {
+         buf[sizeof(buf) - 1] = '\0';
+         printf ("map for %d: %s", childPid, buf);
+      }
+      fclose (fd);
+      fd = fopen (mapFileName, "rt");
+   }
+
+   while (1) {
+      unsigned long long tmp1, tmp2;
+      char rwxp_flags[5];
+      int c;
+
+      tmp1 = tmp2 = 0;
+      if (3 != fscanf (fd, "%llx-%llx %4s ", &tmp1, &tmp2, rwxp_flags)) {
+         // did not find the min/max bounds
+         fclose (fd);
+         return 0;
+      }
+
+      rwxp_flags[4] = '\0';
+
+      if (strcmp (rwxp_flags, "r-xp") == 0) {
+         // This is a .text section
+         if (((uintptr_t) tmp1 <= (uintptr_t) excludeAddress)
+         && ((uintptr_t) excludeAddress < (uintptr_t) tmp2)) {
+            // This section is excluded
+         } else {
+            // Found usable min/max bounds for .text
+            pcs->minAddress = (void *) ((uintptr_t) tmp1);
+            pcs->maxAddress = (void *) ((uintptr_t) tmp2);
+            fclose (fd);
+            return 1;
+         }
+      }
+
+      do {
+         // read to end of line/EOF
+         c = fgetc (fd);
+      } while ((c != EOF) && (c != '\n'));
+
+      if (c == EOF) {
+         // did not find the min/max bounds
+         fclose (fd);
+         return 0;
+      }
+   }
+}
+
 
 static void StartSingleStepProc
   (uintptr_t singleStepProc,
@@ -218,7 +287,7 @@ static void StartSingleStepProc
    // fill remote stack
    // return address is NULL (1st item in struct: don't return!!)
    // first parameter is "pcontext" (2nd item in struct)
-   putdata (childPid, get_stack_ptr(context), (const void *) &localCs, sizeof (localCs));
+   PutData (childPid, get_stack_ptr(context), (const void *) &localCs, sizeof (localCs));
 
    // run single step handler until breakpoint
    set_pc(context, (uintptr_t) singleStepProc);
@@ -257,6 +326,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // library name
    snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/%sdeterminiser.so",
       binFolder, X86_OR_X64);
+   dbg_printf ("INITIAL: library is '%s'\n", pcs->libraryName);
 
    // check library exists
    testFd = fopen (pcs->libraryName, "rb");
@@ -277,6 +347,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       return 1;
    }
    fclose (testFd);
+   dbg_printf ("INITIAL: program is '%s'\n", argv[0]);
 
    if (memcmp (elfHeader, "\x7f" "ELF", 4) != 0) {
       err_printf (0, "program '%s' must be an ELF executable", argv[0]);
@@ -319,6 +390,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       // we should provide a way to report that.
       exit (1);
    }
+   dbg_printf ("INITIAL: child pid is %d\n", (int) childPid);
 
    // INITIAL STAGE
    // Wait for the child process to attach
@@ -335,14 +407,23 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          // child process stopped - this is the initial stop, after the execv call
          struct user_regs_struct context;
 
-         // TODO check that the process is 32-bit or 64-bit, matching expectations
-
-         // capture entry point for the program: this tells us where the .text segment is
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
             err_printf (1, "INITIAL: PTRACE_GETREGS");
          }
-         pcs->startAddress = (void *) get_pc (&context);
-         dbg_printf ("INITIAL: startAddress = %p\n", pcs->startAddress);
+         dbg_printf ("INITIAL: entry PC = %p\n", (void *) get_pc (&context));
+
+         // Discover the bounds of the executable .text section,
+         // initially excluding the current address, which is probably in ld-linux.so.2 or an equivalent
+         if (!ReadMaps (childPid, get_pc (&context), pcs)) {
+            // Did not find the bounds, so maybe there is no ld-linux.so.2? Try again.
+            if (!ReadMaps (childPid, 0, pcs)) {
+               // Nothing can be found - give up
+               err_printf (0, "INITIAL: unable to determine bounds of .text section for '%s'", argv[0]);
+            }
+         }
+         dbg_printf ("INITIAL: minAddress = %p\n", pcs->minAddress);
+         dbg_printf ("INITIAL: maxAddress = %p\n", pcs->maxAddress);
+         fflush (stdout);
 
          // continue to breakpoint
          ptrace (PTRACE_CONT, childPid, NULL, NULL);
@@ -368,10 +449,13 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          // The eax/rax register should contain the address of CommStruct in the child process
          struct user_regs_struct context;
          uintptr_t remoteLoaderCS;
+         CommStruct check_copy;
 
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
             err_printf (1, "AWAIT_FIRST_STAGE: PTRACE_GETREGS");
          }
+
+         dbg_printf ("AWAIT_FIRST_STAGE: breakpoint at %p\n", (void *) get_pc (&context));
 
          // check we stopped in the right place: EAX/RAX contains the expected code
          if (get_xax (&context) != COMPLETED_REMOTE) {
@@ -382,7 +466,17 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          // copy CommStruct data to the child: EBX/RBX contains the address
          remoteLoaderCS = get_xbx (&context);
          dbg_printf ("AWAIT_FIRST_STAGE: remoteLoaderCS = %p\n", (void *) remoteLoaderCS);
-         putdata (childPid, remoteLoaderCS, (const void *) pcs, sizeof (CommStruct));
+         PutData (childPid, remoteLoaderCS, (const void *) pcs, sizeof (CommStruct));
+
+         // check for correct data transfer
+         memset (&check_copy, 0xaa, sizeof (CommStruct));
+         GetData (childPid, remoteLoaderCS, (void *) &check_copy, sizeof (CommStruct));
+         if (memcmp (&check_copy, pcs, sizeof (CommStruct) != 0)) {
+            err_printf (0, "AWAIT_FIRST_STAGE: readback of CommStruct failed");
+            exit (1);
+         }
+         dbg_printf ("AWAIT_FIRST_STAGE: readback ok (%d bytes)\n", sizeof (CommStruct));
+         fflush (stdout);
 
          // continue to next event (from determiniser)
          ptrace (PTRACE_CONT, childPid, NULL, NULL);
@@ -520,7 +614,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
             // context restored
             dbg_printf ("SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
-            getdata (childPid, get_xbx (&context), (void *) &context, sizeof (struct user_regs_struct));
+            GetData (childPid, get_xbx (&context), (void *) &context, sizeof (struct user_regs_struct));
             dbg_printf ("SINGLE_STEP: flags word is %x\n", (unsigned) context.eflags);
             if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "RUNNING: PTRACE_SETREGS");
