@@ -9,14 +9,11 @@ void X86DeterminiserStartup (CommStruct * pcs);
 
 void RemoteLoader (CommStruct * pcs)
 {
+   unsigned code = COMPLETED_REMOTE;
 
-   /* Get a copy of the CommStruct from the parent process */
-   __asm__ volatile
-     ("mov %0, %%eax\n"
-      "int3\n"
-      "jmp 0f\n"
-      ".ascii \"RemoteLoader\"\n"
-      "0:\n" : : "r"(pcs));
+   // Get a copy of the CommStruct from the parent process.
+   // We send a message with EAX = COMPLETED_REMOTE and EBX = pcs
+   __asm__ volatile ("int3" : : "a"(code), "b"(pcs));
 
    X86DeterminiserStartup (pcs);
 }

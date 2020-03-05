@@ -54,8 +54,8 @@ static void err_wrong_architecture (const char * exe)
 {
    fprintf (stderr, "%s: executable appears to be %d-bit, try x%ddeterminiser instead\n",
       exe,
-      PTR_SIZE * 8,
-      (PTR_SIZE == 4) ? 86 : 64);
+      (PTR_SIZE == 4) ? 64 : 32,
+      (PTR_SIZE == 4) ? 64 : 86);
 }
 
 static uintptr_t get_stack_ptr (PCONTEXT context)

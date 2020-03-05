@@ -52,14 +52,6 @@ static void err_printf (unsigned err_code, const char * fmt, ...)
    }
 }
 
-/*static void err_wrong_architecture (const char * exe)
-{
-   fprintf (stderr, "%s: executable appears to be %d-bit, try x%ddeterminiser instead\n",
-      exe,
-      PTR_SIZE * 8,
-      (PTR_SIZE == 4) ? 86 : 64);
-} */
-
 static uintptr_t get_stack_ptr (struct user_regs_struct * context)
 {
 #ifdef LINUX64
@@ -244,8 +236,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    pid_t       childPid = -1;
    char        binFolder[BUFSIZ];
    int         status = 0;
-   int         testFd = 0;
+   FILE *      testFd = 0;
    int         run = 1;
+   int         elfType = 0;
+   char        elfHeader[5];
 
    (void) argc;
 
@@ -265,13 +259,51 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       binFolder, X86_OR_X64);
 
    // check library exists
-   testFd = open (pcs->libraryName, O_RDONLY);
+   testFd = fopen (pcs->libraryName, "rb");
    if (!testFd) {
       err_printf (1, "open('%s')", pcs->libraryName);
       return 1;
    }
-   close (testFd);
-  
+   fclose (testFd);
+
+   // check child process executable exists and has the correct format
+   testFd = fopen (argv[0], "rb");
+   if (!testFd) {
+      err_printf (1, "program '%s' not found", argv[0]);
+      return 1;
+   }
+   if (fread (elfHeader, 1, sizeof (elfHeader), testFd) != sizeof (elfHeader)) {
+      err_printf (1, "program '%s' not readable", argv[0]);
+      return 1;
+   }
+   fclose (testFd);
+
+   if (memcmp (elfHeader, "\x7f" "ELF", 4) != 0) {
+      err_printf (0, "program '%s' must be an ELF executable", argv[0]);
+      return 1;
+   }
+
+   // an ELF header is fairly complex but apparently there is an easy method to determine 32/64 bit:
+   // https://unix.stackexchange.com/questions/106234/determine-if-a-specific-process-is-32-or-64-bit
+   switch (elfHeader[4]) {
+      case 1:
+         elfType = 32;
+         break;
+      case 2:
+         elfType = 64;
+         break;
+      default:
+         err_printf (0, "program '%s' must be an x86 ELF executable", argv[0]);
+         return 1;
+   }
+   if (elfType != (PTR_SIZE * 8)) {
+      fprintf (stderr, "%s: executable appears to be %d-bit, try x%ddeterminiser instead\n",
+         argv[0],
+         (PTR_SIZE == 4) ? 64 : 32,
+         (PTR_SIZE == 4) ? 64 : 86);
+      return 1;
+   }
+
    // run the subprocess, preloading the library
    setenv ("LD_PRELOAD", pcs->libraryName, 1);
    childPid = fork ();
@@ -335,26 +367,20 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          // child process stopped - this should be the second stop, in RemoteLoader
          // The eax/rax register should contain the address of CommStruct in the child process
          struct user_regs_struct context;
-         char buf[12];
-         uintptr_t remoteLoaderPC;
          uintptr_t remoteLoaderCS;
 
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
             err_printf (1, "AWAIT_FIRST_STAGE: PTRACE_GETREGS");
          }
 
-         // check we stopped in the right place (look for magic string in executable code)
-         remoteLoaderPC = get_pc (&context);
-         dbg_printf ("AWAIT_FIRST_STAGE: remoteLoaderPC = %p\n", (void *) remoteLoaderPC);
-
-         getdata (childPid, remoteLoaderPC + 3, buf, sizeof (buf));
-         if (memcmp (buf, "RemoteLoader", sizeof (buf)) != 0) {
+         // check we stopped in the right place: EAX/RAX contains the expected code
+         if (get_xax (&context) != COMPLETED_REMOTE) {
             err_printf (0, "AWAIT_FIRST_STAGE: breakpoint was not in RemoteLoader procedure");
             exit (1);
          }
 
-         // copy CommStruct data to the child: eax/rax contains the address
-         remoteLoaderCS = get_xax (&context);
+         // copy CommStruct data to the child: EBX/RBX contains the address
+         remoteLoaderCS = get_xbx (&context);
          dbg_printf ("AWAIT_FIRST_STAGE: remoteLoaderCS = %p\n", (void *) remoteLoaderCS);
          putdata (childPid, remoteLoaderCS, (const void *) pcs, sizeof (CommStruct));
 
