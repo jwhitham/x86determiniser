@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/user.h>
+#include <sys/mman.h>
 
 #include "offsets.h"
 #include "remote_loader.h"
@@ -30,7 +31,9 @@ static void single_step_handler (struct user_regs_struct * context)
 
 void X86DeterminiserStartup (CommStruct * pcs)
 {
-   size_t pageSize, pageMask, minPage, maxPage;
+   uintptr_t minPage, maxPage;
+   FILE * fd;
+
    minPage = maxPage = 0;
 
    // Here is the entry point from the RemoteLoader procedure
@@ -40,35 +43,45 @@ void X86DeterminiserStartup (CommStruct * pcs)
    // Discover the bounds of the executable .text segment
    // which is known to contain pcs->startAddress
 
-   // TODO
-
-/*
-   GetSystemInfo (&systemInfo);
-   pageSize = systemInfo.dwPageSize;
-   pageMask = ~ (pageSize - 1);
-   minPage = ((size_t) pcs->startAddress) & pageMask;
-   ZeroMemory (&mbi, sizeof (mbi));
-
-   // find minimum page
-   while ((VirtualQuery ((void *) (minPage - pageSize), &mbi, sizeof (mbi)) != 0)
-   && mbi.RegionSize > pageSize) {
-      minPage -= pageSize;
-   }
-
-   // calculate maximum page
-   if (VirtualQuery ((void *) minPage, &mbi, sizeof (mbi)) == 0) {
-      // Error code EAX = 0x104
+   fd = fopen ("/proc/self/maps", "rt");
+   if (!fd) {
       x86_bp_trap (FAILED_MEMORY_BOUND_DISCOVERY, NULL);
    }
-   maxPage = mbi.RegionSize + minPage;
 
-   // make this memory region writable
-   if (!VirtualProtect ((void *) minPage, maxPage - minPage,
-         PAGE_EXECUTE_READWRITE, &mbi.Protect)) {
-      // Error code EAX = 0x103
+   while (1) {
+      unsigned long long tmp1, tmp2;
+      int c;
+
+      tmp1 = tmp2 = 0;
+      if (2 != fscanf (fd, "%llx-%llx ", &tmp1, &tmp2)) {
+         // did not find the min/max bounds
+         x86_bp_trap (FAILED_MEMORY_BOUND_DISCOVERY, NULL);
+      }
+
+      if (((uintptr_t) tmp1 <= (uintptr_t) pcs->startAddress)
+      && ((uintptr_t) pcs->startAddress < (uintptr_t) tmp2)) {
+         // Found the min/max bounds for .text
+         minPage = (uintptr_t) tmp1;
+         maxPage = (uintptr_t) tmp2;
+         break;
+      }
+
+      do {
+         // read to end of line/EOF
+         c = fgetc (fd);
+      } while ((c != EOF) && (c != '\n'));
+
+      if (c == EOF) {
+         // did not find the min/max bounds
+         x86_bp_trap (FAILED_MEMORY_BOUND_DISCOVERY, NULL);
+      }
+   }
+   fclose (fd);
+
+   if (0 != mprotect ((void *) minPage, (size_t) (maxPage - minPage),
+                     PROT_READ | PROT_WRITE | PROT_EXEC)) {
       x86_bp_trap (FAILED_MEMORY_PERMISSIONS, NULL);
    }
-*/
 
    x86_startup (minPage, maxPage, pcs);
 

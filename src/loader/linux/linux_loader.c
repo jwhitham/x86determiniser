@@ -307,9 +307,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          // capture entry point for the program: this tells us where the .text segment is
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
-            err_printf (1, "AWAIT_FIRST_STAGE: PTRACE_GETREGS");
+            err_printf (1, "INITIAL: PTRACE_GETREGS");
          }
-         pcs->startAddress = get_pc (&context);
+         pcs->startAddress = (void *) get_pc (&context);
+         dbg_printf ("INITIAL: startAddress = %p\n", pcs->startAddress);
 
          // continue to breakpoint
          ptrace (PTRACE_CONT, childPid, NULL, NULL);
@@ -344,6 +345,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          // check we stopped in the right place (look for magic string in executable code)
          remoteLoaderPC = get_pc (&context);
+         dbg_printf ("AWAIT_FIRST_STAGE: remoteLoaderPC = %p\n", (void *) remoteLoaderPC);
+
          getdata (childPid, remoteLoaderPC + 3, buf, sizeof (buf));
          if (memcmp (buf, "RemoteLoader", sizeof (buf)) != 0) {
             err_printf (0, "AWAIT_FIRST_STAGE: breakpoint was not in RemoteLoader procedure");
@@ -352,6 +355,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          // copy CommStruct data to the child: eax/rax contains the address
          remoteLoaderCS = get_xax (&context);
+         dbg_printf ("AWAIT_FIRST_STAGE: remoteLoaderCS = %p\n", (void *) remoteLoaderCS);
          putdata (childPid, remoteLoaderCS, (const void *) pcs, sizeof (CommStruct));
 
          // continue to next event (from determiniser)
