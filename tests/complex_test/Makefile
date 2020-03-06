@@ -21,7 +21,7 @@ ctest.win32$(EXE): main.c $(SRC32)
 	$(CC) -o $@ $(CFLAGS) main.c $(SRC32) -O2
 
 ctest.linux32$(EXE): main_linux.c $(SRC32)
-	$(CC) -o $@ $(CFLAGS) main_linux.c $(SRC32) -O2 -lm -ldl
+	$(CC) -o $@ $(CFLAGS) main_linux.c $(SRC32) -O2 /usr/lib/libm.a -ldl
 
 ctest.win64$(EXE): main.c $(SRC64)
 	$(CC) -o $@ $(CFLAGS) main.c $(SRC64) -O2
