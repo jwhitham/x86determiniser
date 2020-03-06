@@ -21,7 +21,7 @@
 #include "x86_flags.h"
 #include "common.h"
 
-#define dbg_printf if (pcs->debugEnabled) printf
+#define dbg_fprintf if (pcs->debugEnabled) fprintf
 
 typedef struct SingleStepStruct {
    void * unused;
@@ -220,11 +220,11 @@ static int ReadMaps (pid_t childPid, uintptr_t excludeAddress, CommStruct * pcs)
    }
 
    if (pcs->debugEnabled) {
-      // copy map contents to stdout
+      // copy map contents to stderr
       char buf[BUFSIZ];
       while (fgets (buf, sizeof (buf), fd)) {
          buf[sizeof(buf) - 1] = '\0';
-         printf ("map for %d: %s", childPid, buf);
+         fprintf (stderr, "map for %d: %s", childPid, buf);
       }
       fclose (fd);
       fd = fopen (mapFileName, "rt");
@@ -339,7 +339,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // library name
    snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/%sdeterminiser.so",
       binFolder, X86_OR_X64);
-   dbg_printf ("INITIAL: library is '%s'\n", pcs->libraryName);
+   dbg_fprintf (stderr, "INITIAL: library is '%s'\n", pcs->libraryName);
 
    // check library exists
    testFd = fopen (pcs->libraryName, "rb");
@@ -360,7 +360,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       exit (1);
    }
    fclose (testFd);
-   dbg_printf ("INITIAL: program is '%s'\n", argv[0]);
+   dbg_fprintf (stderr, "INITIAL: program is '%s'\n", argv[0]);
 
    if (memcmp (elfHeader, "\x7f" "ELF", 4) != 0) {
       err_printf (0, "program '%s' must be an ELF executable", argv[0]);
@@ -403,7 +403,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       // we should provide a way to report that.
       exit (1);
    }
-   dbg_printf ("INITIAL: child pid is %d\n", (int) childPid);
+   dbg_fprintf (stderr, "INITIAL: child pid is %d\n", (int) childPid);
 
    // INITIAL STAGE
    // Wait for the child process to attach
@@ -424,7 +424,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             err_printf (1, "INITIAL: PTRACE_GETREGS");
             exit (1);
          }
-         dbg_printf ("INITIAL: entry PC = %p\n", (void *) get_pc (&context));
+         dbg_fprintf (stderr, "INITIAL: entry PC = %p\n", (void *) get_pc (&context));
 
          // Discover the bounds of the executable .text section,
          // initially excluding the current address, which is probably in ld-linux.so.2 or an equivalent
@@ -436,9 +436,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                exit (1);
             }
          }
-         dbg_printf ("INITIAL: minAddress = %p\n", (void *) pcs->minAddress);
-         dbg_printf ("INITIAL: maxAddress = %p\n", (void *) pcs->maxAddress);
-         fflush (stdout);
+         dbg_fprintf (stderr, "INITIAL: minAddress = %p\n", (void *) pcs->minAddress);
+         dbg_fprintf (stderr, "INITIAL: maxAddress = %p\n", (void *) pcs->maxAddress);
 
          // continue to breakpoint
          ptrace (PTRACE_CONT, childPid, NULL, NULL);
@@ -475,7 +474,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             exit (1);
          }
 
-         dbg_printf ("AWAIT_FIRST_STAGE: breakpoint at %p\n", (void *) get_pc (&context));
+         dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: breakpoint at %p\n", (void *) get_pc (&context));
 
          // check we stopped in the right place: EAX/RAX contains the expected code
          if (get_xax (&context) != COMPLETED_REMOTE) {
@@ -485,7 +484,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          // copy CommStruct data to the child: EBX/RBX contains the address
          remoteLoaderCS = get_xbx (&context);
-         dbg_printf ("AWAIT_FIRST_STAGE: remoteLoaderCS = %p\n", (void *) remoteLoaderCS);
+         dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: remoteLoaderCS = %p\n", (void *) remoteLoaderCS);
          PutData (childPid, remoteLoaderCS, (const void *) pcs, sizeof (CommStruct));
 
          // check for correct data transfer
@@ -495,8 +494,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             err_printf (0, "AWAIT_FIRST_STAGE: readback of CommStruct failed");
             exit (1);
          }
-         dbg_printf ("AWAIT_FIRST_STAGE: readback ok (%d bytes)\n", sizeof (CommStruct));
-         fflush (stdout);
+         dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: readback ok (%d bytes)\n", sizeof (CommStruct));
 
          // continue to next event (from determiniser)
          ptrace (PTRACE_CONT, childPid, NULL, NULL);
@@ -536,11 +534,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          if (IsSingleStep (childPid, &context)) {
             // There is some single-stepping at the end of the loader,
             // this is normal, let it continue
-            dbg_printf ("AWAIT_REMOTE_LOADER_BP: single step at %p\n",
+            dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: single step at %p\n",
                   (void *) get_pc (&context));
             ptrace (PTRACE_CONT, childPid, NULL, NULL);
          } else {
-            dbg_printf ("AWAIT_REMOTE_LOADER_BP: breakpoint at %p\n",
+            dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: breakpoint at %p\n",
                   (void *) get_pc (&context));
 
             // EAX contains an error code, or 0x101 on success
@@ -590,10 +588,9 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             if (IsSingleStep (childPid, &context)) {
                // Reached single step; run single step handler.
                if (pcs->debugEnabled) {
-                  dbg_printf
-                    ("RUNNING: Single step at %p, go to handler at %p\n", 
+                  dbg_fprintf
+                    (stderr, "RUNNING: Single step at %p, go to handler at %p\n", 
                      (void *) get_pc (&context), (void *) singleStepProc);
-                  fflush (stdout);
                }
                run = 0;
                StartSingleStepProc
@@ -626,10 +623,9 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             && ((uintptr_t) siginfo.si_addr < pcs->maxAddress)) {
                // returned to text
                if (pcs->debugEnabled) {
-                  dbg_printf
-                    ("RUNNING: Re-enter text section at %p, go to handler at %p\n", 
+                  dbg_fprintf
+                    (stderr, "RUNNING: Re-enter text section at %p, go to handler at %p\n", 
                      (void *) get_pc (&context), (void *) singleStepProc);
-                  fflush (stdout);
                }
                run = 0;
                StartSingleStepProc
@@ -694,15 +690,12 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             }
 
             // context restored
-            dbg_printf ("SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
+            dbg_fprintf (stderr, "SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
             GetData (childPid, get_xbx (&context), (void *) &context, sizeof (struct user_regs_struct));
-            dbg_printf ("SINGLE_STEP: flags word is %x\n", (unsigned) context.eflags);
+            dbg_fprintf (stderr, "SINGLE_STEP: flags word is %x\n", (unsigned) context.eflags);
             if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "RUNNING: PTRACE_SETREGS");
                exit (1);
-            }
-            if (pcs->debugEnabled) {
-               fflush (stdout);
             }
             ptrace (PTRACE_CONT, childPid, NULL, NULL);
             run = 1;

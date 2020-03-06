@@ -12,7 +12,7 @@
 
 int _CRT_glob = 0; /* don't expand wildcards when parsing command-line args */
 
-#define dbg_printf if (pcs->debugEnabled) printf
+#define dbg_fprintf if (pcs->debugEnabled) fprintf
 
 static DWORD DefaultHandler (
       CommStruct * pcs,
@@ -371,7 +371,7 @@ static char * GenerateArgs (CommStruct * pcs, size_t argc, char ** argv)
    for (i = 0; i < argc; i++) {
       max_space += strlen (argv[i]) * 2;
       max_space += 10;
-      dbg_printf ("[%s]\n", argv[i]);
+      dbg_fprintf (stderr, "[%s]\n", argv[i]);
    }
    tmp = output = calloc (1, max_space);
    if (!output) {
@@ -439,7 +439,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
    dwCreationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS;
    commandLine = GenerateArgs (pcs, (size_t) argc, argv);
-   dbg_printf ("[[%s]]\n", commandLine);
+   dbg_fprintf (stderr, "[[%s]]\n", commandLine);
    rc = CreateProcess(
      /* _In_opt_    LPCTSTR               */ argv[0],
      /* _Inout_opt_ LPTSTR                */ commandLine /* lpCommandLine */,
@@ -514,7 +514,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       ContinueDebugEvent
          (debugEvent.dwProcessId, debugEvent.dwThreadId, todo);
    }
-   dbg_printf ("INITIAL: startAddress = %p\n", startAddress);
+   dbg_fprintf (stderr, "INITIAL: startAddress = %p\n", startAddress);
 
    // AWAIT_FIRST STAGE
    // Await breakpoint at first instruction
@@ -528,7 +528,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          err_printf (1, "AWAIT_FIRST: WaitForDebugEvent");
          exit (1);
       }
-      dbg_printf ("AWAIT_FIRST: debug event %x\n",
+      dbg_fprintf (stderr, "AWAIT_FIRST: debug event %x\n",
             (unsigned) debugEvent.dwDebugEventCode);
       switch (debugEvent.dwDebugEventCode) {
          case EXCEPTION_DEBUG_EVENT:
@@ -542,7 +542,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   err_printf (1, "AWAIT_FIRST: GetThreadContext");
                   exit (1);
                }
-               dbg_printf ("AWAIT_FIRST: exception code %x\n",
+               dbg_fprintf (stderr, "AWAIT_FIRST: exception code %x\n",
                      (unsigned) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_BREAKPOINT:
@@ -608,7 +608,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                0);
             buf[len] = 0;
             CloseHandle (debugEvent.u.LoadDll.hFile);
-            dbg_printf ("AWAIT_FIRST: load DLL = %s base = %p\n", buf,
+            dbg_fprintf (stderr, "AWAIT_FIRST: load DLL = %s base = %p\n", buf,
                   (void *) debugEvent.u.LoadDll.lpBaseOfDll);
 
             /* if buf == kernel32.dll, we have the addresses for LoadLibrary
@@ -641,7 +641,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   err_printf (1, "GetModuleInformation ('%s')", kernel32_name);
                   return 1;
                }
-               dbg_printf ("AWAIT_FIRST: %s: base %p size %u\n", kernel32_name,
+               dbg_fprintf (stderr, "AWAIT_FIRST: %s: base %p size %u\n", kernel32_name,
                      modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
 
                pa = GetProcAddress (kernel32, "GetProcAddress");
@@ -667,7 +667,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
                // We also have the load address of the the DLL, since we saw it loading
                kernel32Base = debugEvent.u.LoadDll.lpBaseOfDll;
-               dbg_printf ("AWAIT_FIRST: kernel32base = %p\n", (void *) kernel32Base);
+               dbg_fprintf (stderr, "AWAIT_FIRST: kernel32base = %p\n", (void *) kernel32Base);
             }
 
             break;
@@ -690,7 +690,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          err_printf (1, "AWAIT_REMOTE_LOADER_BP: WaitForDebugEvent");
          exit (1);
       }
-      dbg_printf ("AWAIT_REMOTE_LOADER_BP: debug event %x\n",
+      dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: debug event %x\n",
             (unsigned) debugEvent.dwDebugEventCode);
       switch (debugEvent.dwDebugEventCode) {
          case EXCEPTION_DEBUG_EVENT:
@@ -703,11 +703,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   err_printf (1, "AWAIT_REMOTE_LOADER_BP: GetThreadContext");
                   exit (1);
                }
-               dbg_printf ("AWAIT_REMOTE_LOADER_BP: exception code %x\n",
+               dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: exception code %x\n",
                      (unsigned) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
                switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                   case STATUS_BREAKPOINT:
-                     dbg_printf ("AWAIT_REMOTE_LOADER_BP: breakpoint at %p\n",
+                     dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: breakpoint at %p\n",
                            (void *) get_pc (&context));
                      if (pcs->remoteDebugEnabled) {
                         dbg_state(&context);
@@ -735,7 +735,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   case STATUS_SINGLE_STEP:
                      // There is some single-stepping at the end of the loader,
                      // this is normal, let it continue
-                     dbg_printf ("AWAIT_REMOTE_LOADER_BP: single step at %p\n",
+                     dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: single step at %p\n",
                            (void *) get_pc (&context));
                      if (pcs->remoteDebugEnabled) {
                         dbg_state(&context);
@@ -772,11 +772,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             err_printf (1, "RUNNING: WaitForDebugEvent");
             exit (1);
          }
-         dbg_printf ("RUNNING: debug event %x\n",
+         dbg_fprintf (stderr, "RUNNING: debug event %x\n",
                (unsigned) debugEvent.dwDebugEventCode);
          switch (debugEvent.dwDebugEventCode) {
             case EXCEPTION_DEBUG_EVENT:
-               dbg_printf ("RUNNING: exception code %x\n",
+               dbg_fprintf (stderr, "RUNNING: exception code %x\n",
                      (unsigned) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
                if ((debugEvent.dwProcessId == processInformation.dwProcessId)
                && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
@@ -794,7 +794,6 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                            dbg_printf
                              ("RUNNING: Single step at %p, go to handler at %p\n", 
                               (void *) get_pc (&context), (void *) singleStepProc);
-                           fflush (stdout);
                         }
                         run = FALSE;
                         StartSingleStepProc
@@ -805,7 +804,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         SetThreadContext (processInformation.hThread, &context);
                         break;
                      case STATUS_BREAKPOINT:
-                        dbg_printf ("RUNNING: breakpoint at %p\n",
+                        dbg_fprintf (stderr, "RUNNING: breakpoint at %p\n",
                               (void *) get_pc (&context));
                         todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
                         break;
@@ -836,11 +835,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             err_printf (1, "SINGLE_STEP: WaitForDebugEvent");
             exit (1);
          }
-         dbg_printf ("SINGLE_STEP: debug event %x\n",
+         dbg_fprintf (stderr, "SINGLE_STEP: debug event %x\n",
                (unsigned) debugEvent.dwDebugEventCode);
          switch (debugEvent.dwDebugEventCode) {
             case EXCEPTION_DEBUG_EVENT:
-               dbg_printf ("SINGLE_STEP: exception code %x\n",
+               dbg_fprintf (stderr, "SINGLE_STEP: exception code %x\n",
                      (unsigned) debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
                if ((debugEvent.dwProcessId == processInformation.dwProcessId)
                && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
@@ -853,7 +852,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   }
                   switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                      case STATUS_BREAKPOINT:
-                        dbg_printf ("SINGLE_STEP: breakpoint at %p\n",
+                        dbg_fprintf (stderr, "SINGLE_STEP: breakpoint at %p\n",
                               (void *) get_pc (&context));
                         // single step procedure finished
                         // EAX contains an error code, or 0x102 on success
@@ -863,20 +862,20 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                            return 1;
                         }
                         // context restored
-                        dbg_printf ("SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
+                        dbg_fprintf (stderr, "SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
                         ReadProcessMemory
                           (processInformation.hProcess,
                            (void *) get_xbx (&context),
                            (void *) &context,
                            sizeof (CONTEXT),
                            NULL);
-                        dbg_printf ("SINGLE_STEP: flags word is %x\n", (unsigned) context.EFlags);
+                        dbg_fprintf (stderr, "SINGLE_STEP: flags word is %x\n", (unsigned) context.EFlags);
                         context.ContextFlags = CONTEXT_FULL;
                         SetThreadContext (processInformation.hThread, &context);
                         run = TRUE;
                         break;
                      case STATUS_SINGLE_STEP:
-                        dbg_printf ("SINGLE_STEP: single step at %p\n",
+                        dbg_fprintf (stderr, "SINGLE_STEP: single step at %p\n",
                               (void *) get_pc (&context));
                         todo = DefaultHandler (pcs, "SINGLE_STEP", &debugEvent, &processInformation);
                         break;
@@ -914,7 +913,7 @@ static DWORD DefaultHandler (
          break;
       case EXIT_PROCESS_DEBUG_EVENT:
          if (pDebugEvent->dwProcessId == pProcessInformation->dwProcessId) {
-            dbg_printf ("%s: Process exited! %d\n", state, (int) pDebugEvent->dwProcessId);
+            dbg_fprintf (stderr, "%s: Process exited! %d\n", state, (int) pDebugEvent->dwProcessId);
             exit (pDebugEvent->u.ExitProcess.dwExitCode);
          }
          break;
@@ -974,7 +973,7 @@ static DWORD DefaultHandler (
                   break;
                default:
                   // pass through
-                  dbg_printf ("%s: Exception at %p code 0x%0x\n",
+                  dbg_fprintf (stderr, "%s: Exception at %p code 0x%0x\n",
                      state, (void *) get_pc (&context),
                      (unsigned) pDebugEvent->u.Exception.ExceptionRecord.ExceptionCode);
                   todo = DBG_EXCEPTION_NOT_HANDLED;
@@ -984,12 +983,12 @@ static DWORD DefaultHandler (
          break;
       case CREATE_THREAD_DEBUG_EVENT:
          if (pDebugEvent->dwProcessId == pProcessInformation->dwProcessId) {
-            dbg_printf ("%s: New thread %p\n", state, (void *) pDebugEvent->u.CreateThread.hThread);
+            dbg_fprintf (stderr, "%s: New thread %p\n", state, (void *) pDebugEvent->u.CreateThread.hThread);
          }
          break;
       case EXIT_THREAD_DEBUG_EVENT:
          if (pDebugEvent->dwProcessId == pProcessInformation->dwProcessId) {
-            dbg_printf ("%s: Exit thread 0x%x\n", state, (unsigned) pDebugEvent->dwThreadId);
+            dbg_fprintf (stderr, "%s: Exit thread 0x%x\n", state, (unsigned) pDebugEvent->dwThreadId);
          }
          break;
       case LOAD_DLL_DEBUG_EVENT:

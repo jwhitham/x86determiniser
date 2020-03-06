@@ -82,16 +82,16 @@ static void clear_single_step_flag (uintptr_t * gregs)
 static void dump_regs (uintptr_t * gregs)
 {
    char c = REGISTER_PREFIX;
-   printf (" %cAX = %p  ", c, (void *) gregs[REG_XAX]);
-   printf (" %cBX = %p  ", c, (void *) gregs[REG_XBX]);
-   printf (" %cCX = %p  ", c, (void *) gregs[REG_XCX]);
-   printf (" %cDX = %p  ", c, (void *) gregs[REG_XDX]);
-   printf (" EFL = %x\n", get_flags (gregs));
-   printf (" %cIP = %p  ", c, (void *) gregs[REG_XIP]);
-   printf (" %cSI = %p  ", c, (void *) gregs[REG_XSI]);
-   printf (" %cDI = %p  ", c, (void *) gregs[REG_XDI]);
-   printf (" %cBP = %p  ", c, (void *) gregs[REG_XBP]);
-   printf (" %cSP = %p\n", c, (void *) gregs[REG_XSP]);
+   fprintf (stderr, " %cAX = %p  ", c, (void *) gregs[REG_XAX]);
+   fprintf (stderr, " %cBX = %p  ", c, (void *) gregs[REG_XBX]);
+   fprintf (stderr, " %cCX = %p  ", c, (void *) gregs[REG_XCX]);
+   fprintf (stderr, " %cDX = %p  ", c, (void *) gregs[REG_XDX]);
+   fprintf (stderr, " EFL = %x\n", get_flags (gregs));
+   fprintf (stderr, " %cIP = %p  ", c, (void *) gregs[REG_XIP]);
+   fprintf (stderr, " %cSI = %p  ", c, (void *) gregs[REG_XSI]);
+   fprintf (stderr, " %cDI = %p  ", c, (void *) gregs[REG_XDI]);
+   fprintf (stderr, " %cBP = %p  ", c, (void *) gregs[REG_XBP]);
+   fprintf (stderr, " %cSP = %p\n", c, (void *) gregs[REG_XSP]);
 }
 
 static void superblock_decoder (superblock_info * si, uintptr_t pc);
@@ -158,7 +158,7 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
    pc = gregs[REG_XIP];
 #ifdef DEBUG
    if (!x86_quiet_mode) {
-      printf ("X86D: stepping %cIP %p %cSP %p entry_flag %u context %p\n",
+      fprintf (stderr, "X86D: stepping %cIP %p %cSP %p entry_flag %u context %p\n",
             REGISTER_PREFIX, (void *) gregs[REG_XIP],
             REGISTER_PREFIX, (void *) gregs[REG_XSP], entry_flag,
             (void *) gregs);
@@ -179,7 +179,7 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
 
 #ifdef DEBUG
       if (!x86_quiet_mode) {
-         printf ("X86D: switch from user: new %cIP %p %cSP %p\n",
+         fprintf (stderr, "X86D: switch from user: new %cIP %p %cSP %p\n",
                REGISTER_PREFIX, (void *) gregs[REG_XIP],
                REGISTER_PREFIX, (void *) gregs[REG_XSP]);
       }
@@ -190,14 +190,14 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
       // Keep stepping
       set_single_step_flag (gregs);
       if (!x86_quiet_mode) {
-         printf ("X86D: keep stepping: %x\n", get_flags (gregs));
+         fprintf (stderr, "X86D: keep stepping: %x\n", get_flags (gregs));
       }
    } else {
       // Stepped one instruction
       entry_flag = 0;
       set_single_step_flag (gregs);
       if (!x86_quiet_mode) {
-         printf ("X86D: initial step: %x\n", get_flags (gregs));
+         fprintf (stderr, "X86D: initial step: %x\n", get_flags (gregs));
       }
    }
 }
@@ -255,7 +255,7 @@ static int interpret_control_flow (void)
             // write to port 0x30 (cem_io_port)
             branch_trace_encode (CEM, v & WORD_DATA_MASK);
             if (!x86_quiet_mode) {
-               printf ("marker %u\n", (uint32_t) v);
+               fprintf (stderr, "marker %u\n", (uint32_t) v);
             }
          }
          if (out_trace) {
@@ -325,9 +325,8 @@ static int interpret_control_flow (void)
       case 0xff:
 #ifdef DEBUG
          if (!x86_quiet_mode) {
-            printf ("X86D: Code ff %02x at %p, mode %u, R/M %u, opcode %u\n",
+            fprintf (stderr, "X86D: Code ff %02x at %p, mode %u, R/M %u, opcode %u\n",
                pc_bytes[1], pc_bytes, pc_bytes[1] >> 6, pc_bytes[1] & 7, (pc_bytes[1] >> 3) & 7);
-            fflush (stdout);
          }
 #endif
 
@@ -355,8 +354,7 @@ static int interpret_control_flow (void)
 
 #ifdef DEBUG
          if (!x86_quiet_mode) {
-            printf ("X86D: R/M value: (before mode) %p ", (void *) rm);
-            fflush (stdout);
+            fprintf (stderr, "X86D: R/M value: (before mode) %p ", (void *) rm);
          }
 #endif
 
@@ -369,8 +367,7 @@ static int interpret_control_flow (void)
                   rm += pc;
 #ifdef DEBUG
                   if (!x86_quiet_mode) {
-                     printf (" (before deref) %p ", (void *) rm);
-                     fflush (stdout);
+                     fprintf (stderr, " (before deref) %p ", (void *) rm);
                   }
 #endif
                   rm = ((uintptr_t *) rm)[0];
@@ -397,8 +394,7 @@ static int interpret_control_flow (void)
 
 #ifdef DEBUG
          if (!x86_quiet_mode) {
-            printf ("(after mode) %p\n", (void *) rm);
-            fflush (stdout);
+            fprintf (stderr, "(after mode) %p\n", (void *) rm);
          }
 #endif
 
@@ -444,7 +440,7 @@ void x86_interpreter (void)
     uintptr_t pc, pc_end;
 
     if (!x86_quiet_mode) {
-        printf ("X86D: interpreter startup... pc = %p\n", (void *) x86_other_context[REG_XIP]);
+        fprintf (stderr, "X86D: interpreter startup... pc = %p\n", (void *) x86_other_context[REG_XIP]);
     }
 
     // Startup: run until reaching the program
@@ -456,13 +452,12 @@ void x86_interpreter (void)
     pc = x86_other_context[REG_XIP];
     if ((pc < min_address) || (pc > max_address)) {
         fprintf (stderr, "Startup did not reach program (at %p)\n", (void *) pc);
-        fflush (stdout);
         fflush (stderr);
         x86_bp_trap (FAILED_TO_REACH_PROGRAM, NULL);
     }
 
     if (!x86_quiet_mode) {
-        printf ("X86D: interpreter ok, entry %cIP %p %cSP %p, program running:\n",
+        fprintf (stderr, "X86D: interpreter ok, entry %cIP %p %cSP %p, program running:\n",
                     REGISTER_PREFIX, (void *) pc,
                     REGISTER_PREFIX, (void *) x86_other_context[REG_XSP]);
     }
@@ -472,7 +467,7 @@ void x86_interpreter (void)
         pc = x86_other_context[REG_XIP];
 #ifdef DEBUG
         if (!x86_quiet_mode) {
-            printf ("X86D: loop: %cIP %p\n",
+            fprintf (stderr, "X86D: loop: %cIP %p\n",
                 REGISTER_PREFIX, (void *) pc);
         }
 #endif
@@ -493,9 +488,8 @@ void x86_interpreter (void)
             if (pc_end != pc) {
 #ifdef DEBUG
                 if (!x86_quiet_mode) {
-                   printf ("X86D: Exec from %p to %p\n", (void *) pc, (void *) pc_end);
+                   fprintf (stderr, "X86D: Exec from %p to %p\n", (void *) pc, (void *) pc_end);
                    dump_regs (x86_other_context);
-                   fflush (stdout);
                 }
 #endif
                 x86_switch_to_user (pc_end);
@@ -523,7 +517,7 @@ void x86_interpreter (void)
                        (&formatter, &instruction, buffer, sizeof(buffer));
                   }
                   if (!x86_quiet_mode) {
-                     printf ("X86D: %p: %s\n", (void *) address, buffer);
+                     fprintf (stderr, "X86D: %p: %s\n", (void *) address, buffer);
                   }
                   if (inst_trace) {
 #ifdef IS_64_BIT
@@ -544,7 +538,7 @@ void x86_interpreter (void)
 #ifdef DEBUG
                 if (!x86_quiet_mode) {
                    uint8_t * pc_bytes = (uint8_t *) pc;
-                   printf ("Non-interpretable code %02x %02x at %p\n",
+                   fprintf (stderr, "Non-interpretable code %02x %02x at %p\n",
                        pc_bytes[0], pc_bytes[1], pc_bytes);
                 }
 #endif
@@ -561,7 +555,7 @@ void x86_interpreter (void)
             x86_make_text_noexec (min_address, max_address);
 #ifdef DEBUG
             if (!x86_quiet_mode) {
-                printf ("X86D: free run: %cIP %p %cSP %p\n",
+                fprintf (stderr, "X86D: free run: %cIP %p %cSP %p\n",
                     REGISTER_PREFIX, (void *) pc,
                     REGISTER_PREFIX, (void *) x86_other_context[REG_XSP]);
             }
@@ -579,7 +573,7 @@ static void superblock_decoder (superblock_info * si, uintptr_t pc)
    char special = 'X';
 
    if (!x86_quiet_mode) {
-      printf ("DECODE: new superblock: %p\n", (void *) pc);
+      fprintf (stderr, "DECODE: new superblock: %p\n", (void *) pc);
    }
 
    address = pc;
@@ -632,7 +626,7 @@ static void superblock_decoder (superblock_info * si, uintptr_t pc)
          char buffer[256];
          ZydisFormatterFormatInstruction
            (&formatter, &instruction, buffer, sizeof(buffer));
-         printf ("DECODE: %p: %s\n", (void *) address, buffer);
+         fprintf (stderr, "DECODE: %p: %s\n", (void *) address, buffer);
       }
       if (special) {
          // End of superblock reached
@@ -642,10 +636,9 @@ static void superblock_decoder (superblock_info * si, uintptr_t pc)
    }
    si->size = address - pc;
    if (!x86_quiet_mode) {
-      printf ("DECODE: superblock %p has %u instructions "
+      fprintf (stderr, "DECODE: superblock %p has %u instructions "
                "and ends at %p with %c\n",
                   (void *) pc, (unsigned) si->count, (void *) address, special);
-      fflush (stdout);
    }
 }
 
@@ -653,9 +646,8 @@ void x86_check_version (CommStruct * pcs)
 {
    if (strcmp (pcs->internalVersionCheck, INTERNAL_VERSION) != 0)
    {
-      printf ("pcs ivc = '%s' %d\n", pcs->internalVersionCheck, (int) strlen (pcs->internalVersionCheck));
-      printf ("internal= '%s' %d\n", INTERNAL_VERSION , (int) strlen (INTERNAL_VERSION));
-      fflush (stdout);
+      fprintf (stderr, "pcs ivc = '%s' %d\n", pcs->internalVersionCheck, (int) strlen (pcs->internalVersionCheck));
+      fprintf (stderr, "internal= '%s' %d\n", INTERNAL_VERSION , (int) strlen (INTERNAL_VERSION));
       x86_bp_trap (FAILED_VERSION_CHECK, NULL);
    }
 }
@@ -677,13 +669,13 @@ void x86_startup (CommStruct * pcs)
       x86_bp_trap (FAILED_MALLOC, NULL);
    }
    if (!x86_quiet_mode) {
-      printf ("X86D: program address range: %p .. %p\n",
+      fprintf (stderr, "X86D: program address range: %p .. %p\n",
          (void *) min_address, (void *) max_address);
    }
 
    if (strlen (pcs->branchTrace)) {
       if (!x86_quiet_mode) {
-         printf ("X86D: writing branch trace to: %s\n", pcs->branchTrace);
+         fprintf (stderr, "X86D: writing branch trace to: %s\n", pcs->branchTrace);
       }
       branch_trace = fopen (pcs->branchTrace, "wt");
       if (!branch_trace) {
@@ -692,7 +684,7 @@ void x86_startup (CommStruct * pcs)
    }
    if (strlen (pcs->instTrace)) {
       if (!x86_quiet_mode) {
-         printf ("X86D: writing instruction trace to: %s\n", pcs->instTrace);
+         fprintf (stderr, "X86D: writing instruction trace to: %s\n", pcs->instTrace);
       }
       inst_trace = fopen (pcs->instTrace, "wt");
       if (!inst_trace) {
@@ -701,15 +693,12 @@ void x86_startup (CommStruct * pcs)
    }
    if (strlen (pcs->outTrace)) {
       if (!x86_quiet_mode) {
-         printf ("X86D: writing out trace to: %s\n", pcs->outTrace);
+         fprintf (stderr, "X86D: writing out trace to: %s\n", pcs->outTrace);
       }
       out_trace = fopen (pcs->outTrace, "wt");
       if (!out_trace) {
          x86_bp_trap (FAILED_OPEN_OUT_TRACE, NULL);
       }
-   }
-   if (!x86_quiet_mode) {
-      fflush (stdout);
    }
 
 #ifdef IS_64_BIT
