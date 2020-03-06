@@ -322,6 +322,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    int         run = 1;
    int         elfType = 0;
    char        elfHeader[5];
+   struct user_regs_struct context;
+   siginfo_t   siginfo;
 
    (void) argc;
 
@@ -418,7 +420,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
          // child process stopped - this is the initial stop, after the execv call
-         struct user_regs_struct context;
+         memset (&context, 0, sizeof (struct user_regs_struct));
 
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
             err_printf (1, "INITIAL: PTRACE_GETREGS");
@@ -465,9 +467,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
          // child process stopped - this should be the second stop, in RemoteLoader
          // The eax/rax register should contain the address of CommStruct in the child process
-         struct user_regs_struct context;
          uintptr_t remoteLoaderCS;
          CommStruct check_copy;
+
+         memset (&context, 0, sizeof (struct user_regs_struct));
 
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
             err_printf (1, "AWAIT_FIRST_STAGE: PTRACE_GETREGS");
@@ -523,7 +526,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
          // child process stopped - this should be the second stop, in RemoteLoader
          // The eax/rax register should contain the address of CommStruct in the child process
-         struct user_regs_struct context;
+         memset (&context, 0, sizeof (struct user_regs_struct));
 
          if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
             err_printf (1, "AWAIT_REMOTE_LOADER_BP: PTRACE_GETREGS");
@@ -578,10 +581,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
             // Stopped by single-step or stopped by breakpoint?
-            struct user_regs_struct context;
+            memset (&context, 0, sizeof (struct user_regs_struct));
 
             if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
-               err_printf (1, "RUNNING: PTRACE_GETREGS");
+               err_printf (1, "RUNNING: PTRACE_GETREGS: single step");
                exit (1);
             }
 
@@ -598,7 +601,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   childPid,
                   &context);
                if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
-                  err_printf (1, "RUNNING: PTRACE_SETREGS");
+                  err_printf (1, "RUNNING: PTRACE_SETREGS: single step");
                   exit (1);
                }
             }
@@ -608,15 +611,15 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          } else if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSEGV) {
             // Stopped by segfault - is this caused by re-entering the text section
             // after running library code?
-            struct user_regs_struct context;
-            siginfo_t siginfo;
+            memset (&context, 0, sizeof (struct user_regs_struct));
+            memset (&siginfo, 0, sizeof (siginfo_t));
 
             if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
-               err_printf (1, "RUNNING: PTRACE_GETREGS (2)");
+               err_printf (1, "RUNNING: PTRACE_GETREGS: segv");
                exit (1);
             }
             if (ptrace (PTRACE_GETSIGINFO, childPid, NULL, &siginfo) != 0) {
-               err_printf (1, "RUNNING: PTRACE_GETSIGINFO");
+               err_printf (1, "RUNNING: PTRACE_GETSIGINFO: segv");
                exit (1);
             }
             if (((uintptr_t) siginfo.si_addr >= pcs->minAddress)
@@ -640,7 +643,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   childPid,
                   &context);
                if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
-                  err_printf (1, "RUNNING: PTRACE_SETREGS (2)");
+                  err_printf (1, "RUNNING: PTRACE_SETREGS: segv");
                   exit (1);
                }
             } else {
@@ -677,7 +680,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
             // single step procedure finished
-            struct user_regs_struct context;
+            memset (&context, 0, sizeof (struct user_regs_struct));
 
             if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "SINGLE_STEP: PTRACE_GETREGS");
@@ -701,7 +704,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             GetData (childPid, get_xbx (&context), (void *) &context, sizeof (struct user_regs_struct));
             dbg_fprintf (stderr, "SINGLE_STEP: flags word is %x\n", (unsigned) context.eflags);
             if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
-               err_printf (1, "RUNNING: PTRACE_SETREGS");
+               err_printf (1, "SINGLE_STEP: PTRACE_SETREGS");
                exit (1);
             }
             ptrace (PTRACE_CONT, childPid, NULL, NULL);

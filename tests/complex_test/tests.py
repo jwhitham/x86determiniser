@@ -55,7 +55,6 @@ def trace_decoder(in_trace_file, out_trace_file):
 
 def trace_filter(in_trace_file, out_trace_file):
    # Find start marker (CEM 1)
-   start_time = 0
    while True:
       line = in_trace_file.readline()
       if line == "":
@@ -64,10 +63,9 @@ def trace_filter(in_trace_file, out_trace_file):
       fields = line.split()
       if int(fields[0], 16) == 1:
          # start marker
-         start_time = int(fields[1], 16)
          break
 
-   # Find end marker
+   # Copy to end marker (CEM 252) or EOF
    while True:
       line = in_trace_file.readline()
       if line == "":
@@ -81,7 +79,7 @@ def trace_filter(in_trace_file, out_trace_file):
          # end marker
          break
 
-      out_trace_file.write("%08x %08x\n" % (value, current_time - start_time))
+      out_trace_file.write("%08x %08x\n" % (value, current_time))
 
 if __name__ == "__main__":
    if len(sys.argv) != 2:
