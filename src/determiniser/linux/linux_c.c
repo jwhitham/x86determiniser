@@ -14,11 +14,6 @@
 
 static void single_step_handler (struct user_regs_struct * context)
 {
-   // Convert user_regs_struct, which is used by ptrace, to gregset_t, which is used by
-   // signal handlers.
-   // "struct user_regs_struct" -> /usr/include/i386-linux-gnu/sys/user.h
-   // "gregset_t" -> /usr/include/i386-linux-gnu/sys/ucontext.h
-   
    uintptr_t * gregs = (uintptr_t *) context;
 
    // Run single step handler
@@ -27,6 +22,21 @@ static void single_step_handler (struct user_regs_struct * context)
    // Completed the single step handler, go back to normal execution
    // Breakpoint with EAX = 0x102 and EBX = pointer to updated context
    x86_bp_trap (COMPLETED_SINGLE_STEP_HANDLER, gregs);
+}
+
+void x86_make_text_writable (uintptr_t minAddress, uintptr_t maxAddress)
+{
+   if (0 != mprotect ((void *) minAddress, (size_t) (maxAddress - minAddress),
+                     PROT_READ | PROT_WRITE | PROT_EXEC)) {
+      x86_bp_trap (FAILED_MEMORY_PERMISSIONS, NULL);
+   }
+}
+
+void x86_make_text_noexec (uintptr_t minAddress, uintptr_t maxAddress)
+{
+   if (0 != mprotect ((void *) minAddress, (size_t) (maxAddress - minAddress), PROT_NONE)) {
+      x86_bp_trap (FAILED_MEMORY_PERMISSIONS, NULL);
+   }
 }
 
 void X86DeterminiserStartup (CommStruct * pcs)
@@ -40,11 +50,7 @@ void X86DeterminiserStartup (CommStruct * pcs)
    // (On Windows this is determined within X86DeterminiserStartup based on pcs->startAddress,
    // which is not available on Linux as it points into the ld-linux.so.2 library.)
 
-   if (0 != mprotect ((void *) pcs->minAddress, (size_t) (pcs->maxAddress - pcs->minAddress),
-                     PROT_READ | PROT_WRITE | PROT_EXEC)) {
-      x86_bp_trap (FAILED_MEMORY_PERMISSIONS, NULL);
-   }
-
+   x86_make_text_writable (pcs->minAddress, pcs->maxAddress);
    x86_startup (pcs);
 
    // Now ready for the user program

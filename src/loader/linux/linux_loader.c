@@ -210,7 +210,7 @@ static int ReadMaps (pid_t childPid, uintptr_t excludeAddress, CommStruct * pcs)
    FILE * fd;
    char mapFileName[BUFSIZ];
 
-   pcs->minAddress = pcs->maxAddress = NULL;
+   pcs->minAddress = pcs->maxAddress = 0;
    snprintf (mapFileName, sizeof (mapFileName), "/proc/%d/maps", (int) childPid);
    mapFileName[BUFSIZ - 1] = '\0';
 
@@ -251,8 +251,8 @@ static int ReadMaps (pid_t childPid, uintptr_t excludeAddress, CommStruct * pcs)
             // This section is excluded
          } else {
             // Found usable min/max bounds for .text
-            pcs->minAddress = (void *) ((uintptr_t) tmp1);
-            pcs->maxAddress = (void *) ((uintptr_t) tmp2);
+            pcs->minAddress = ((uintptr_t) tmp1);
+            pcs->maxAddress = ((uintptr_t) tmp2);
             fclose (fd);
             return 1;
          }
@@ -436,13 +436,17 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                exit (1);
             }
          }
-         dbg_printf ("INITIAL: minAddress = %p\n", pcs->minAddress);
-         dbg_printf ("INITIAL: maxAddress = %p\n", pcs->maxAddress);
+         dbg_printf ("INITIAL: minAddress = %p\n", (void *) pcs->minAddress);
+         dbg_printf ("INITIAL: maxAddress = %p\n", (void *) pcs->maxAddress);
          fflush (stdout);
 
          // continue to breakpoint
          ptrace (PTRACE_CONT, childPid, NULL, NULL);
          trapCount = 1;
+
+      } else if (WIFSTOPPED(status)) {
+         err_printf (0, "INITIAL: child process stopped unexpectedly (%d)", (int) (WSTOPSIG(status)));
+         exit (1);
 
       } else if (WIFEXITED(status)) {
          err_printf (0, "INITIAL: child process exited immediately");
@@ -497,6 +501,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          // continue to next event (from determiniser)
          ptrace (PTRACE_CONT, childPid, NULL, NULL);
          trapCount = 2;
+
+      } else if (WIFSTOPPED(status)) {
+         err_printf (0, "AWAIT_FIRST_STAGE: child process stopped unexpectedly (%d)", (int) (WSTOPSIG(status)));
+         exit (1);
+
       } else if (WIFEXITED(status)) {
          err_printf (0, "AWAIT_FIRST_STAGE: child process exited immediately");
          exit (1);
@@ -547,6 +556,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             ptrace (PTRACE_CONT, childPid, NULL, NULL);
             trapCount = 3;
          }
+      } else if (WIFSTOPPED(status)) {
+         err_printf (0, "AWAIT_REMOTE_LOADER_BP: child process stopped unexpectedly (%d)", (int) (WSTOPSIG(status)));
+         exit (1);
+
       } else if (WIFEXITED(status)) {
          err_printf (0, "AWAIT_REMOTE_LOADER_BP: child process exited immediately");
          exit (1);
@@ -595,9 +608,57 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             // continue to next event (from determiniser)
             ptrace (PTRACE_CONT, childPid, NULL, NULL);
 
+         } else if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSEGV) {
+            // Stopped by segfault - is this caused by re-entering the text section
+            // after running library code?
+            struct user_regs_struct context;
+            siginfo_t siginfo;
+
+            if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
+               err_printf (1, "RUNNING: PTRACE_GETREGS (2)");
+               exit (1);
+            }
+            if (ptrace (PTRACE_GETSIGINFO, childPid, NULL, &siginfo) != 0) {
+               err_printf (1, "RUNNING: PTRACE_GETSIGINFO");
+               exit (1);
+            }
+            if (((uintptr_t) siginfo.si_addr >= pcs->minAddress)
+            && ((uintptr_t) siginfo.si_addr < pcs->maxAddress)) {
+               // returned to text
+               if (pcs->debugEnabled) {
+                  dbg_printf
+                    ("RUNNING: Re-enter text section at %p, go to handler at %p\n", 
+                     (void *) get_pc (&context), (void *) singleStepProc);
+                  fflush (stdout);
+               }
+               run = 0;
+               StartSingleStepProc
+                 (singleStepProc,
+                  childPid,
+                  &context);
+               if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
+                  err_printf (1, "RUNNING: PTRACE_SETREGS (2)");
+                  exit (1);
+               }
+            } else {
+               err_printf (0, "RUNNING: seg fault for some reason? addr %p PC %p code %d\n",
+                        siginfo.si_addr, (void *) get_pc (&context), siginfo.si_code);
+               exit (1);
+            }
+
+            // continue to next event (from determiniser)
+            ptrace (PTRACE_CONT, childPid, NULL, NULL);
+            
+         } else if (WIFSTOPPED(status)) {
+            err_printf (0, "RUNNING: child process stopped unexpectedly (%d)", (int) (WSTOPSIG(status)));
+            exit (1);
+
          } else if (WIFEXITED(status)) {
             // normal exit
             exit (WEXITSTATUS(status));
+         } else {
+            err_printf (0, "RUNNING: child process waitpid?");
+            exit (1);
          }
       }
 

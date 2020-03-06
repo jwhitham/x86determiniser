@@ -54,7 +54,6 @@ extern uint8_t x86_switch_from_user[];
 extern uint32_t x86_size_of_call_instruction;
 
 void x86_switch_to_user (uintptr_t endpoint);
-void x86_make_text_writable (uintptr_t min_address, uintptr_t max_address);
 void x86_begin_single_step (void);
 int x86_is_branch_taken (uintptr_t flags, uint8_t opcode);
 
@@ -471,6 +470,12 @@ void x86_interpreter (void)
     // here is the main loop
     do {
         pc = x86_other_context[REG_XIP];
+#ifdef DEBUG
+        if (!x86_quiet_mode) {
+            printf ("X86D: loop: %cIP %p\n",
+                REGISTER_PREFIX, (void *) pc);
+        }
+#endif
 
         if ((pc >= min_address) && (pc <= max_address)) {
             // We're in the program. Attempt to free run to end of superblock.
@@ -552,23 +557,18 @@ void x86_interpreter (void)
             }
 
         } else {
-            // We're outside the program, free run until return
-            pc_end = ((uintptr_t *) x86_other_context[REG_XSP])[0];
-            if ((pc_end < min_address) || (pc_end > max_address)) {
-                if (!x86_quiet_mode) {
-                    printf ("exit interpreter by return to %p: stop interpretation\n", (void *) pc);
-                }
-                x86_switch_to_user ((uintptr_t) fake_endpoint);
-                exit (1);
-            }
+            // We're outside the program, free run until we hit code within the program again
+            x86_make_text_noexec (min_address, max_address);
 #ifdef DEBUG
             if (!x86_quiet_mode) {
-               printf ("X86D: free run: %cIP %p %cSP %p end %p\n",
-                   REGISTER_PREFIX, (void *) pc,
-                   REGISTER_PREFIX, (void *) x86_other_context[REG_XSP], (void *) pc_end);
+                printf ("X86D: free run: %cIP %p %cSP %p\n",
+                    REGISTER_PREFIX, (void *) pc,
+                    REGISTER_PREFIX, (void *) x86_other_context[REG_XSP]);
             }
 #endif
-            x86_switch_to_user (pc_end);
+            x86_switch_to_user ((uintptr_t) fake_endpoint);
+            x86_make_text_writable (min_address, max_address);
+            branch_taken (pc_end, x86_other_context[REG_XIP]);
         }
     } while (1);
 }
@@ -719,7 +719,6 @@ void x86_startup (CommStruct * pcs)
 #endif
    ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
 
-   //x86_make_text_writable (min_address, max_address);
    entry_flag = 1;
 
    // save this context and launch the interpreter

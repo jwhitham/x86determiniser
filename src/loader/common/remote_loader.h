@@ -3,6 +3,7 @@
 #define MAX_FILE_NAME_SIZE 1024
 #define MAX_PROC_NAME_SIZE 128
 
+#include <stdint.h>
 #include "x86d_version.h"
 #include "common.h"
 
@@ -24,9 +25,9 @@ typedef struct CommStruct {
    char outTrace[MAX_FILE_NAME_SIZE];
    char branchTrace[MAX_FILE_NAME_SIZE];
    char instTrace[MAX_FILE_NAME_SIZE];
-   void * startAddress;
-   void * minAddress;
-   void * maxAddress;
+   uintptr_t startAddress;
+   uintptr_t minAddress;
+   uintptr_t maxAddress;
    int debugEnabled;
    int remoteDebugEnabled;
 } CommStruct;
