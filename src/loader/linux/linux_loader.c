@@ -303,7 +303,7 @@ static void StartSingleStepProc
    PutData (childPid, get_stack_ptr(context), (const void *) &localCs, sizeof (localCs));
 
    // run single step handler until breakpoint
-   set_pc(context, (uintptr_t) singleStepProc);
+   set_pc (context, (uintptr_t) singleStepProc);
    clear_single_step_flag(context);
 }
 
@@ -621,11 +621,18 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             }
             if (((uintptr_t) siginfo.si_addr >= pcs->minAddress)
             && ((uintptr_t) siginfo.si_addr < pcs->maxAddress)) {
-               // returned to text
+               // The segfault should have been caused by jumping to an address in the
+               // program .text section which has been marked non-executable
                if (pcs->debugEnabled) {
                   dbg_fprintf
                     (stderr, "RUNNING: Re-enter text section at %p, go to handler at %p\n", 
-                     (void *) get_pc (&context), (void *) singleStepProc);
+                     (void *) get_pc (&context),
+                     (void *) singleStepProc);
+               }
+               if (get_pc (&context) != (uintptr_t) siginfo.si_addr) {
+                  err_printf (1, "RUNNING: segfault address %p is not equal to PC %p",
+                              siginfo.si_addr, (void *) get_pc (&context));
+                  exit (1);
                }
                run = 0;
                StartSingleStepProc
