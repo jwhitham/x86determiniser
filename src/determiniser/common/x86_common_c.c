@@ -27,6 +27,7 @@
 
 static uint8_t          entry_flag = 1;
 uint8_t                 x86_quiet_mode = 0;
+uint8_t                 x86_free_run_flag = 0;
 
 static uint8_t          fake_endpoint[16];
 static uintptr_t        min_address = 0;
@@ -464,6 +465,7 @@ void x86_interpreter (void)
 
     // here is the main loop
     do {
+        x86_free_run_flag = 0;
         pc = x86_other_context[REG_XIP];
 #ifdef DEBUG
         if (!x86_quiet_mode) {
@@ -553,6 +555,7 @@ void x86_interpreter (void)
 
         } else {
             // We're outside the program, free run until we hit code within the program again
+            x86_free_run_flag = 1;
             x86_make_text_noexec (min_address, max_address);
 #ifdef DEBUG
             if (!x86_quiet_mode) {
@@ -661,6 +664,7 @@ void x86_startup (CommStruct * pcs)
       x86_bp_trap (FAILED_DOUBLE_LOAD, NULL);
    }
    x86_quiet_mode = !pcs->debugEnabled;
+   x86_free_run_flag = 0;
    min_address = (uintptr_t) pcs->minAddress;
    max_address = (uintptr_t) pcs->maxAddress;
 

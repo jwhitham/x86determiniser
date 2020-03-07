@@ -422,7 +422,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    char        elfHeader[5];
    struct user_regs_struct context;
    uintptr_t   enterSSContext_xss = 0;
-   uintptr_t   remoteLoaderCS = 0;
+   uintptr_t   pcsInChild = 0;
    siginfo_t   siginfo;
 
    memset (&context, 0, sizeof (struct user_regs_struct));
@@ -588,17 +588,17 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          }
 
          // copy CommStruct data to the child: EBX/RBX contains the address
-         remoteLoaderCS = get_xbx (&context);
-         dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: remoteLoaderCS = %p\n", (void *) remoteLoaderCS);
+         pcsInChild = get_xbx (&context);
+         dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: pcsInChild = %p\n", (void *) pcsInChild);
          if (pcs->debugEnabled) {
             dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: running TestGetPutData\n");
-            TestGetPutData (childPid, remoteLoaderCS);
+            TestGetPutData (childPid, pcsInChild);
          }
-         PutData (childPid, remoteLoaderCS, (const void *) pcs, sizeof (CommStruct));
+         PutData (childPid, pcsInChild, (const void *) pcs, sizeof (CommStruct));
 
          // check for correct data transfer
          memset (&check_copy, 0xaa, sizeof (CommStruct));
-         GetData (childPid, remoteLoaderCS, (void *) &check_copy, sizeof (CommStruct));
+         GetData (childPid, pcsInChild, (void *) &check_copy, sizeof (CommStruct));
          if (memcmp (&check_copy, pcs, sizeof (CommStruct) != 0)) {
             err_printf (0, "AWAIT_FIRST_STAGE: readback of CommStruct failed");
             exit (1);
@@ -656,13 +656,13 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                exit (1);
             }
             // EBX confirms location of CommStruct in child process
-            if (get_xbx (&context) != remoteLoaderCS) {
+            if (get_xbx (&context) != pcsInChild) {
                err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EBX value");
                exit (1);
             }
 
             // read back the CommStruct, now updated with singleStepHandlerAddress
-            GetData (childPid, remoteLoaderCS, pcs, sizeof (CommStruct));
+            GetData (childPid, pcsInChild, pcs, sizeof (CommStruct));
 
             // Execution continues
             ptrace (PTRACE_CONT, childPid, NULL, NULL);

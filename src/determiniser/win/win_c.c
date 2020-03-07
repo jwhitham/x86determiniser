@@ -14,6 +14,8 @@
 #include "common.h"
 
 
+extern uint8_t x86_free_run_flag;
+
 static void single_step_handler (PCONTEXT ContextRecord)
 {
    uintptr_t * gregs = (uintptr_t *) ContextRecord;
@@ -80,7 +82,9 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
 
    x86_make_text_writable (pcs->minAddress, pcs->maxAddress);
    x86_startup (pcs);
-   pcs->singleStepHandlerAddress = (uinptr_t) single_step_handler;
+   pcs->singleStepHandlerAddress = (uintptr_t) single_step_handler;
+   pcs->freeRunFlagAddress = (uintptr_t) &x86_free_run_flag;
+   x86_free_run_flag = 0;
 
    // Now ready for the user program
    // Breakpoint with EAX = 0x101 and EBX = pointer to comm struct

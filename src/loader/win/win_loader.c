@@ -151,7 +151,7 @@ static uintptr_t align_64 (uintptr_t v)
 
 
 static void StartSingleStepProc
-  (void * singleStepProc,
+  (void * singleStepHandler,
    HANDLE hProcess,
    PCONTEXT context)
 {
@@ -186,7 +186,7 @@ static void StartSingleStepProc
       NULL);
 
    // run single step handler until breakpoint
-   set_pc(context, (uintptr_t) singleStepProc);
+   set_pc(context, (uintptr_t) singleStepHandler);
    clear_single_step_flag(context);
 }
 
@@ -422,7 +422,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    memset (&debugEvent, 0, sizeof (debugEvent));
    memset (&startContext, 0, sizeof (startContext));
    startupInfo.cb = sizeof (startupInfo);
-   pcs->singleStepProcAddress = 0;
+   pcs->singleStepHandlerAddress = 0;
 
    if (GetModuleFileName(NULL, binFolder, sizeof (binFolder)) != 0) {
       char * finalSlash = strrchr (binFolder, '\\');
@@ -683,7 +683,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // Wait for the breakpoint indicating that the remote loader has finished
    // and the x86 determiniser is ready to run. Get the address of the single step
    // procedure.
-   while (!pcs->singleStepProcAddress) {
+   while (!pcs->singleStepHandlerAddress) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       todo = DBG_CONTINUE;
       if (!rc) {
@@ -715,33 +715,36 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
                      // EAX contains an error code, or 0x101 on success
                      if (get_xax (&context) != COMPLETED_LOADER) {
-                        err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EAX value");
-                        exit (1);
-                     }
-                     // EBX confirms location of CommStruct in child process
-                     if (get_xbx (&context) != (uintptr_t) pcs->myself) {
-                        err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EBX value");
-                        exit (1);
-                     }
+                        // Not completed the loader yet, this is some
+                        // other breakpoint
+                        todo = DefaultHandler
+                           (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+                     } else {
+                        // EBX confirms location of CommStruct in child process
+                        if (get_xbx (&context) != (uintptr_t) pcs->myself) {
+                           err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EBX value");
+                           exit (1);
+                        }
 
-                     // read back the CommStruct, now updated with
-                     // new minAddress/maxAddress and singleStepProcAddress
-                     ReadProcessMemory
-                       (processInformation.hProcess,
-                        pcs->myself,
-                        pcs,
-                        sizeof (CommStruct),
-                        NULL);
+                        // read back the CommStruct, now updated with
+                        // new minAddress/maxAddress and singleStepHandlerAddress
+                        ReadProcessMemory
+                          (processInformation.hProcess,
+                           pcs->myself,
+                           pcs,
+                           sizeof (CommStruct),
+                           NULL);
 
-                     // REMOTE_LOADER_BP STAGE
-                     // "reboot" into the original context and continue, initially
-                     // single stepping
-                     memcpy (&context, &startContext, sizeof (CONTEXT));
-                     set_single_step_flag (&context);
-                     rc = SetThreadContext (processInformation.hThread, &context);
-                     if (!rc) {
-                        err_printf (1, "REMOTE_LOADER_BP: unable to SetThreadContext");
-                        exit (1);
+                        // REMOTE_LOADER_BP STAGE
+                        // "reboot" into the original context and continue, initially
+                        // single stepping
+                        memcpy (&context, &startContext, sizeof (CONTEXT));
+                        set_single_step_flag (&context);
+                        rc = SetThreadContext (processInformation.hThread, &context);
+                        if (!rc) {
+                           err_printf (1, "REMOTE_LOADER_BP: unable to SetThreadContext");
+                           exit (1);
+                        }
                      }
 
                      break;
@@ -807,10 +810,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         // Reached single step; run single step handler.
                         dbg_fprintf
                           (stderr, "RUNNING: Single step at %p, go to handler at %p\n", 
-                           (void *) get_pc (&context), (void *) pcs->singleStepProcAddress);
+                           (void *) get_pc (&context), (void *) pcs->singleStepHandlerAddress);
                         run = FALSE;
                         StartSingleStepProc
-                          ((void *) pcs->singleStepProcAddress,
+                          ((void *) pcs->singleStepHandlerAddress,
                            processInformation.hProcess,
                            &context);
                         context.ContextFlags = CONTEXT_FULL;
@@ -822,22 +825,38 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
                         break;
                      case STATUS_ACCESS_VIOLATION:
+                        // The segfault may have been caused by jumping to an address in the
+                        // program .text section which has been marked non-executable: this
+                        // happens in "free run" mode.
                         address = (uintptr_t) debugEvent.u.Exception.ExceptionRecord.ExceptionAddress;
                         if (((uintptr_t) address >= pcs->minAddress)
                         && ((uintptr_t) address < pcs->maxAddress)
                         && (get_pc (&context) == (uintptr_t) address)) {
-                           // The segfault should have been caused by jumping to an address in the
-                           // program .text section which has been marked non-executable
-                           dbg_fprintf
-                             (stderr, "RUNNING: Re-entry to text at %p, go to handler at %p\n", 
-                              (void *) get_pc (&context), (void *) pcs->singleStepProcAddress);
-                           run = FALSE;
-                           StartSingleStepProc
-                             ((void *) pcs->singleStepProcAddress,
-                              processInformation.hProcess,
-                              &context);
-                           context.ContextFlags = CONTEXT_FULL;
-                           SetThreadContext (processInformation.hThread, &context);
+
+                           // We know that the segfault happened in the .text section at the PC address
+                           // so it's probably a result of finishing "free run"... but let's make sure!
+                           uint8_t free_run_flag = 0;
+                           ReadProcessMemory
+                             (processInformation.hProcess,
+                              (void *) pcs->freeRunFlagAddress,
+                              &free_run_flag,
+                              sizeof (uint8_t),
+                              NULL);
+
+                           if (free_run_flag) {
+                              dbg_fprintf
+                                (stderr, "RUNNING: Re-entry to text at %p, go to handler at %p\n", 
+                                 (void *) get_pc (&context), (void *) pcs->singleStepHandlerAddress);
+                              run = FALSE;
+                              StartSingleStepProc
+                                ((void *) pcs->singleStepHandlerAddress,
+                                 processInformation.hProcess,
+                                 &context);
+                              context.ContextFlags = CONTEXT_FULL;
+                              SetThreadContext (processInformation.hThread, &context);
+                           } else {
+                              todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
+                           }
                         } else {
                            todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
                         }
