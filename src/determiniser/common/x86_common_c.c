@@ -495,8 +495,9 @@ void x86_interpreter (void)
                 x86_switch_to_user (pc_end);
                 pc = (uintptr_t) x86_other_context[REG_XIP];
                 if (pc_end != pc) {
-                    fprintf (stderr, "Unexpected PC at end of superblock: %p\n",
-                        (void *) pc);
+                    fprintf (stderr, "Unexpected PC %p at end of superblock starting at %p ending at %p\n",
+                        (void *) pc, (void *) (pc_end - si->size), (void *) pc_end);
+                    fflush (stderr);
                     x86_bp_trap (FAILED_SUPERBLOCK_DECODE_ERR, NULL);
                 }
             }

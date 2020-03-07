@@ -720,6 +720,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      // EBX contains the address of the single step handler
                      singleStepProc = (void *) get_xbx (&context);
 
+                     // read back the CommStruct, now updated with new minAddress/maxAddress
+                     ReadProcessMemory
+                       (processInformation.hProcess,
+                        pcs->myself,
+                        pcs,
+                        sizeof (CommStruct),
+                        NULL);
+
                      // REMOTE_LOADER_BP STAGE
                      // "reboot" into the original context and continue, initially
                      // single stepping
@@ -781,6 +789,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                if ((debugEvent.dwProcessId == processInformation.dwProcessId)
                && (debugEvent.dwThreadId == processInformation.dwThreadId)) {
                   CONTEXT context;
+                  uintptr_t address;
+
                   context.ContextFlags = CONTEXT_FULL;
                   rc = GetThreadContext (processInformation.hThread, &context);
                   if (!rc) {
@@ -790,11 +800,9 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   switch (debugEvent.u.Exception.ExceptionRecord.ExceptionCode) {
                      case STATUS_SINGLE_STEP:
                         // Reached single step; run single step handler.
-                        if (pcs->debugEnabled) {
-                           dbg_fprintf
-                             (stderr, "RUNNING: Single step at %p, go to handler at %p\n", 
-                              (void *) get_pc (&context), (void *) singleStepProc);
-                        }
+                        dbg_fprintf
+                          (stderr, "RUNNING: Single step at %p, go to handler at %p\n", 
+                           (void *) get_pc (&context), (void *) singleStepProc);
                         run = FALSE;
                         StartSingleStepProc
                           (singleStepProc,
@@ -807,6 +815,27 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         dbg_fprintf (stderr, "RUNNING: breakpoint at %p\n",
                               (void *) get_pc (&context));
                         todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
+                        break;
+                     case STATUS_ACCESS_VIOLATION:
+                        address = (uintptr_t) debugEvent.u.Exception.ExceptionRecord.ExceptionAddress;
+                        if (((uintptr_t) address >= pcs->minAddress)
+                        && ((uintptr_t) address < pcs->maxAddress)
+                        && (get_pc (&context) == (uintptr_t) address)) {
+                           // The segfault should have been caused by jumping to an address in the
+                           // program .text section which has been marked non-executable
+                           dbg_fprintf
+                             (stderr, "RUNNING: Re-entry to text at %p, go to handler at %p\n", 
+                              (void *) get_pc (&context), (void *) singleStepProc);
+                           run = FALSE;
+                           StartSingleStepProc
+                             (singleStepProc,
+                              processInformation.hProcess,
+                              &context);
+                           context.ContextFlags = CONTEXT_FULL;
+                           SetThreadContext (processInformation.hThread, &context);
+                        } else {
+                           todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
+                        }
                         break;
                      default:
                         todo = DefaultHandler (pcs, "RUNNING", &debugEvent, &processInformation);
