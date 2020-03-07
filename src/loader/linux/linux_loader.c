@@ -336,6 +336,46 @@ static void StartSingleStepProc
    clear_single_step_flag(context);
 }
 
+// Handle a signal or other event from the child process which is not related
+// to x86determiniser's operation
+static void DefaultHandler (pid_t childPid, int status, const char * state)
+{
+   if (WIFSTOPPED(status)) {
+      // This means a signal was received, other than the one we are using (SIGTRAP).
+      // It's normal for the user program to receive signals.
+      // Pass them onwards to the program.
+      ptrace (PTRACE_CONT, childPid, NULL, (void *) WSTOPSIG(status));
+
+   } else if (WIFEXITED(status)) {
+      // normal exit
+      exit (WEXITSTATUS(status));
+
+   } else if (WIFSIGNALED(status)) {
+      // terminated by a signal
+      switch (WTERMSIG(status)) {
+         case SIGILL:
+            err_printf (0, "Illegal instruction");
+            exit (1);
+            break;
+         case SIGSEGV:
+            err_printf (0, "Segmentation fault");
+            exit (1);
+            break;
+         case SIGFPE:
+            err_printf (0, "Divide by zero");
+            exit (1);
+            break;
+         default:
+            // pass through
+            err_printf (0, "%s: terminated by signal %d\n",
+                     state, WTERMSIG(status));
+            exit (1);
+      }
+   } else {
+      err_printf (0, "%s: waitpid returned for unknown reason: status = 0x%x\n", state, status);
+      exit (1);
+   }
+}
 
 
 // Entry point from main
@@ -638,9 +678,12 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   err_printf (1, "RUNNING: PTRACE_SETREGS: single step");
                   exit (1);
                }
+               // continue to next event (from determiniser)
+               ptrace (PTRACE_CONT, childPid, NULL, NULL);
+            } else {
+               // A breakpoint: ignore it
+               ptrace (PTRACE_CONT, childPid, NULL, NULL);
             }
-            // continue to next event (from determiniser)
-            ptrace (PTRACE_CONT, childPid, NULL, NULL);
 
          } else if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSEGV) {
             // Stopped by segfault - is this caused by re-entering the text section
@@ -681,25 +724,16 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   err_printf (1, "RUNNING: PTRACE_SETREGS: segv");
                   exit (1);
                }
+               // eat this signal and continue to next event (from determiniser)
+               ptrace (PTRACE_CONT, childPid, NULL, NULL);
+           
             } else {
-               err_printf (0, "RUNNING: seg fault for some reason? addr %p PC %p code %d\n",
-                        siginfo.si_addr, (void *) get_pc (&context), siginfo.si_code);
-               exit (1);
+               // allow the signal to reach the program
+               DefaultHandler (childPid, status, "RUNNING");
             }
 
-            // continue to next event (from determiniser)
-            ptrace (PTRACE_CONT, childPid, NULL, NULL);
-            
-         } else if (WIFSTOPPED(status)) {
-            err_printf (0, "RUNNING: child process stopped unexpectedly (%d)", (int) (WSTOPSIG(status)));
-            exit (1);
-
-         } else if (WIFEXITED(status)) {
-            // normal exit
-            exit (WEXITSTATUS(status));
          } else {
-            err_printf (0, "RUNNING: child process waitpid?");
-            exit (1);
+            DefaultHandler (childPid, status, "RUNNING");
          }
       }
 
@@ -753,10 +787,9 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             }
             ptrace (PTRACE_CONT, childPid, NULL, NULL);
             run = 1;
-         } else if (WIFEXITED(status)) {
-            err_printf (1, "SINGLE_STEP: exit in single step handler?");
-            // normal exit
-            exit (WEXITSTATUS(status));
+
+         } else {
+            DefaultHandler (childPid, status, "SINGLE_STEP");
          }
       }
    }

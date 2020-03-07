@@ -218,12 +218,18 @@ def check_error():
          raise Exception("Did not see expected error message for non-executable file")
 
    name = os.path.abspath("ud" + SUFFIX)
-   for i in range(1, 4):
+   for i in [1, 2]:
       s = sub_check_error([name, str(i)])
       if not s.startswith("Illegal instruction"):
          raise Exception("Did not see expected error message for illegal instruction i = %d" % i)
 
-   for i in range(4, 6):
+   for i in [3]:
+      s = sub_check_error([name, str(i)])
+      if ((not s.startswith("Illegal instruction"))      # Windows
+      and (not s.startswith("Segmentation fault"))):     # Linux
+         raise Exception("Did not see expected error message for i = %d" % i)
+
+   for i in [4, 5]:
       s = sub_check_error([name, str(i)])
       if not s.startswith("Segmentation fault"):
          raise Exception("Did not see expected error message for segfault i = %d" % i)
