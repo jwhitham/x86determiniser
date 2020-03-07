@@ -128,6 +128,35 @@ static uintptr_t align_64 (uintptr_t v)
    return v & ~63;
 }
 
+static void DebugUserRegs (struct user_regs_struct * context)
+{
+   size_t i;
+   for (i = 0; i < sizeof (struct user_regs_struct); i += 4) {
+      if ((i % 16) == 0) {
+         fprintf (stderr, "\nraw data:  ");
+      }
+      fprintf (stderr, "  %08x", ((uint32_t *) &context)[i / 4]);
+   }
+   fprintf (stderr, "\n");
+   fprintf (stderr, "ebx = %08x  ", (uint32_t) context->ebx);
+   fprintf (stderr, "ecx = %08x  ", (uint32_t) context->ecx);
+   fprintf (stderr, "edx = %08x  ", (uint32_t) context->edx);
+   fprintf (stderr, "esi = %08x\n", (uint32_t) context->esi);
+   fprintf (stderr, "edi = %08x  ", (uint32_t) context->edi);
+   fprintf (stderr, "ebp = %08x  ", (uint32_t) context->ebp);
+   fprintf (stderr, "eax = %08x  ", (uint32_t) context->eax);
+   fprintf (stderr, "xds = %08x\n", (uint32_t) context->xds);
+   fprintf (stderr, "xes = %08x  ", (uint32_t) context->xes);
+   fprintf (stderr, "xfs = %08x  ", (uint32_t) context->xfs);
+   fprintf (stderr, "xgs = %08x  ", (uint32_t) context->xgs);
+   fprintf (stderr, "0ax = %08x\n", (uint32_t) context->orig_eax);
+   fprintf (stderr, "eip = %08x  ", (uint32_t) context->eip);
+   fprintf (stderr, "xcs = %08x  ", (uint32_t) context->xcs);
+   fprintf (stderr, "efl = %08x  ", (uint32_t) context->eflags);
+   fprintf (stderr, "esp = %08x\n", (uint32_t) context->esp);
+   fprintf (stderr, "xss = %08x\n", (uint32_t) context->xss);
+}
+
 // parent receives data from child
 static void GetData
   (pid_t childPid,
@@ -323,7 +352,13 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    int         elfType = 0;
    char        elfHeader[5];
    struct user_regs_struct context;
+   struct user_regs_struct enterSSContext;
    siginfo_t   siginfo;
+
+   memset (&context, 0, sizeof (struct user_regs_struct));
+   memset (&enterSSContext, 0, sizeof (struct user_regs_struct));
+   memset (&siginfo, 0, sizeof (siginfo_t));
+   memset (&elfHeader, 0, sizeof (elfHeader));
 
    (void) argc;
 
@@ -357,16 +392,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       err_printf (1, "program '%s' not found", argv[0]);
       exit (1);
    }
-   if (fread (elfHeader, 1, sizeof (elfHeader), testFd) != sizeof (elfHeader)) {
-      err_printf (1, "program '%s' not readable", argv[0]);
-      exit (1);
-   }
+   // read errors here will be detected by memcmp below:
+   (void) fread (elfHeader, 1, sizeof (elfHeader), testFd);
    fclose (testFd);
    dbg_fprintf (stderr, "INITIAL: program is '%s'\n", argv[0]);
 
    if (memcmp (elfHeader, "\x7f" "ELF", 4) != 0) {
-      err_printf (0, "program '%s' must be an ELF executable", argv[0]);
-      exit (1);
+      // make ELF header check report an error below:
+      elfHeader[4] = '\0';
    }
 
    // an ELF header is fairly complex but apparently there is an easy method to determine 32/64 bit:
@@ -596,6 +629,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      (void *) get_pc (&context), (void *) singleStepProc);
                }
                run = 0;
+               memcpy (&enterSSContext, &context, sizeof (struct user_regs_struct));
                StartSingleStepProc
                  (singleStepProc,
                   childPid,
@@ -638,6 +672,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   exit (1);
                }
                run = 0;
+               memcpy (&enterSSContext, &context, sizeof (struct user_regs_struct));
                StartSingleStepProc
                  (singleStepProc,
                   childPid,
@@ -680,12 +715,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
             // single step procedure finished
+            struct user_regs_struct c2;
             memset (&context, 0, sizeof (struct user_regs_struct));
 
             if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "SINGLE_STEP: PTRACE_GETREGS");
                exit (1);
             }
+            memcpy (&c2, &context, sizeof (struct user_regs_struct));
 
             if (IsSingleStep (childPid, &context)) {
                err_printf (1, "SINGLE_STEP: single-stepping in single step handler?");
@@ -703,8 +740,15 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             dbg_fprintf (stderr, "SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
             GetData (childPid, get_xbx (&context), (void *) &context, sizeof (struct user_regs_struct));
             dbg_fprintf (stderr, "SINGLE_STEP: flags word is %x\n", (unsigned) context.eflags);
+            context.xss = enterSSContext.xss;
             if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "SINGLE_STEP: PTRACE_SETREGS");
+               fprintf (stderr, "enter SS (COMPLETED_SINGLE_STEP_HANDLER)\n");
+               DebugUserRegs (&enterSSContext);
+               fprintf (stderr, "before GetData (COMPLETED_SINGLE_STEP_HANDLER)\n");
+               DebugUserRegs (&c2);
+               fprintf (stderr, "after GetData (COMPLETED_SINGLE_STEP_HANDLER)\n");
+               DebugUserRegs (&context);
                exit (1);
             }
             ptrace (PTRACE_CONT, childPid, NULL, NULL);

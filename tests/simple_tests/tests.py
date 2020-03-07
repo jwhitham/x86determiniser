@@ -28,7 +28,7 @@ def args_test(use_loader):
 
    def sub_args_test(args_list):
       loader = []
-      args_list = ["args" + SUFFIX] + args_list
+      args_list = [os.path.abspath("args" + SUFFIX)] + args_list
       if use_loader:
          loader = [LOADER, "--inst-trace", TMP_FILE_2, "--"]
       clean()
@@ -137,6 +137,8 @@ def help_test(args, unknown_option):
       for line in open(TMP_FILE_2, "rt"):
          if line.find("unknown option") > 0:
             ok = True
+         if line.find("invalid option") > 0:
+            ok = True
       
       if not ok:
          raise Exception("No unknown option message printed for %s" % args)
@@ -147,6 +149,7 @@ def check_error():
    def sub_check_error(args):
       fd = open(TMP_FILE, "wt")
       fd2 = open(TMP_FILE_2, "wt")
+      print ("running: %s" % " ".join([LOADER] + args))
       rc = subprocess.call([LOADER] + args, stdout = fd, stderr = fd2)
       fd.close()
       fd2.close()
@@ -164,33 +167,57 @@ def check_error():
 
    name = "this program does not exist.exe"
    s = sub_check_error([name])
-   if not (s.find(name) and (s.find("cannot find the file") > 0)):
-      raise Exception("Did not see expected error message for file not found")
+   if not (s.find(name) and
+         ((s.find("cannot find the file") > 0)     # Windows
+       or (s.find("No such file or dire") > 0))):  # Linux
+
+      raise Exception("Did not see expected error message for file not found, "
+               "got '%s' instead" % s)
 
    name = "c:\\this path does not exist\\this program does not exist.exe"
    s = sub_check_error([name])
-   if not (s.find(name) and (s.find("cannot find the path") > 0)):
-      raise Exception("Did not see expected error message for path not found")
+   if not (s.find(name) and
+         ((s.find("cannot find the path") > 0)     # Windows
+       or (s.find("No such file or dire") > 0))):  # Linux
+      raise Exception("Did not see expected error message for path not found, "
+               "got '%s' instead" % s)
 
-   for name in ["c:\\this path does not exist\\some file.txt", "."]:
-      for option in ["--branch-trace", "--inst-trace", "--out-trace"]:
-         s = sub_check_error([option, name, "args" + SUFFIX])
-         if not ((s.find("Failed to open") > 0) and (s.find(option) > 0)):
-            raise Exception("Did not see expected error message for %s" % option)
+   if PLATFORM.startswith("win"):
+      # Windows-specific tests
+      for name in ["c:\\this path does not exist\\some file.txt", "."]:
+         for option in ["--branch-trace", "--inst-trace", "--out-trace"]:
+            s = sub_check_error([option, name, "args" + SUFFIX])
+            if not ((s.find("Failed to open") > 0) and (s.find(option) > 0)):
+               raise Exception("Did not see expected error message for %s, "
+                  "got '%s' instead" % (option, s))
 
-   name = TMP_EXE_FILE
-   open(name, "wb").write("")
-   s = sub_check_error([name])
-   if not (s.find(name) and (s.find("not a valid Win32 application") > 0)):
-      raise Exception("Did not see expected error message for non-executable file")
+      name = os.path.abspath(TMP_EXE_FILE)
+      open(name, "wb").write("")
+      s = sub_check_error([name])
+      if not (s.find(name) and (s.find("not a valid Win32 application") > 0)):
+         raise Exception("Did not see expected error message for non-executable file")
 
-   name = TMP_EXE_FILE
-   open(name, "wb").write("not an executable file")
-   s = sub_check_error([name])
-   if not (s.find(name) and (s.find("is not compatible") > 0)):
-      raise Exception("Did not see expected error message for non-executable file")
+      name = os.path.abspath(TMP_EXE_FILE)
+      open(name, "wb").write("not an executable file")
+      s = sub_check_error([name])
+      if not (s.find(name) and (s.find("is not compatible") > 0)):
+         raise Exception("Did not see expected error message for non-executable file")
+   else:
+      # Linux-specific tests
+      for name in ["/this path does not exist/some file.txt", "."]:
+         for option in ["--branch-trace", "--inst-trace", "--out-trace"]:
+            s = sub_check_error([option, name, "args" + SUFFIX])
+            if not ((s.find("Failed to open") > 0) and (s.find(option) > 0)):
+               raise Exception("Did not see expected error message for %s, "
+                  "got '%s' instead" % (option, s))
 
-   name = "ud" + SUFFIX
+      name = os.path.abspath(TMP_EXE_FILE)
+      open(name, "wb").write("")
+      s = sub_check_error([name])
+      if not (s.find(name) and (s.find("must be an x86 ELF executable") > 0)):
+         raise Exception("Did not see expected error message for non-executable file")
+
+   name = os.path.abspath("ud" + SUFFIX)
    for i in range(1, 4):
       s = sub_check_error([name, str(i)])
       if not s.startswith("Illegal instruction"):
@@ -247,9 +274,9 @@ if __name__ == "__main__":
    SUFFIX += EXE
 
    if PLATFORM.endswith("32"):
-      LOADER = os.path.join(ROOT, "bin", "x86determiniser" + EXE)
+      LOADER = os.path.normpath(os.path.join(ROOT, "bin", "x86determiniser" + EXE))
    else:
-      LOADER = os.path.join(ROOT, "bin", "x64determiniser" + EXE)
+      LOADER = os.path.normpath(os.path.join(ROOT, "bin", "x64determiniser" + EXE))
 
    print ("PLATFORM = " + PLATFORM)
    print ("LOADER = " + LOADER)
