@@ -192,11 +192,11 @@ static void StartSingleStepProc
 
 void StartRemoteLoader
   (CommStruct * pcs,
-   size_t getProcAddressOffset,
-   size_t loadLibraryOffset,
-   size_t getLastErrorOffset,
+   uintptr_t getProcAddressOffset,
+   uintptr_t loadLibraryOffset,
+   uintptr_t getLastErrorOffset,
    void * kernel32Base,
-   void * startAddress,
+   uintptr_t startAddress,
    HANDLE hProcess,
    const char * binFolder,
    PCONTEXT context)
@@ -407,9 +407,9 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    SIZE_T len;
    CONTEXT startContext;
    //CONTEXT stepContext;
-   size_t getProcAddressOffset = 0;
-   size_t loadLibraryOffset = 0;
-   size_t getLastErrorOffset = 0;
+   uintptr_t getProcAddressOffset = 0;
+   uintptr_t loadLibraryOffset = 0;
+   uintptr_t getLastErrorOffset = 0;
    LPVOID kernel32Base = NULL;
    LPVOID startAddress = NULL;
    LPVOID singleStepProc = NULL;
@@ -582,7 +582,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         loadLibraryOffset,
                         getLastErrorOffset,
                         kernel32Base,
-                        (void *) startAddress,
+                        (uintptr_t) startAddress,
                         processInformation.hProcess,
                         binFolder,
                         &context);
@@ -791,8 +791,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      case STATUS_SINGLE_STEP:
                         // Reached single step; run single step handler.
                         if (pcs->debugEnabled) {
-                           dbg_printf
-                             ("RUNNING: Single step at %p, go to handler at %p\n", 
+                           dbg_fprintf
+                             (stderr, "RUNNING: Single step at %p, go to handler at %p\n", 
                               (void *) get_pc (&context), (void *) singleStepProc);
                         }
                         run = FALSE;
