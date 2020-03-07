@@ -412,7 +412,6 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    uintptr_t getLastErrorOffset = 0;
    LPVOID kernel32Base = NULL;
    LPVOID startAddress = NULL;
-   LPVOID singleStepProc = NULL;
    char startInstruction = 0;
    char *commandLine;
    char binFolder[BUFSIZ];
@@ -423,6 +422,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    memset (&debugEvent, 0, sizeof (debugEvent));
    memset (&startContext, 0, sizeof (startContext));
    startupInfo.cb = sizeof (startupInfo);
+   pcs->singleStepProcAddress = 0;
 
    if (GetModuleFileName(NULL, binFolder, sizeof (binFolder)) != 0) {
       char * finalSlash = strrchr (binFolder, '\\');
@@ -683,7 +683,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    // Wait for the breakpoint indicating that the remote loader has finished
    // and the x86 determiniser is ready to run. Get the address of the single step
    // procedure.
-   while (!singleStepProc) {
+   while (!pcs->singleStepProcAddress) {
       rc = WaitForDebugEvent (&debugEvent, INFINITE);
       todo = DBG_CONTINUE;
       if (!rc) {
@@ -715,12 +715,17 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
                      // EAX contains an error code, or 0x101 on success
                      if (get_xax (&context) != COMPLETED_LOADER) {
-                        todo = DefaultHandler (pcs, "AWAIT_REMOTE_LOADER_BP", &debugEvent, &processInformation);
+                        err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EAX value");
+                        exit (1);
                      }
-                     // EBX contains the address of the single step handler
-                     singleStepProc = (void *) get_xbx (&context);
+                     // EBX confirms location of CommStruct in child process
+                     if (get_xbx (&context) != (uintptr_t) pcs->myself) {
+                        err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EBX value");
+                        exit (1);
+                     }
 
-                     // read back the CommStruct, now updated with new minAddress/maxAddress
+                     // read back the CommStruct, now updated with
+                     // new minAddress/maxAddress and singleStepProcAddress
                      ReadProcessMemory
                        (processInformation.hProcess,
                         pcs->myself,
@@ -802,10 +807,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                         // Reached single step; run single step handler.
                         dbg_fprintf
                           (stderr, "RUNNING: Single step at %p, go to handler at %p\n", 
-                           (void *) get_pc (&context), (void *) singleStepProc);
+                           (void *) get_pc (&context), (void *) pcs->singleStepProcAddress);
                         run = FALSE;
                         StartSingleStepProc
-                          (singleStepProc,
+                          ((void *) pcs->singleStepProcAddress,
                            processInformation.hProcess,
                            &context);
                         context.ContextFlags = CONTEXT_FULL;
@@ -825,10 +830,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                            // program .text section which has been marked non-executable
                            dbg_fprintf
                              (stderr, "RUNNING: Re-entry to text at %p, go to handler at %p\n", 
-                              (void *) get_pc (&context), (void *) singleStepProc);
+                              (void *) get_pc (&context), (void *) pcs->singleStepProcAddress);
                            run = FALSE;
                            StartSingleStepProc
-                             (singleStepProc,
+                             ((void *) pcs->singleStepProcAddress,
                               processInformation.hProcess,
                               &context);
                            context.ContextFlags = CONTEXT_FULL;

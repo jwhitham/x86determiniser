@@ -80,10 +80,11 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
 
    x86_make_text_writable (pcs->minAddress, pcs->maxAddress);
    x86_startup (pcs);
+   pcs->singleStepHandlerAddress = (uinptr_t) single_step_handler;
 
    // Now ready for the user program
-   // Breakpoint with EAX = 0x101 and EBX = pointer to single_step_handler
-   x86_bp_trap (COMPLETED_LOADER, single_step_handler);
+   // Breakpoint with EAX = 0x101 and EBX = pointer to comm struct
+   x86_bp_trap (COMPLETED_LOADER, pcs);
 }
 
 

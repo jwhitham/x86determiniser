@@ -28,6 +28,7 @@ typedef struct CommStruct {
    uintptr_t startAddress;
    uintptr_t minAddress;
    uintptr_t maxAddress;
+   uintptr_t singleStepHandlerAddress;
    int debugEnabled;
    int remoteDebugEnabled;
 } CommStruct;

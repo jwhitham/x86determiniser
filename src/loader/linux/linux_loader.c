@@ -412,7 +412,6 @@ static void TestGetPutData (pid_t childPid, uintptr_t base)
 // Args already parsed into CommStruct
 int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 {
-   uintptr_t   singleStepProc = 0;
    unsigned    trapCount = 0;
    pid_t       childPid = -1;
    char        binFolder[BUFSIZ];
@@ -423,11 +422,13 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    char        elfHeader[5];
    struct user_regs_struct context;
    uintptr_t   enterSSContext_xss = 0;
+   uintptr_t   remoteLoaderCS = 0;
    siginfo_t   siginfo;
 
    memset (&context, 0, sizeof (struct user_regs_struct));
    memset (&siginfo, 0, sizeof (siginfo_t));
    memset (&elfHeader, 0, sizeof (elfHeader));
+   pcs->singleStepHandlerAddress = 0;
 
    (void) argc;
 
@@ -569,7 +570,6 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
          // child process stopped - this should be the second stop, in RemoteLoader
          // The eax/rax register should contain the address of CommStruct in the child process
-         uintptr_t remoteLoaderCS;
          CommStruct check_copy;
 
          memset (&context, 0, sizeof (struct user_regs_struct));
@@ -655,9 +655,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                err_printf (get_xax (&context), "AWAIT_REMOTE_LOADER_BP");
                exit (1);
             }
+            // EBX confirms location of CommStruct in child process
+            if (get_xbx (&context) != remoteLoaderCS) {
+               err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EBX value");
+               exit (1);
+            }
 
-            // EBX contains the address of the single step handler
-            singleStepProc = get_xbx (&context);
+            // read back the CommStruct, now updated with singleStepHandlerAddress
+            GetData (childPid, remoteLoaderCS, pcs, sizeof (CommStruct));
 
             // Execution continues
             ptrace (PTRACE_CONT, childPid, NULL, NULL);
@@ -699,12 +704,12 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                if (pcs->debugEnabled) {
                   dbg_fprintf
                     (stderr, "RUNNING: Single step at %p, go to handler at %p\n", 
-                     (void *) get_pc (&context), (void *) singleStepProc);
+                     (void *) get_pc (&context), (void *) pcs->singleStepHandlerAddress);
                }
                run = 0;
                enterSSContext_xss = context.xss;
                StartSingleStepProc
-                 (singleStepProc,
+                 (pcs->singleStepHandlerAddress,
                   childPid,
                   &context);
                if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
@@ -741,12 +746,12 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   dbg_fprintf
                     (stderr, "RUNNING: Re-enter text section at %p, go to handler at %p\n", 
                      (void *) get_pc (&context),
-                     (void *) singleStepProc);
+                     (void *) pcs->singleStepHandlerAddress);
                }
                run = 0;
                enterSSContext_xss = context.xss;
                StartSingleStepProc
-                 (singleStepProc,
+                 (pcs->singleStepHandlerAddress,
                   childPid,
                   &context);
                if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
