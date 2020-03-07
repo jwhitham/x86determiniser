@@ -128,34 +128,6 @@ static uintptr_t align_64 (uintptr_t v)
    return v & ~63;
 }
 
-static void DebugUserRegs (struct user_regs_struct * context)
-{
-   size_t i;
-   for (i = 0; i < sizeof (struct user_regs_struct); i += 4) {
-      if ((i % 16) == 0) {
-         fprintf (stderr, "\nraw data:  ");
-      }
-      fprintf (stderr, "  %08x", ((uint32_t *) &context)[i / 4]);
-   }
-   fprintf (stderr, "\n");
-   fprintf (stderr, "ebx = %08x  ", (uint32_t) context->ebx);
-   fprintf (stderr, "ecx = %08x  ", (uint32_t) context->ecx);
-   fprintf (stderr, "edx = %08x  ", (uint32_t) context->edx);
-   fprintf (stderr, "esi = %08x\n", (uint32_t) context->esi);
-   fprintf (stderr, "edi = %08x  ", (uint32_t) context->edi);
-   fprintf (stderr, "ebp = %08x  ", (uint32_t) context->ebp);
-   fprintf (stderr, "eax = %08x  ", (uint32_t) context->eax);
-   fprintf (stderr, "xds = %08x\n", (uint32_t) context->xds);
-   fprintf (stderr, "xes = %08x  ", (uint32_t) context->xes);
-   fprintf (stderr, "xfs = %08x  ", (uint32_t) context->xfs);
-   fprintf (stderr, "xgs = %08x  ", (uint32_t) context->xgs);
-   fprintf (stderr, "0ax = %08x\n", (uint32_t) context->orig_eax);
-   fprintf (stderr, "eip = %08x  ", (uint32_t) context->eip);
-   fprintf (stderr, "xcs = %08x  ", (uint32_t) context->xcs);
-   fprintf (stderr, "efl = %08x  ", (uint32_t) context->eflags);
-   fprintf (stderr, "esp = %08x\n", (uint32_t) context->esp);
-   fprintf (stderr, "xss = %08x\n", (uint32_t) context->xss);
-}
 
 // parent receives data from child
 static void GetData
@@ -377,6 +349,64 @@ static void DefaultHandler (pid_t childPid, int status, const char * state)
    }
 }
 
+// Test the crucial GetData and PutData functions for correctness
+// by reading/writing various data sizes
+static void TestGetPutData (pid_t childPid, uintptr_t base)
+{
+   const size_t max_size = 24;
+   uint8_t outgoing[max_size];
+   uint8_t incoming[max_size + 1];
+   uint8_t expected[max_size];
+   uint8_t current_data = 1;
+   size_t offset, size, i;
+
+   // reset all
+   memset (expected, 0x00, max_size);
+   memset (outgoing, 0x00, max_size);
+   memset (incoming, 0x00, max_size + 1);
+   PutData (childPid, base, outgoing, max_size);
+
+   for (offset = 0; offset < 12; offset++) {
+      for (size = 1; size < (max_size - offset); size++) {
+         // generate test data
+         memset (outgoing, 0xee, max_size);
+         for (i = 0; i < size; i++) {
+            outgoing[i] = current_data;
+            current_data++;
+         }
+
+         // Write test
+         PutData (childPid, base + offset, outgoing, size);
+
+         // Expected effect of this write
+         memcpy (&expected[offset], outgoing, size);
+
+         // Readback 1: readback with offset
+         memset (incoming, 0xaa, max_size + 1);
+         GetData (childPid, base + offset, incoming, size);
+         if (memcmp (incoming, outgoing, size) != 0) {
+            err_printf (0, "readback 1a test failed: read something unexpected back");
+            exit (1);
+         }
+         if (incoming[size] != 0xaa) {
+            err_printf (0, "readback 1b test failed: GetData overwrote sentinel value");
+            exit (1);
+         }
+
+         // Readback 2: readback without offset (check the entire expected area)
+         memset (incoming, 0xaa, max_size + 1);
+         GetData (childPid, base, incoming, max_size);
+         if (memcmp (incoming, expected, max_size) != 0) {
+            err_printf (0, "readback 2a test failed: memory area changed in an unexpected way");
+            exit (1);
+         }
+         if (incoming[max_size] != 0xaa) {
+            err_printf (0, "readback 2b test failed: GetData overwrote sentinel value");
+            exit (1);
+         }
+      }
+   }
+}
 
 // Entry point from main
 // Args already parsed into CommStruct
@@ -392,11 +422,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    int         elfType = 0;
    char        elfHeader[5];
    struct user_regs_struct context;
-   struct user_regs_struct enterSSContext;
+   uintptr_t   enterSSContext_xss = 0;
    siginfo_t   siginfo;
 
    memset (&context, 0, sizeof (struct user_regs_struct));
-   memset (&enterSSContext, 0, sizeof (struct user_regs_struct));
    memset (&siginfo, 0, sizeof (siginfo_t));
    memset (&elfHeader, 0, sizeof (elfHeader));
 
@@ -561,6 +590,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          // copy CommStruct data to the child: EBX/RBX contains the address
          remoteLoaderCS = get_xbx (&context);
          dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: remoteLoaderCS = %p\n", (void *) remoteLoaderCS);
+         if (pcs->debugEnabled) {
+            dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: running TestGetPutData\n");
+            TestGetPutData (childPid, remoteLoaderCS);
+         }
          PutData (childPid, remoteLoaderCS, (const void *) pcs, sizeof (CommStruct));
 
          // check for correct data transfer
@@ -669,7 +702,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      (void *) get_pc (&context), (void *) singleStepProc);
                }
                run = 0;
-               memcpy (&enterSSContext, &context, sizeof (struct user_regs_struct));
+               enterSSContext_xss = context.xss;
                StartSingleStepProc
                  (singleStepProc,
                   childPid,
@@ -715,7 +748,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   exit (1);
                }
                run = 0;
-               memcpy (&enterSSContext, &context, sizeof (struct user_regs_struct));
+               enterSSContext_xss = context.xss;
                StartSingleStepProc
                  (singleStepProc,
                   childPid,
@@ -749,14 +782,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
             // single step procedure finished
-            struct user_regs_struct c2;
             memset (&context, 0, sizeof (struct user_regs_struct));
-
             if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "SINGLE_STEP: PTRACE_GETREGS");
                exit (1);
             }
-            memcpy (&c2, &context, sizeof (struct user_regs_struct));
 
             if (IsSingleStep (childPid, &context)) {
                err_printf (1, "SINGLE_STEP: single-stepping in single step handler?");
@@ -774,15 +804,13 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             dbg_fprintf (stderr, "SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
             GetData (childPid, get_xbx (&context), (void *) &context, sizeof (struct user_regs_struct));
             dbg_fprintf (stderr, "SINGLE_STEP: flags word is %x\n", (unsigned) context.eflags);
-            context.xss = enterSSContext.xss;
+
+            // this register appears difficult to restore in user space, but we have a copy
+            // of the expected value
+            context.xss = enterSSContext_xss;
+
             if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
                err_printf (1, "SINGLE_STEP: PTRACE_SETREGS");
-               fprintf (stderr, "enter SS (COMPLETED_SINGLE_STEP_HANDLER)\n");
-               DebugUserRegs (&enterSSContext);
-               fprintf (stderr, "before GetData (COMPLETED_SINGLE_STEP_HANDLER)\n");
-               DebugUserRegs (&c2);
-               fprintf (stderr, "after GetData (COMPLETED_SINGLE_STEP_HANDLER)\n");
-               DebugUserRegs (&context);
                exit (1);
             }
             ptrace (PTRACE_CONT, childPid, NULL, NULL);
