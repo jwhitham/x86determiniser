@@ -13,7 +13,7 @@ static const char api_name[] = "LINUX32";
 
 #include "linux_context.h"
 
-static LCONTEXT c;
+static LINUX_CONTEXT c;
 #define oof(x) (((uintptr_t *) (&(c.x))) - ((uintptr_t *) (&c)))
 
 #define REG_XDI (oof(regs.edi))
@@ -25,7 +25,7 @@ static LCONTEXT c;
 #define REG_XCX (oof(regs.ecx))
 #define REG_XAX (oof(regs.eax))
 #define REG_XIP (oof(regs.eip))
-#define REG_LIMIT (sizeof (LCONTEXT))
+#define REG_LIMIT (sizeof (LINUX_CONTEXT))
 #define REGISTER_PREFIX 'E'
 #define OFF_EFL (4 * oof(regs.eflags))
 
@@ -44,7 +44,7 @@ static const char api_name[] = "LINUX64";
 
 #include "linux_context.h"
 
-static LCONTEXT c;
+static LINUX_CONTEXT c;
 #define oof(x) (((uintptr_t *) (&(c.x))) - ((uintptr_t *) (&c)))
 
 #define REG_XDI (oof(regs.rdi))
@@ -80,7 +80,7 @@ static LCONTEXT c;
 #define REG_Xmm13 (oof(fpregs.xmm_space[13]))
 #define REG_Xmm14 (oof(fpregs.xmm_space[14]))
 #define REG_Xmm15 (oof(fpregs.xmm_space[15]))
-#define REG_LIMIT (sizeof (LCONTEXT))
+#define REG_LIMIT (sizeof (LINUX_CONTEXT))
 #define REGISTER_PREFIX 'R'
 #define IS_64_BIT
 #define OFF_EFL (((uint8_t *) (&(c.regs.eflags))) - ((uint8_t *) (&c)))

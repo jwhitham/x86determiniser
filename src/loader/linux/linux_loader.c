@@ -26,8 +26,8 @@
 
 typedef struct SingleStepStruct {
    void * unused;
-   LCONTEXT * pcontext;
-   LCONTEXT context;
+   LINUX_CONTEXT * pcontext;
+   LINUX_CONTEXT context;
 } SingleStepStruct;
 
 static void err_printf (unsigned err_code, const char * fmt, ...)
@@ -54,74 +54,63 @@ static void err_printf (unsigned err_code, const char * fmt, ...)
    }
 }
 
-static uintptr_t get_stack_ptr (LCONTEXT * context)
+static uintptr_t get_stack_ptr (LINUX_CONTEXT * context)
 {
 #ifdef LINUX64
-   return context->rsp;
+   return context->regs.rsp;
 #else
-   return context->esp;
+   return context->regs.esp;
 #endif
 }
 
-static void set_stack_ptr (LCONTEXT * context, uintptr_t sp)
+static void set_stack_ptr (LINUX_CONTEXT * context, uintptr_t sp)
 {
 #ifdef LINUX64
-   context->rsp = sp;
+   context->regs.rsp = sp;
 #else
-   context->esp = sp;
+   context->regs.esp = sp;
 #endif
 }
 
-static uintptr_t get_xax (LCONTEXT * context)
+static uintptr_t get_xax (LINUX_CONTEXT * context)
 {
 #ifdef LINUX64
-   return context->rax;
+   return context->regs.rax;
 #else
-   return context->eax;
+   return context->regs.eax;
 #endif
 }
 
-static uintptr_t get_xbx (LCONTEXT * context)
+static uintptr_t get_xbx (LINUX_CONTEXT * context)
 {
 #ifdef LINUX64
-   return context->rbx;
+   return context->regs.rbx;
 #else
-   return context->ebx;
+   return context->regs.ebx;
 #endif
 }
 
-/*
-static uintptr_t get_xsp (LCONTEXT * context)
+static uintptr_t get_pc (LINUX_CONTEXT * context)
 {
 #ifdef LINUX64
-   return context->rsp;
+   return context->regs.rip;
 #else
-   return context->esp;
-#endif
-}
-*/
-
-static uintptr_t get_pc (LCONTEXT * context)
-{
-#ifdef LINUX64
-   return context->rip;
-#else
-   return context->eip;
+   return context->regs.eip;
 #endif
 }
 
-static void set_pc (LCONTEXT * context, uintptr_t pc)
+static void set_pc (LINUX_CONTEXT * context, uintptr_t pc)
 {
 #ifdef LINUX64
-   context->rip = pc;
+   context->regs.rip = pc;
 #else
-   context->eip = pc;
+   context->regs.eip = pc;
 #endif
 }
 
-static void clear_single_step_flag (LCONTEXT * context)
+static void clear_single_step_flag (LINUX_CONTEXT * context)
 {
-   context->eflags &= ~SINGLE_STEP_FLAG;
+   context->regs.eflags &= ~SINGLE_STEP_FLAG;
 }
 
 static uintptr_t align_64 (uintptr_t v)
@@ -185,7 +174,7 @@ static void PutData
    }
 }
 
-static int IsSingleStep (pid_t childPid, LCONTEXT * context)
+static int IsSingleStep (pid_t childPid, LINUX_CONTEXT * context)
 { 
    // https://sourceware.org/gdb/wiki/LinuxKernelWishList
    // "It would be useful for the kernel to tell us whether a SIGTRAP corresponds to a
@@ -277,12 +266,12 @@ static int ReadMaps (pid_t childPid, uintptr_t excludeAddress, CommStruct * pcs)
 static void StartSingleStepProc
   (uintptr_t singleStepProc,
    pid_t childPid,
-   LCONTEXT * context)
+   LINUX_CONTEXT * context)
 {
    SingleStepStruct localCs;
    uintptr_t new_sp;
 
-   memcpy (&localCs.context, context, sizeof (LCONTEXT));
+   memcpy (&localCs.context, context, sizeof (LINUX_CONTEXT));
 
    // reserve stack space for SingleStepStruct
    new_sp = get_stack_ptr (context) - sizeof (localCs);
@@ -410,27 +399,27 @@ static void TestGetPutData (pid_t childPid, uintptr_t base)
 }
 
 // GetContext: do PTRACE_GETREGS and PTRACE_GETFPREGS
-static void GetContext (pid_t childPid, LCONTEXT * context, const char * state)
+static void GetContext (pid_t childPid, LINUX_CONTEXT * context, const char * state)
 {
-   memset (context, 0, sizeof (LCONTEXT));
-   if (ptrace (PTRACE_GETREGS, childPid, NULL, &context.regs) != 0) {
+   memset (context, 0, sizeof (LINUX_CONTEXT));
+   if (ptrace (PTRACE_GETREGS, childPid, NULL, &context->regs) != 0) {
       err_printf (1, "%s: PTRACE_GETREGS", state);
       exit (1);
    }
-   if (ptrace (PTRACE_GETFPREGS, childPid, NULL, &context.fpregs) != 0) {
+   if (ptrace (PTRACE_GETFPREGS, childPid, NULL, &context->fpregs) != 0) {
       err_printf (1, "%s: PTRACE_GETFPREGS", state);
       exit (1);
    }
 }
 
 // PutContext: do PTRACE_SETREGS and PTRACE_SETFPREGS
-static void PutContext (pid_t childPid, LCONTEXT * context, const char * state)
+static void PutContext (pid_t childPid, LINUX_CONTEXT * context, const char * state)
 {
-   if (ptrace (PTRACE_SETREGS, childPid, NULL, &context.regs) != 0) {
+   if (ptrace (PTRACE_SETREGS, childPid, NULL, &context->regs) != 0) {
       err_printf (1, "%s: PTRACE_SETREGS", state);
       exit (1);
    }
-   if (ptrace (PTRACE_SETFPREGS, childPid, NULL, &context.fpregs) != 0) {
+   if (ptrace (PTRACE_SETFPREGS, childPid, NULL, &context->fpregs) != 0) {
       err_printf (1, "%s: PTRACE_SETFPREGS", state);
       exit (1);
    }
@@ -448,12 +437,12 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    int         run = 1;
    int         elfType = 0;
    char        elfHeader[5];
-   LCONTEXT    context;
+   LINUX_CONTEXT    context;
    uintptr_t   enterSSContext_xss = 0;
    uintptr_t   pcsInChild = 0;
    siginfo_t   siginfo;
 
-   memset (&context, 0, sizeof (LCONTEXT));
+   memset (&context, 0, sizeof (LINUX_CONTEXT));
    memset (&siginfo, 0, sizeof (siginfo_t));
    memset (&elfHeader, 0, sizeof (elfHeader));
    pcs->singleStepHandlerAddress = 0;
@@ -717,7 +706,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                }
                run = 0;
 #ifdef LINUX32
-               enterSSContext_xss = context.xss;
+               enterSSContext_xss = context.regs.xss;
 #endif
                StartSingleStepProc
                  (pcs->singleStepHandlerAddress,
@@ -754,7 +743,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                }
                run = 0;
 #ifdef LINUX32
-               enterSSContext_xss = context.xss;
+               enterSSContext_xss = context.regs.xss;
 #endif
                StartSingleStepProc
                  (pcs->singleStepHandlerAddress,
@@ -803,13 +792,13 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
             // context restored
             dbg_fprintf (stderr, "SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
-            GetData (childPid, get_xbx (&context), (void *) &context, sizeof (LCONTEXT));
-            dbg_fprintf (stderr, "SINGLE_STEP: flags word is %x\n", (unsigned) context.eflags);
+            GetData (childPid, get_xbx (&context), (void *) &context, sizeof (LINUX_CONTEXT));
+            dbg_fprintf (stderr, "SINGLE_STEP: flags word is %x\n", (unsigned) context.regs.eflags);
 
             // this register appears difficult to restore in user space, but we have a copy
             // of the expected value
 #ifdef LINUX32
-            context.xss = enterSSContext_xss;
+            context.regs.xss = enterSSContext_xss;
 #endif
 
             PutContext (childPid, &context, "SINGLE_STEP");

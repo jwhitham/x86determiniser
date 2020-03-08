@@ -13,7 +13,7 @@
 #include "linux_context.h"
 
 
-static void single_step_handler (LCONTEXT * context)
+static void single_step_handler (LINUX_CONTEXT * context)
 {
    uintptr_t * gregs = (uintptr_t *) context;
 

@@ -3,10 +3,10 @@
 
 #include <sys/user.h>
 
-struct LCONTEXT {
+typedef struct LINUX_CONTEXT {
    struct user_regs_struct regs;
    struct user_fpregs_struct fpregs;
-} LCONTEXT;
+} LINUX_CONTEXT;
 
 #endif
 
