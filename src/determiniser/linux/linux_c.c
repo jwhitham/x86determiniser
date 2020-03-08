@@ -10,9 +10,10 @@
 #include "remote_loader.h"
 #include "x86_common.h"
 #include "common.h"
+#include "linux_context.h"
 
 
-static void single_step_handler (struct user_regs_struct * context)
+static void single_step_handler (LCONTEXT * context)
 {
    uintptr_t * gregs = (uintptr_t *) context;
 

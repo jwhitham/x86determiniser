@@ -20,13 +20,14 @@
 #include "remote_loader.h"
 #include "x86_flags.h"
 #include "common.h"
+#include "linux_context.h"
 
 #define dbg_fprintf if (pcs->debugEnabled) fprintf
 
 typedef struct SingleStepStruct {
    void * unused;
-   struct user_regs_struct * pcontext;
-   struct user_regs_struct context;
+   LCONTEXT * pcontext;
+   LCONTEXT context;
 } SingleStepStruct;
 
 static void err_printf (unsigned err_code, const char * fmt, ...)
@@ -53,7 +54,7 @@ static void err_printf (unsigned err_code, const char * fmt, ...)
    }
 }
 
-static uintptr_t get_stack_ptr (struct user_regs_struct * context)
+static uintptr_t get_stack_ptr (LCONTEXT * context)
 {
 #ifdef LINUX64
    return context->rsp;
@@ -62,7 +63,7 @@ static uintptr_t get_stack_ptr (struct user_regs_struct * context)
 #endif
 }
 
-static void set_stack_ptr (struct user_regs_struct * context, uintptr_t sp)
+static void set_stack_ptr (LCONTEXT * context, uintptr_t sp)
 {
 #ifdef LINUX64
    context->rsp = sp;
@@ -71,7 +72,7 @@ static void set_stack_ptr (struct user_regs_struct * context, uintptr_t sp)
 #endif
 }
 
-static uintptr_t get_xax (struct user_regs_struct * context)
+static uintptr_t get_xax (LCONTEXT * context)
 {
 #ifdef LINUX64
    return context->rax;
@@ -80,7 +81,7 @@ static uintptr_t get_xax (struct user_regs_struct * context)
 #endif
 }
 
-static uintptr_t get_xbx (struct user_regs_struct * context)
+static uintptr_t get_xbx (LCONTEXT * context)
 {
 #ifdef LINUX64
    return context->rbx;
@@ -90,7 +91,7 @@ static uintptr_t get_xbx (struct user_regs_struct * context)
 }
 
 /*
-static uintptr_t get_xsp (struct user_regs_struct * context)
+static uintptr_t get_xsp (LCONTEXT * context)
 {
 #ifdef LINUX64
    return context->rsp;
@@ -100,7 +101,7 @@ static uintptr_t get_xsp (struct user_regs_struct * context)
 }
 */
 
-static uintptr_t get_pc (struct user_regs_struct * context)
+static uintptr_t get_pc (LCONTEXT * context)
 {
 #ifdef LINUX64
    return context->rip;
@@ -109,7 +110,7 @@ static uintptr_t get_pc (struct user_regs_struct * context)
 #endif
 }
 
-static void set_pc (struct user_regs_struct * context, uintptr_t pc)
+static void set_pc (LCONTEXT * context, uintptr_t pc)
 {
 #ifdef LINUX64
    context->rip = pc;
@@ -118,7 +119,7 @@ static void set_pc (struct user_regs_struct * context, uintptr_t pc)
 #endif
 }
 
-static void clear_single_step_flag (struct user_regs_struct * context)
+static void clear_single_step_flag (LCONTEXT * context)
 {
    context->eflags &= ~SINGLE_STEP_FLAG;
 }
@@ -184,7 +185,7 @@ static void PutData
    }
 }
 
-static int IsSingleStep (pid_t childPid, struct user_regs_struct * context)
+static int IsSingleStep (pid_t childPid, LCONTEXT * context)
 { 
    // https://sourceware.org/gdb/wiki/LinuxKernelWishList
    // "It would be useful for the kernel to tell us whether a SIGTRAP corresponds to a
@@ -276,12 +277,12 @@ static int ReadMaps (pid_t childPid, uintptr_t excludeAddress, CommStruct * pcs)
 static void StartSingleStepProc
   (uintptr_t singleStepProc,
    pid_t childPid,
-   struct user_regs_struct * context)
+   LCONTEXT * context)
 {
    SingleStepStruct localCs;
    uintptr_t new_sp;
 
-   memcpy (&localCs.context, context, sizeof (struct user_regs_struct));
+   memcpy (&localCs.context, context, sizeof (LCONTEXT));
 
    // reserve stack space for SingleStepStruct
    new_sp = get_stack_ptr (context) - sizeof (localCs);
@@ -316,7 +317,7 @@ static void DefaultHandler (pid_t childPid, int status, const char * state)
       // This means a signal was received, other than the one we are using (SIGTRAP).
       // It's normal for the user program to receive signals.
       // Pass them onwards to the program.
-      ptrace (PTRACE_CONT, childPid, NULL, (void *) WSTOPSIG(status));
+      ptrace (PTRACE_CONT, childPid, NULL, (void *) (uintptr_t) WSTOPSIG(status));
 
    } else if (WIFEXITED(status)) {
       // normal exit
@@ -408,6 +409,33 @@ static void TestGetPutData (pid_t childPid, uintptr_t base)
    }
 }
 
+// GetContext: do PTRACE_GETREGS and PTRACE_GETFPREGS
+static void GetContext (pid_t childPid, LCONTEXT * context, const char * state)
+{
+   memset (context, 0, sizeof (LCONTEXT));
+   if (ptrace (PTRACE_GETREGS, childPid, NULL, &context.regs) != 0) {
+      err_printf (1, "%s: PTRACE_GETREGS", state);
+      exit (1);
+   }
+   if (ptrace (PTRACE_GETFPREGS, childPid, NULL, &context.fpregs) != 0) {
+      err_printf (1, "%s: PTRACE_GETFPREGS", state);
+      exit (1);
+   }
+}
+
+// PutContext: do PTRACE_SETREGS and PTRACE_SETFPREGS
+static void PutContext (pid_t childPid, LCONTEXT * context, const char * state)
+{
+   if (ptrace (PTRACE_SETREGS, childPid, NULL, &context.regs) != 0) {
+      err_printf (1, "%s: PTRACE_SETREGS", state);
+      exit (1);
+   }
+   if (ptrace (PTRACE_SETFPREGS, childPid, NULL, &context.fpregs) != 0) {
+      err_printf (1, "%s: PTRACE_SETFPREGS", state);
+      exit (1);
+   }
+}
+
 // Entry point from main
 // Args already parsed into CommStruct
 int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
@@ -420,17 +448,18 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    int         run = 1;
    int         elfType = 0;
    char        elfHeader[5];
-   struct user_regs_struct context;
+   LCONTEXT    context;
    uintptr_t   enterSSContext_xss = 0;
    uintptr_t   pcsInChild = 0;
    siginfo_t   siginfo;
 
-   memset (&context, 0, sizeof (struct user_regs_struct));
+   memset (&context, 0, sizeof (LCONTEXT));
    memset (&siginfo, 0, sizeof (siginfo_t));
    memset (&elfHeader, 0, sizeof (elfHeader));
    pcs->singleStepHandlerAddress = 0;
 
    (void) argc;
+   (void) enterSSContext_xss;
 
    if (readlink ("/proc/self/exe", binFolder, sizeof (binFolder) - 1) > 0) {
       char * finalSlash = strrchr (binFolder, '/');
@@ -523,12 +552,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
          // child process stopped - this is the initial stop, after the execv call
-         memset (&context, 0, sizeof (struct user_regs_struct));
-
-         if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
-            err_printf (1, "INITIAL: PTRACE_GETREGS");
-            exit (1);
-         }
+         GetContext (childPid, &context, "INITIAL");
          dbg_fprintf (stderr, "INITIAL: entry PC = %p\n", (void *) get_pc (&context));
 
          // Discover the bounds of the executable .text section,
@@ -572,12 +596,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          // The eax/rax register should contain the address of CommStruct in the child process
          CommStruct check_copy;
 
-         memset (&context, 0, sizeof (struct user_regs_struct));
-
-         if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
-            err_printf (1, "AWAIT_FIRST_STAGE: PTRACE_GETREGS");
-            exit (1);
-         }
+         GetContext (childPid, &context, "AWAIT_FIRST_STAGE");
 
          dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: breakpoint at %p\n", (void *) get_pc (&context));
 
@@ -603,7 +622,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             err_printf (0, "AWAIT_FIRST_STAGE: readback of CommStruct failed");
             exit (1);
          }
-         dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: readback ok (%d bytes)\n", sizeof (CommStruct));
+         dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: readback ok (%d bytes)\n", (int) sizeof (CommStruct));
 
          // continue to next event (from determiniser)
          ptrace (PTRACE_CONT, childPid, NULL, NULL);
@@ -632,12 +651,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
          // child process stopped - this should be the second stop, in RemoteLoader
          // The eax/rax register should contain the address of CommStruct in the child process
-         memset (&context, 0, sizeof (struct user_regs_struct));
-
-         if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
-            err_printf (1, "AWAIT_REMOTE_LOADER_BP: PTRACE_GETREGS");
-            exit (1);
-         }
+         GetContext (childPid, &context, "AWAIT_REMOTE_LOADER_BP");
 
          // check we stopped in the right place (got the correct message after a breakpoint)
          if (IsSingleStep (childPid, &context)) {
@@ -692,12 +706,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
             // Stopped by single-step or stopped by breakpoint?
-            memset (&context, 0, sizeof (struct user_regs_struct));
-
-            if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
-               err_printf (1, "RUNNING: PTRACE_GETREGS: single step");
-               exit (1);
-            }
+            GetContext (childPid, &context, "RUNNING: single_step");
 
             if (IsSingleStep (childPid, &context)) {
                // Reached single step; run single step handler.
@@ -707,15 +716,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      (void *) get_pc (&context), (void *) pcs->singleStepHandlerAddress);
                }
                run = 0;
+#ifdef LINUX32
                enterSSContext_xss = context.xss;
+#endif
                StartSingleStepProc
                  (pcs->singleStepHandlerAddress,
                   childPid,
                   &context);
-               if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
-                  err_printf (1, "RUNNING: PTRACE_SETREGS: single step");
-                  exit (1);
-               }
+               PutContext (childPid, &context, "RUNNING: single step");
                // continue to next event (from determiniser)
                ptrace (PTRACE_CONT, childPid, NULL, NULL);
             } else {
@@ -726,13 +734,9 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          } else if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSEGV) {
             // Stopped by segfault - is this caused by re-entering the text section
             // after running library code?
-            memset (&context, 0, sizeof (struct user_regs_struct));
             memset (&siginfo, 0, sizeof (siginfo_t));
 
-            if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
-               err_printf (1, "RUNNING: PTRACE_GETREGS: segv");
-               exit (1);
-            }
+            GetContext (childPid, &context, "RUNNING: segv");
             if (ptrace (PTRACE_GETSIGINFO, childPid, NULL, &siginfo) != 0) {
                err_printf (1, "RUNNING: PTRACE_GETSIGINFO: segv");
                exit (1);
@@ -749,15 +753,15 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      (void *) pcs->singleStepHandlerAddress);
                }
                run = 0;
+#ifdef LINUX32
                enterSSContext_xss = context.xss;
+#endif
                StartSingleStepProc
                  (pcs->singleStepHandlerAddress,
                   childPid,
                   &context);
-               if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
-                  err_printf (1, "RUNNING: PTRACE_SETREGS: segv");
-                  exit (1);
-               }
+               PutContext (childPid, &context, "RUNNING: segv");
+
                // eat this signal and continue to next event (from determiniser)
                ptrace (PTRACE_CONT, childPid, NULL, NULL);
            
@@ -783,11 +787,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
          if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
             // single step procedure finished
-            memset (&context, 0, sizeof (struct user_regs_struct));
-            if (ptrace (PTRACE_GETREGS, childPid, NULL, &context) != 0) {
-               err_printf (1, "SINGLE_STEP: PTRACE_GETREGS");
-               exit (1);
-            }
+            GetContext (childPid, &context, "SINGLE_STEP");
 
             if (IsSingleStep (childPid, &context)) {
                err_printf (1, "SINGLE_STEP: single-stepping in single step handler?");
@@ -803,17 +803,16 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
             // context restored
             dbg_fprintf (stderr, "SINGLE_STEP: location of context: %p\n", (void *) get_xbx (&context));
-            GetData (childPid, get_xbx (&context), (void *) &context, sizeof (struct user_regs_struct));
+            GetData (childPid, get_xbx (&context), (void *) &context, sizeof (LCONTEXT));
             dbg_fprintf (stderr, "SINGLE_STEP: flags word is %x\n", (unsigned) context.eflags);
 
             // this register appears difficult to restore in user space, but we have a copy
             // of the expected value
+#ifdef LINUX32
             context.xss = enterSSContext_xss;
+#endif
 
-            if (ptrace (PTRACE_SETREGS, childPid, NULL, &context) != 0) {
-               err_printf (1, "SINGLE_STEP: PTRACE_SETREGS");
-               exit (1);
-            }
+            PutContext (childPid, &context, "SINGLE_STEP");
             ptrace (PTRACE_CONT, childPid, NULL, NULL);
             run = 1;
 

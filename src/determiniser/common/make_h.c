@@ -11,26 +11,79 @@ static const char api_name[] = "LINUX32";
 #include <unistd.h>
 #include <stdint.h>
 
-static struct user_regs_struct c;
+#include "linux_context.h"
+
+static LCONTEXT c;
 #define oof(x) (((uintptr_t *) (&(c.x))) - ((uintptr_t *) (&c)))
 
-#define REG_XDI (oof(edi))
-#define REG_XSI (oof(esi))
-#define REG_XBP (oof(ebp))
-#define REG_XSP (oof(esp))
-#define REG_XBX (oof(ebx))
-#define REG_XDX (oof(edx))
-#define REG_XCX (oof(ecx))
-#define REG_XAX (oof(eax))
-#define REG_XIP (oof(eip))
-#define REG_LIMIT (sizeof (struct user_regs_struct))
+#define REG_XDI (oof(regs.edi))
+#define REG_XSI (oof(regs.esi))
+#define REG_XBP (oof(regs.ebp))
+#define REG_XSP (oof(regs.esp))
+#define REG_XBX (oof(regs.ebx))
+#define REG_XDX (oof(regs.edx))
+#define REG_XCX (oof(regs.ecx))
+#define REG_XAX (oof(regs.eax))
+#define REG_XIP (oof(regs.eip))
+#define REG_LIMIT (sizeof (LCONTEXT))
 #define REGISTER_PREFIX 'E'
-#define OFF_EFL (4 * oof(eflags))
+#define OFF_EFL (4 * oof(regs.eflags))
 
 
 #else
 #ifdef LINUX64
-#error "NOT YET SUPPORTED"
+
+static const char api_name[] = "LINUX64";
+#define _GNU_SOURCE
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <sys/user.h>
+#include <unistd.h>
+#include <stdint.h>
+
+#include "linux_context.h"
+
+static LCONTEXT c;
+#define oof(x) (((uintptr_t *) (&(c.x))) - ((uintptr_t *) (&c)))
+
+#define REG_XDI (oof(regs.rdi))
+#define REG_XSI (oof(regs.rsi))
+#define REG_XBP (oof(regs.rbp))
+#define REG_XSP (oof(regs.rsp))
+#define REG_XBX (oof(regs.rbx))
+#define REG_XDX (oof(regs.rdx))
+#define REG_XCX (oof(regs.rcx))
+#define REG_XAX (oof(regs.rax))
+#define REG_XIP (oof(regs.rip))
+#define REG_R8 (oof(regs.r8))
+#define REG_R9 (oof(regs.r9))
+#define REG_R10 (oof(regs.r10))
+#define REG_R11 (oof(regs.r11))
+#define REG_R12 (oof(regs.r12))
+#define REG_R13 (oof(regs.r13))
+#define REG_R14 (oof(regs.r14))
+#define REG_R15 (oof(regs.r15))
+#define REG_Xmm0 (oof(fpregs.xmm_space[0]))
+#define REG_Xmm1 (oof(fpregs.xmm_space[1]))
+#define REG_Xmm2 (oof(fpregs.xmm_space[2]))
+#define REG_Xmm3 (oof(fpregs.xmm_space[3]))
+#define REG_Xmm4 (oof(fpregs.xmm_space[4]))
+#define REG_Xmm5 (oof(fpregs.xmm_space[5]))
+#define REG_Xmm6 (oof(fpregs.xmm_space[6]))
+#define REG_Xmm7 (oof(fpregs.xmm_space[7]))
+#define REG_Xmm8 (oof(fpregs.xmm_space[8]))
+#define REG_Xmm9 (oof(fpregs.xmm_space[9]))
+#define REG_Xmm10 (oof(fpregs.xmm_space[10]))
+#define REG_Xmm11 (oof(fpregs.xmm_space[11]))
+#define REG_Xmm12 (oof(fpregs.xmm_space[12]))
+#define REG_Xmm13 (oof(fpregs.xmm_space[13]))
+#define REG_Xmm14 (oof(fpregs.xmm_space[14]))
+#define REG_Xmm15 (oof(fpregs.xmm_space[15]))
+#define REG_LIMIT (sizeof (LCONTEXT))
+#define REGISTER_PREFIX 'R'
+#define IS_64_BIT
+#define OFF_EFL (((uint8_t *) (&(c.regs.eflags))) - ((uint8_t *) (&c)))
 
 #else
 #ifdef WIN64
