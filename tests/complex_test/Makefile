@@ -27,7 +27,7 @@ ctest.win64$(EXE): main.c $(SRC64)
 	$(CC) -o $@ $(CFLAGS) main.c $(SRC64) -O2
 
 ctest.linux64$(EXE): main_linux.c $(SRC64)
-	$(CC) -o $@ $(CFLAGS) main_linux.c $(SRC64) -O2 -lm -ldl
+	$(CC) -o $@ $(CFLAGS) main_linux.c $(SRC64) -O2 /usr/lib/x86_64-linux-gnu/libm.a -ldl
 
 ctest.win64$(EXE): main.c $(SRC64)
 ctest.$(PLATFORM).ref: ctest.$(PLATFORM)$(EXE)

@@ -285,7 +285,8 @@ static void StartSingleStepProc
    localCs.unused = NULL;
 
 #ifdef IS_64_BIT
-   context->rcx = (uintptr_t) localCs.pcontext;
+   // Linux x64 calling convention: rdi is first parameter
+   context->regs.rdi = (uintptr_t) localCs.pcontext;
 #endif
 
    // fill remote stack
@@ -654,22 +655,23 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                   (void *) get_pc (&context));
 
             // EAX contains an error code, or 0x101 on success
-            if (get_xax (&context) != COMPLETED_LOADER) {
-               err_printf (get_xax (&context), "AWAIT_REMOTE_LOADER_BP");
-               exit (1);
-            }
-            // EBX confirms location of CommStruct in child process
-            if (get_xbx (&context) != pcsInChild) {
-               err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EBX value");
-               exit (1);
-            }
+            if (get_xax (&context) == COMPLETED_LOADER) {
+               // EBX confirms location of CommStruct in child process
+               if (get_xbx (&context) != pcsInChild) {
+                  err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EBX value");
+                  exit (1);
+               }
 
-            // read back the CommStruct, now updated with singleStepHandlerAddress
-            GetData (childPid, pcsInChild, pcs, sizeof (CommStruct));
+               // read back the CommStruct, now updated with singleStepHandlerAddress
+               GetData (childPid, pcsInChild, pcs, sizeof (CommStruct));
 
-            // Execution continues
-            ptrace (PTRACE_CONT, childPid, NULL, NULL);
-            trapCount = 3;
+               // Execution continues
+               ptrace (PTRACE_CONT, childPid, NULL, NULL);
+               trapCount = 3;
+            } else {
+               // Breakpoint for some other reason
+               DefaultHandler (childPid, status, "AWAIT_REMOTE_LOADER_BP");
+            }
          }
       } else if (WIFSTOPPED(status)) {
          err_printf (0, "AWAIT_REMOTE_LOADER_BP: child process stopped unexpectedly (%d)", (int) (WSTOPSIG(status)));
@@ -716,8 +718,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                // continue to next event (from determiniser)
                ptrace (PTRACE_CONT, childPid, NULL, NULL);
             } else {
-               // A breakpoint: ignore it
-               ptrace (PTRACE_CONT, childPid, NULL, NULL);
+               // Breakpoint for some other reason
+               DefaultHandler (childPid, status, "RUNNING");
             }
 
          } else if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSEGV) {
