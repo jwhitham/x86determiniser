@@ -668,13 +668,34 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                // Execution continues
                ptrace (PTRACE_CONT, childPid, NULL, NULL);
                trapCount = 3;
+            } else if ((get_xax (&context) >= X86D_FIRST_ERROR)
+            && (get_xax (&context)<= X86D_LAST_ERROR)) {
+               err_printf (get_xax (&context), "AWAIT_REMOTE_LOADER");
+               exit(1);
             } else {
                // Breakpoint for some other reason
                DefaultHandler (childPid, status, "AWAIT_REMOTE_LOADER_BP");
             }
          }
+      } else if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSEGV) {
+         // Stopped by segfault (unexpectedly)
+         memset (&siginfo, 0, sizeof (siginfo_t));
+
+         GetContext (childPid, &context, "AWAIT_REMOTE_LOADER_BP: segv");
+         if (ptrace (PTRACE_GETSIGINFO, childPid, NULL, &siginfo) != 0) {
+            err_printf (1, "AWAIT_REMOTE_LOADER_BP: PTRACE_GETSIGINFO: segv");
+            exit (1);
+         }
+         fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: segfault at PC 0x%p "
+               "fault address %p\n",
+                     (void *) get_pc (&context),
+                     (void *) siginfo.si_addr);
+         ReadMaps (childPid, 0, pcs);
+         exit (1);
+
       } else if (WIFSTOPPED(status)) {
-         err_printf (0, "AWAIT_REMOTE_LOADER_BP: child process stopped unexpectedly (%d)", (int) (WSTOPSIG(status)));
+         GetContext (childPid, &context, "AWAIT_REMOTE_LOADER_BP");
+         err_printf (0, "AWAIT_REMOTE_LOADER_BP: child process stopped unexpectedly (signal %d)", (int) (WSTOPSIG(status)));
          exit (1);
 
       } else if (WIFEXITED(status)) {
@@ -719,7 +740,9 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                ptrace (PTRACE_CONT, childPid, NULL, NULL);
             } else {
                // Breakpoint for some other reason
-               DefaultHandler (childPid, status, "RUNNING");
+               // DefaultHandler (childPid, status, "RUNNING");
+               // continue to next event (from determiniser)
+               ptrace (PTRACE_CONT, childPid, NULL, NULL);
             }
 
          } else if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSEGV) {

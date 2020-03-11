@@ -53,7 +53,6 @@ void X86DeterminiserStartup (CommStruct * pcs)
    // (On Windows this is determined within X86DeterminiserStartup based on pcs->startAddress,
    // which is not available on Linux as it points into the ld-linux.so.2 library.)
 
-   x86_make_text_writable (pcs->minAddress, pcs->maxAddress);
    x86_startup (pcs);
    pcs->singleStepHandlerAddress = (uintptr_t) single_step_handler;
 

@@ -713,6 +713,9 @@ void x86_startup (CommStruct * pcs)
 #endif
    ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
 
+   // .text becomes read/write/execute
+   x86_make_text_writable (min_address, max_address);
+
    entry_flag = 1;
 
    // save this context and launch the interpreter
