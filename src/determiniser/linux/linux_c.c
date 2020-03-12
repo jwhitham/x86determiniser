@@ -25,8 +25,26 @@ static void single_step_handler (LINUX_CONTEXT * context)
    x86_bp_trap (COMPLETED_SINGLE_STEP_HANDLER, gregs);
 }
 
+static uintptr_t page_round (uintptr_t address, int round_up)
+{
+   int page_size = sysconf(_SC_PAGE_SIZE);
+   uintptr_t mask;
+
+   if (page_size <= 0) {
+      page_size = 4096;
+   }
+   mask = (uintptr_t) page_size;
+   mask --; 
+   if (round_up) {
+      address += (uintptr_t) mask;
+   }
+   return address & ~mask; 
+}
+
 void x86_make_text_writable (uintptr_t minAddress, uintptr_t maxAddress)
 {
+   minAddress = page_round (minAddress, 0);
+   maxAddress = page_round (maxAddress, 1);
    if (0 != mprotect ((void *) minAddress, (size_t) (maxAddress - minAddress),
                      PROT_READ | PROT_WRITE | PROT_EXEC)) {
       x86_bp_trap (FAILED_MEMORY_PERMISSIONS, NULL);
@@ -35,6 +53,8 @@ void x86_make_text_writable (uintptr_t minAddress, uintptr_t maxAddress)
 
 void x86_make_text_noexec (uintptr_t minAddress, uintptr_t maxAddress)
 {
+   minAddress = page_round (minAddress, 0);
+   maxAddress = page_round (maxAddress, 1);
    // Text must still be writable so that relocations can be added by ld-linux.so.2
    if (0 != mprotect ((void *) minAddress, (size_t) (maxAddress - minAddress),
                      PROT_WRITE)) {

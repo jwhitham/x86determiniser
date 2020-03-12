@@ -52,6 +52,8 @@ static superblock_info * superblocks;
 
 extern uintptr_t x86_other_context[];
 extern uint8_t x86_switch_from_user[];
+extern uint8_t x86_asm_begin[];
+extern uint8_t x86_asm_end[];
 extern uint32_t x86_size_of_call_instruction;
 
 void x86_switch_to_user (uintptr_t endpoint);
@@ -715,6 +717,7 @@ void x86_startup (CommStruct * pcs)
 
    // .text becomes read/write/execute
    x86_make_text_writable (min_address, max_address);
+   x86_make_text_writable ((uintptr_t) x86_asm_begin, (uintptr_t) x86_asm_end);
 
    entry_flag = 1;
 
