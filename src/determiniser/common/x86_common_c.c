@@ -55,6 +55,7 @@ extern uint8_t x86_switch_from_user[];
 extern uint8_t x86_asm_begin[];
 extern uint8_t x86_asm_end[];
 extern uint32_t x86_size_of_call_instruction;
+extern uint32_t x86_size_of_red_zone;
 
 void x86_switch_to_user (uintptr_t endpoint);
 void x86_begin_single_step (void);
@@ -175,6 +176,7 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
       uintptr_t * tos;
        
       sp -= PTR_SIZE;
+      sp -= x86_size_of_red_zone;
       gregs[REG_XSP] = sp;
       tos = (uintptr_t *) sp;
       tos[0] = pc + x86_size_of_call_instruction;

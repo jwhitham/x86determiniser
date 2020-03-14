@@ -21,7 +21,8 @@
 
 #include "offsets.h"
 
-#define CALL_SIZE 6
+#define CALL_SIZE 10
+#define RED_ZONE_SIZE 128
 #define SUPER_STACK_SIZE 0x10000
 #define SHADOW_SIZE 32
 
@@ -30,6 +31,7 @@
 .global x86_begin_single_step
 .global x86_other_context
 .global x86_size_of_call_instruction
+.global x86_size_of_red_zone
 .global x86_bp_trap
 .global x86_is_branch_taken 
 .global x86_asm_begin
@@ -39,6 +41,7 @@
 .global _x86_begin_single_step
 .global _x86_other_context
 .global _x86_size_of_call_instruction
+.global _x86_size_of_red_zone
 .global _x86_bp_trap
 .global _x86_is_branch_taken 
 .global _x86_asm_begin
@@ -63,12 +66,16 @@ x86_asm_begin:
 _x86_asm_begin:
     .space 4
 save_space:
-    .space  16
+    .space  24
 switch_from_user_ptr:
     .space  8
 _x86_size_of_call_instruction:
 x86_size_of_call_instruction:
 size_of_call_instruction:
+    .space  4
+_x86_size_of_red_zone:
+x86_size_of_red_zone:
+size_of_red_zone:
     .space  4
 .align 8
 _x86_other_context:
@@ -130,6 +137,8 @@ x86_begin_single_step:
 
     mov     $CALL_SIZE, %eax
     mov     %eax, size_of_call_instruction(%rip)
+    mov     $RED_ZONE_SIZE, %eax
+    mov     %eax, size_of_red_zone(%rip)
 
     /* enter interpreter loop */
     sub     $SHADOW_SIZE, %rsp
@@ -171,18 +180,31 @@ _x86_switch_to_user:
     pushq   %r14
     pushq   %r15
 
-    /* Save whatever is already at the endpoint - need to save 14 bytes */
+    /* Save whatever is already at the endpoint - need to save 18 bytes */
     mov     0(PARAM_1), %rax
-    mov     8(PARAM_1), %rdx
     mov     %rax, save_space(%rip)
-    mov     %rdx, save_space + 8(%rip)
+    mov     8(PARAM_1), %rax
+    mov     %rax, save_space + 8(%rip)
+    mov     16(PARAM_1), %rax
+    mov     %rax, save_space + 16(%rip)
 
-    /* encode PC-relative indirect call followed by absolute address */
+    /* encode:
+     * 00    48 83 c4 80          add $-0x80,%rsp   subtract size of red zone
+     * 04    ff 15 00 00 00 00    call *0(%rip)     dereference the value following the call
+     * 0a    xx xx xx xx          target address
+     * 0e    xx xx xx xx          target address
+     * Total: 18 bytes
+     * Size of call instruction: CALL_SIZE = 10 = 4 + 6
+     *
+     * The red zone is for immediate loading and unloading of passengers only.
+     */
 
-    mov     $0x15ff, %rax        
-    mov     %rax, 0(PARAM_1)     /* call with PC-relative address: ff 15 00 00 00 00 XX XX */
+    mov     $0x15ff80c48348, %rax        
+    mov     %rax, 0(PARAM_1)     /* red zone sub size + call */
+    xor     %rax, %rax
+    mov     %rax, 8(PARAM_1)     /* zero */
     lea     switch_from_user(%rip), %rdx
-    mov     %rdx, 6(PARAM_1)     /* absolute 64-bit target address */
+    mov     %rdx, 10(PARAM_1)    /* absolute 64-bit target address */
 
     /* restore the user context */
     lea     other_context + OFF_XAX(%rip), %rsi
@@ -269,21 +291,23 @@ switch_from_user:
     movsd   %xmm13, OFF_Xmm13 - OFF_XAX(%rsi)
     movsd   %xmm14, OFF_Xmm14 - OFF_XAX(%rsi)
     movsd   %xmm15, OFF_Xmm15 - OFF_XAX(%rsi)
-    pop     %rax                                 /* PC + call instruction size (5 bytes) */
+    pop     %rax           /* get user PC from the stack */
+    add     $RED_ZONE_SIZE, %rsp    /* undo red zone removal */
     xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
 
     pushfq
     popq    %rbx
     mov     %ebx, OFF_EFL - OFF_XAX(%rsi)          /* user FLAGS */
-
     subq    $CALL_SIZE, %rax
-    mov     %rax, OFF_XIP - OFF_XAX(%rsi)    /* user PC */
+    mov     %rax, OFF_XIP - OFF_XAX(%rsi)          /* user PC */
 
     /* Restore endpoint */
     mov     save_space(%rip), %rax
-    mov     save_space + 8(%rip), %rdx
     mov     %rax, 0(PARAM_1)
-    mov     %rdx, 8(PARAM_1)
+    mov     save_space + 8(%rip), %rax
+    mov     %rax, 8(PARAM_1)
+    mov     save_space + 16(%rip), %rax
+    mov     %rax, 16(PARAM_1)
 
     /* Restore callee-save registers and return */
     popq    %r15
