@@ -78,6 +78,8 @@ other_context:
 super_stack_bottom:
     .space SUPER_STACK_SIZE
 super_stack_top:
+    .space 1
+.align 8
 
 _x86_begin_single_step:
 x86_begin_single_step:

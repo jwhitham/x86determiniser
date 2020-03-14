@@ -14,6 +14,8 @@
 .global x86_size_of_call_instruction
 .global x86_bp_trap
 .global x86_is_branch_taken 
+.global x86_asm_begin
+.global x86_asm_end
 .global _x86_switch_to_user
 .global _x86_switch_from_user
 .global _x86_begin_single_step
@@ -21,12 +23,17 @@
 .global _x86_size_of_call_instruction
 .global _x86_bp_trap
 .global _x86_is_branch_taken 
+.global _x86_asm_begin
+.global _x86_asm_end
 .text
 
 
 
-.bss
-.align 4
+.text
+.align 8
+x86_asm_begin:
+_x86_asm_begin:
+    .space 4
 save_space:
     .space  8
 switch_from_user_ptr:
@@ -40,8 +47,9 @@ x86_other_context:
 super_stack_bottom:
     .space SUPER_STACK_SIZE
 super_stack_top:
+    .space 1
+.align 8
 
-.text
 _x86_begin_single_step:
 x86_begin_single_step:
     /* save the user context */
@@ -247,5 +255,9 @@ _x86_is_branch_taken:
 .Ltaken:
     inc     %eax    /* return 1 */
     ret
+
+x86_asm_end:
+_x86_asm_end:
+    nop
 
 

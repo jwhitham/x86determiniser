@@ -108,6 +108,13 @@ static void set_pc (LINUX_CONTEXT * context, uintptr_t pc)
 #endif
 }
 
+static void dbg_state(LINUX_CONTEXT * context)
+{
+   fprintf (stderr, "xpc = %p\n", (void *) get_pc (context));
+   fprintf (stderr, "xax = %p\n", (void *) get_xax (context));
+   fprintf (stderr, "xbx = %p\n", (void *) get_xbx (context));
+}
+
 static void clear_single_step_flag (LINUX_CONTEXT * context)
 {
    context->regs.eflags &= ~SINGLE_STEP_FLAG;
@@ -185,12 +192,15 @@ static int IsSingleStep (pid_t childPid, LINUX_CONTEXT * context)
 
    uint8_t previous_byte[1];
 
-   GetData (childPid, get_pc (context) - 1, previous_byte, 1);
-   if (previous_byte[0] == 0xcc) {
-      return 0; // breakpoint
-   } else {
-      return 1; // single step
+   if ((get_xax (context) >= X86D_FIRST_ERROR)
+   && (get_xax (context) <= X86D_LAST_ERROR)) {
+      // May be a breakpoint
+      GetData (childPid, get_pc (context) - 1, previous_byte, 1);
+      if (previous_byte[0] == 0xcc) {
+         return 0; // breakpoint
+      }
    }
+   return 1; // single step
 }
 
 
@@ -563,11 +573,21 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          trapCount = 1;
 
       } else if (WIFSTOPPED(status)) {
-         err_printf (0, "INITIAL: child process stopped unexpectedly (%d)", (int) (WSTOPSIG(status)));
+         err_printf (0, "INITIAL: child process stopped unexpectedly (signal %d)",
+                     (int) (WSTOPSIG(status)));
          exit (1);
 
+      } else if (WIFSIGNALED(status)) {
+         err_printf (0, "INITIAL: child process was unexpectedly terminated by "
+                     "signal %d", (int) (WTERMSIG(status)), status);
+         exit (1);
       } else if (WIFEXITED(status)) {
          err_printf (0, "INITIAL: child process exited immediately");
+         exit (1);
+
+      } else {
+         err_printf (0, "INITIAL: child process did something unexpected, "
+                        "status = 0x%x", status);
          exit (1);
       }
    }
@@ -657,6 +677,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             // EAX contains an error code, or 0x101 on success
             if (get_xax (&context) == COMPLETED_LOADER) {
                // EBX confirms location of CommStruct in child process
+               dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: completed\n");
                if (get_xbx (&context) != pcsInChild) {
                   err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EBX value");
                   exit (1);
@@ -669,11 +690,15 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                ptrace (PTRACE_CONT, childPid, NULL, NULL);
                trapCount = 3;
             } else if ((get_xax (&context) >= X86D_FIRST_ERROR)
-            && (get_xax (&context)<= X86D_LAST_ERROR)) {
+            && (get_xax (&context) <= X86D_LAST_ERROR)) {
                err_printf (get_xax (&context), "AWAIT_REMOTE_LOADER");
                exit(1);
             } else {
                // Breakpoint for some other reason
+               if (pcs->debugEnabled) {
+                  dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: other bp\n");
+                  dbg_state (&context);
+               }
                DefaultHandler (childPid, status, "AWAIT_REMOTE_LOADER_BP");
             }
          }

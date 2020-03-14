@@ -124,13 +124,13 @@ static void set_pc (PCONTEXT context, uintptr_t pc)
 static void dbg_state(PCONTEXT context)
 {
    uint8_t * c;
-   printf ("xpc = %p\n", (void *) get_pc (context));
-   printf ("xax = %p\n", (void *) get_xax (context));
-   printf ("xbx = %p\n", (void *) get_xbx (context));
-   printf ("xsp = %p\n", (void *) get_xsp (context));
+   fprintf (stderr, "xpc = %p\n", (void *) get_pc (context));
+   fprintf (stderr, "xax = %p\n", (void *) get_xax (context));
+   fprintf (stderr, "xbx = %p\n", (void *) get_xbx (context));
+   fprintf (stderr, "xsp = %p\n", (void *) get_xsp (context));
 
    c = (uint8_t *) get_pc(context);
-   printf ("pc = %02x %02x %02x %02x\n",
+   fprintf (stderr, "pc = %02x %02x %02x %02x\n",
       c[0], c[1], c[2], c[3]);
 }
 
