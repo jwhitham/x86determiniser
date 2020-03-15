@@ -252,7 +252,7 @@ void StartRemoteLoader
    snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/%sdeterminiser.dll",
       binFolder, X86_OR_X64);
    strncpy (pcs->procName, "X86DeterminiserStartup", MAX_PROC_NAME_SIZE);
-   pcs->loadLibraryProc = 
+   pcs->loadLibraryProc =
       (void *) ((char *) kernel32Base + loadLibraryOffset);
    pcs->getProcAddressProc =
       (void *) ((char *) kernel32Base + getProcAddressOffset);
@@ -456,7 +456,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       if ((PTR_SIZE == 4) && (GetLastError () == ERROR_NOT_SUPPORTED)) {
          /* Loading 64-bit .exe using x86determiniser */
          err_wrong_architecture (argv[0]);
-         return 1;      
+         return 1;
       }
       err_printf (1, "CreateProcess ('%s')", argv[0]);
       return 1;
@@ -809,7 +809,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      case STATUS_SINGLE_STEP:
                         // Reached single step; run single step handler.
                         dbg_fprintf
-                          (stderr, "RUNNING: Single step at %p, go to handler at %p\n", 
+                          (stderr, "RUNNING: Single step at %p, go to handler at %p\n",
                            (void *) get_pc (&context), (void *) pcs->singleStepHandlerAddress);
                         run = FALSE;
                         StartSingleStepProc
@@ -845,7 +845,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
                            if (free_run_flag) {
                               dbg_fprintf
-                                (stderr, "RUNNING: Re-entry to text at %p, go to handler at %p\n", 
+                                (stderr, "RUNNING: Re-entry to text at %p, go to handler at %p\n",
                                  (void *) get_pc (&context), (void *) pcs->singleStepHandlerAddress);
                               run = FALSE;
                               StartSingleStepProc

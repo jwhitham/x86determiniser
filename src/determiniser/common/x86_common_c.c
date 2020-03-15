@@ -158,7 +158,7 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
       x86_bp_trap (FAILED_BAD_TRAP_NUMBER, NULL);
       return;
    }
-        
+
    pc = gregs[REG_XIP];
 #ifdef DEBUG
    if (!x86_quiet_mode) {
@@ -174,7 +174,7 @@ void x86_trap_handler (uintptr_t * gregs, uint32_t trapno)
       // Fake a call (to match the other way to exit from user code)
       uintptr_t sp = (uintptr_t) gregs[REG_XSP];
       uintptr_t * tos;
-       
+
       sp -= PTR_SIZE;
       sp -= x86_size_of_red_zone;
       gregs[REG_XSP] = sp;
@@ -514,7 +514,7 @@ void x86_interpreter (void)
                ZydisDecodedInstruction instruction;
 
                while (address <= pc_end) {
-                  
+
                   char buffer[256];
                   if (!ZYDIS_SUCCESS (ZydisDecoderDecodeBuffer
                         (&decoder, (const char *) address, 32, address, &instruction))) {

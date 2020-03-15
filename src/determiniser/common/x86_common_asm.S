@@ -14,7 +14,7 @@
 .global x86_size_of_red_zone
 .global x86_size_of_call_instruction
 .global x86_bp_trap
-.global x86_is_branch_taken 
+.global x86_is_branch_taken
 .global x86_asm_begin
 .global x86_asm_end
 .global _x86_switch_to_user
@@ -24,7 +24,7 @@
 .global _x86_size_of_red_zone
 .global _x86_size_of_call_instruction
 .global _x86_bp_trap
-.global _x86_is_branch_taken 
+.global _x86_is_branch_taken
 .global _x86_asm_begin
 .global _x86_asm_end
 .text

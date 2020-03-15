@@ -182,7 +182,7 @@ static void PutData
 }
 
 static int IsSingleStep (pid_t childPid, LINUX_CONTEXT * context)
-{ 
+{
    // https://sourceware.org/gdb/wiki/LinuxKernelWishList
    // "It would be useful for the kernel to tell us whether a SIGTRAP corresponds to a
    //  breakpoint hit or a finished single-step (or something else), without having to
@@ -749,7 +749,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                // Reached single step; run single step handler.
                if (pcs->debugEnabled) {
                   dbg_fprintf
-                    (stderr, "RUNNING: Single step at %p, go to handler at %p\n", 
+                    (stderr, "RUNNING: Single step at %p, go to handler at %p\n",
                      (void *) get_pc (&context), (void *) pcs->singleStepHandlerAddress);
                }
                run = 0;
@@ -787,7 +787,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                // program .text section which has been marked non-executable
                if (pcs->debugEnabled) {
                   dbg_fprintf
-                    (stderr, "RUNNING: Re-enter text section at %p, go to handler at %p\n", 
+                    (stderr, "RUNNING: Re-enter text section at %p, go to handler at %p\n",
                      (void *) get_pc (&context),
                      (void *) pcs->singleStepHandlerAddress);
                }
@@ -803,7 +803,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
                // eat this signal and continue to next event (from determiniser)
                ptrace (PTRACE_CONT, childPid, NULL, NULL);
-           
+
             } else {
                // allow the signal to reach the program
                DefaultHandler (childPid, status, "RUNNING");

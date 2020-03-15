@@ -14,7 +14,7 @@ procedure example2 is
          Unsigned_32'Asm_Output("=A", result),
          Volatile => True);
       return result;
-   end rdtsc; 
+   end rdtsc;
 
    store : array (Natural range 1 .. 10) of Unsigned_32;
    v     : Unsigned_32 := 0;
@@ -28,7 +28,7 @@ begin
       store (i) := rdtsc;
    end loop;
    for i in store'First + 1 .. store'Last loop
-      v := store (i) - store (i - 1); 
+      v := store (i) - store (i - 1);
       Ada.Text_IO.Put_Line ("loop" & v'Img);
    end loop;
    begin

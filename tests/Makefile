@@ -14,10 +14,10 @@ clean:
 	make -C simple_tests clean PLATFORM=$(PLATFORM)
 
 # ctest: branch trace of C program
-complex_test/ctest.$(PLATFORM).ok: 
+complex_test/ctest.$(PLATFORM).ok:
 	make -C complex_test ctest.$(PLATFORM).ok PLATFORM=$(PLATFORM)
 
-simple_tests/tests.$(PLATFORM).ok: 
+simple_tests/tests.$(PLATFORM).ok:
 	make -C simple_tests tests.$(PLATFORM).ok PLATFORM=$(PLATFORM)
 
 

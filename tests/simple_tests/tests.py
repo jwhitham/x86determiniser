@@ -128,7 +128,7 @@ def help_test(args, unknown_option):
    for line in open(TMP_FILE, "rt"):
       if line.startswith("Basic usage"):
          ok = True
-   
+
    if not ok:
       raise Exception("No help message printed for %s" % args)
 
@@ -139,7 +139,7 @@ def help_test(args, unknown_option):
             ok = True
          if line.find("invalid option") > 0:
             ok = True
-      
+
       if not ok:
          raise Exception("No unknown option message printed for %s" % args)
 
@@ -240,7 +240,7 @@ def pipe_test():
    fd2 = open(TMP_FILE_2, "wt")
    p = subprocess.Popen([LOADER, "pipetest" + SUFFIX],
          stdout = fd, stderr = fd2, stdin = subprocess.PIPE)
-   
+
    p.stdin.write("0a1b2c3d4e")
    p.stdin.write("5f6g7h8i9j\n")
    p.stdin.close()

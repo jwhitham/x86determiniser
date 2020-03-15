@@ -13,11 +13,11 @@ _main:
    mov $0xfedcba98, %eax   #  4
    out %al, $0x76          #  5 (output to 0x76)
    out %eax, $0x76         #  6 (output to 0x76)
-   mov $0x12345678, %eax   # 
+   mov $0x12345678, %eax   #
    out %eax, $0x9a         #  8 (output to 0x9a)
    out %al, $0x9a          #  9 (output to 0x9a)
    out %eax, $0x00         #  a (output to 0x00)
-   out %eax, $0x00         #  b (output to 0x00) 
+   out %eax, $0x00         #  b (output to 0x00)
    nop
    out %eax, $0x00         #  d
    nop
@@ -32,7 +32,7 @@ i4: out %eax, $0x00        #  18
    in  $0xff, %eax         #  save counter 0x19 in EAX, reset to 0
    out %eax, $0x01         #  1 (output 0x19 to 0x01)
    xor %eax, %eax          #  return 0
-   ret                     #  
+   ret                     #
 
 i2: jmp i3                 #  16
 

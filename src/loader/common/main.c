@@ -22,7 +22,7 @@ int main (int argc, char ** argv)
          "https://github.com/jwhitham/x86determiniser\n";
       static const char help[] =
          "\n"
-        //1                                                                              80 
+        //1                                                                              80
          "X86Determiniser will run an x86 program in a 'simulation' by rewriting basic\n"
          "blocks, emulating some instructions and single-stepping others as required to\n"
          "act as an interpreter for x86 machine code. RDTSC execution timestamps are\n"
@@ -32,7 +32,7 @@ int main (int argc, char ** argv)
          "Basic usage:\n"
          "   x86determiniser [options] -- <program name> [program args...]\n\n"
          "Options:\n"
-        //1                                                                              80 
+        //1                                                                              80
          "   --out-trace <file name>     write values of OUT instructions to <file name>\n"
          "   --branch-trace <file name>  write addresses of branches to <file name>\n"
          "   --inst-trace <file name>    disassemble + write instructions to <file name>\n"

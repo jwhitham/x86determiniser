@@ -1,8 +1,9 @@
 
 all:
 	@echo 'Use an appropriate make target for your platform:'
+	@echo '   "make linux" - Linux, 32-bit and 64-bit'
 	@echo '   "make linux32" - Linux, 32-bit only'
-	@echo '   "make linux64" - Linux, 32 and 64-bit, requires 64-bit host'
+	@echo '   "make linux64" - Linux, 64-bit only'
 	@echo '   "make win" - Windows, 32-bit and 64-bit'
 	@echo '   "make win32" - Windows, 32-bit only'
 	@echo '   "make win64" - Windows, 64-bit only'
@@ -15,10 +16,13 @@ clean:
 deepclean:
 	git clean -f -d -x
 
-win: 
+win:
 	make win32 win64
 
-win32: 
+linux:
+	make linux32 linux64
+
+win32:
 	make -C src PLATFORM=win32 all
 	make -C tests PLATFORM=win32 all
 

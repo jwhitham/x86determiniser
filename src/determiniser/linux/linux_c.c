@@ -34,11 +34,11 @@ static uintptr_t page_round (uintptr_t address, int round_up)
       page_size = 4096;
    }
    mask = (uintptr_t) page_size;
-   mask --; 
+   mask --;
    if (round_up) {
       address += (uintptr_t) mask;
    }
-   return address & ~mask; 
+   return address & ~mask;
 }
 
 void x86_make_text_writable (uintptr_t minAddress, uintptr_t maxAddress)

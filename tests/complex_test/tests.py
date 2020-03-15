@@ -51,7 +51,7 @@ def trace_decoder(in_trace_file, out_trace_file):
                      | (value << 36))
       else:
          out_trace_file.write("%9d ??? %x%07x\n" % (current_time, opcode, value))
-   
+
 
 def trace_filter(in_trace_file, out_trace_file):
    # Find start marker (CEM 1)

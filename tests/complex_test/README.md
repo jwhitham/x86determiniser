@@ -11,7 +11,7 @@ The test includes the following:
 * t4.S - branch pattern and some unusual instructions
 * t5.S - memset written in assembly code with unusual instructions
 * t6.c - C functions from zlib, tiny-AES-C, libgcc
-* t7.c - math functions statically linked from mingw 
+* t7.c - math functions statically linked from mingw
 
 The test uses code from:
 * https://github.com/kokke/tiny-AES-C/

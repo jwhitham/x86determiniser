@@ -1,5 +1,5 @@
 # x86determiniser
-x86determiniser is a 
+x86determiniser is a
 "simulator" with branch tracing, instruction tracing
 and deterministic timing for x86 32-bit and 64-bit programs
 on Windows and Linux. It operates by "system call passthrough"
@@ -69,7 +69,7 @@ but the instructions are counted, and instructions such as RDTSC and OUT
 are treated specially.
 
 x86determiniser initially relied on GNU objdump to disassemble code,
-but now uses the [Zydis](https://zydis.re) disassembler. 
+but now uses the [Zydis](https://zydis.re) disassembler.
 It also once required programs
 to link directly against x86determiniser.dll and execute a setup function
 on startup, but now, programs do not have to be modified because they
