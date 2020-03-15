@@ -1,21 +1,22 @@
 #!/usr/bin/python
 
-import subprocess, os, time, sys
+import subprocess, os, time, sys, shutil
 
 ROOT = os.path.join(os.getcwd(), "..", "..")
 LOADER = None
-TMP_FILE = "tmp.txt"
-TMP_FILE_2 = "tmp2.txt"
-TMP_EXE_FILE = "tmp.exe"
+TMPDIR = os.path.normpath(os.path.join(os.getcwd(), "tmp"))
+TMP_FILE = os.path.join(TMPDIR, "tmp.txt")
+TMP_FILE_2 = os.path.join(TMPDIR, "tmp2.txt")
+TMP_EXE_FILE = os.path.join(TMPDIR, "tmp.exe")
 PLATFORM = None
 SUFFIX = None
 
 def clean():
    for name in [TMP_FILE, TMP_FILE_2, TMP_EXE_FILE]:
       error = 0
-      while os.path.exists(TMP_FILE) and error < 50:
+      while os.path.exists(name) and error < 50:
          try:
-            os.unlink(TMP_FILE)
+            os.unlink(name)
          except:
             time.sleep(0.01)
          error += 1
@@ -153,10 +154,8 @@ def check_error():
       rc = subprocess.call([LOADER] + args, stdout = fd, stderr = fd2)
       fd.close()
       fd2.close()
-      if rc == 0:
-         raise Exception("rc should be non-zero if an error occurred")
       if rc != 1:
-         raise Exception("rc should be 1 for a user error, is %d" % rc)
+         raise Exception("rc should be 1 as a USER_ERROR was expected in this test: got %d" % rc)
 
       for line in open(TMP_FILE, "rt"):
          raise Exception("standard output should be empty if an error occurred")
@@ -289,8 +288,15 @@ if __name__ == "__main__":
    print ("PLATFORM = " + PLATFORM)
    print ("LOADER = " + LOADER)
    print ("SUFFIX = " + SUFFIX)
+   print ("TMPDIR = " + TMPDIR)
 
    clean()
+
+   if os.path.isdir(TMPDIR):
+      shutil.rmtree(TMPDIR)
+   os.mkdir(TMPDIR)
+   os.environ["TMPDIR"] = TMPDIR
+
    help_test([], False)
    help_test(["-?"], True)
    help_test(["--"], False)
@@ -303,6 +309,11 @@ if __name__ == "__main__":
    check_error()
    pipe_test()
    example_test()
+   clean()
+   
+   if len(os.listdir(TMPDIR)) != 0:
+      raise Exception("files left in temporary directory! "
+            "x86determiniser did not clean up after itself! Check " + TMPDIR)
 
    print ("simple_tests completed ok for " + PLATFORM)
    open("tests." + PLATFORM + ".ok", "wt").write("")

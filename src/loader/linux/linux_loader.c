@@ -44,10 +44,7 @@ static void err_printf (unsigned err_code, const char * fmt, ...)
    va_end (ap);
 
    if (err_code == 1) {
-      char buf[BUFSIZ];
-      buf[0] = '\0';
-      strerror_r (err, buf, sizeof (buf));
-      buf[BUFSIZ - 1] = '\0';
+      char * buf = strerror (err);
       fprintf (stderr, ": Linux error code 0x%x: %s\n", (unsigned) err, buf);
 
    } else if ((err_code >= X86D_FIRST_ERROR) && (err_code <= X86D_LAST_ERROR)) {
@@ -313,10 +310,11 @@ static void StartSingleStepProc
    clear_single_step_flag(context);
 }
 
+// Library is unlinked in the event of a normal exit or USER_ERROR
 static void UnlinkLibrary (CommStruct * pcs)
 {
    if (unlink (pcs->libraryName) != 0) {
-      err_printf (1, "unable to unlink");
+      err_printf (1, "unable to unlink '%s'", pcs->libraryName);
    }
 }
 
@@ -472,13 +470,14 @@ static void SetupLibrary (CommStruct * pcs)
 
    fd = mkostemps (pcs->libraryName, 3, O_RDWR | O_CREAT); // 3 == strlen(".so")
    if (fd < 0) {
+      // User should set a different TMPDIR
       err_printf (1, "Unable to create '%s'", pcs->libraryName);
       exit (USER_ERROR);
    }
 
    if ((ssize_t) size != write (fd, _x86d__binary_x86determiniser_so_start, size)) {
       err_printf (1, "Unable to fill '%s'", pcs->libraryName);
-      exit (USER_ERROR);
+      exit (INTERNAL_ERROR);
    }
    close (fd);
 
@@ -565,7 +564,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    childPid = fork ();
    if (childPid < 0) {
       err_printf (1, "fork");
-      exit (USER_ERROR);
+      exit (INTERNAL_ERROR);
    } else if (childPid == 0) {
       // Run the child process: wait for the parent to attach via ptrace
       uint32_t error = FAILED_EXEC;
@@ -730,8 +729,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                trapCount = 3;
             } else if ((get_xax (&context) >= X86D_FIRST_ERROR)
             && (get_xax (&context) <= X86D_LAST_ERROR)) {
+               // User error reported at lower level
                err_printf (get_xax (&context), "AWAIT_REMOTE_LOADER");
-               exit(2);
+               UnlinkLibrary (pcs);
+               exit (USER_ERROR);
             } else {
                // Breakpoint for some other reason
                if (pcs->debugEnabled) {
