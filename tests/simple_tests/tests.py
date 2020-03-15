@@ -169,7 +169,7 @@ def check_error():
    s = sub_check_error([name])
    if not (s.find(name) and
          ((s.find("cannot find the file") > 0)     # Windows
-       or (s.find("No such file or dire") > 0))):  # Linux
+       or (s.find(" not found") > 0))):  # Linux
 
       raise Exception("Did not see expected error message for file not found, "
                "got '%s' instead" % s)
@@ -178,7 +178,7 @@ def check_error():
    s = sub_check_error([name])
    if not (s.find(name) and
          ((s.find("cannot find the path") > 0)     # Windows
-       or (s.find("No such file or dire") > 0))):  # Linux
+       or (s.find(" not found") > 0))):  # Linux
       raise Exception("Did not see expected error message for path not found, "
                "got '%s' instead" % s)
 

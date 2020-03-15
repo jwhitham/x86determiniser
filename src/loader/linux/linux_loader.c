@@ -1,4 +1,5 @@
 #define _XOPEN_SOURCE 600
+#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <string.h>
@@ -436,6 +437,39 @@ static void PutContext (pid_t childPid, LINUX_CONTEXT * context, const char * st
    }
 }
 
+
+// Create and fill the x86determiniser shared object file
+static void SetupLibrary (CommStruct * pcs)
+{
+   extern uint8_t _x86d__binary_x86determiniser_so_start[];
+   extern uint8_t _x86d__binary_x86determiniser_so_end[];
+   size_t size = ((uintptr_t) _x86d__binary_x86determiniser_so_end) -
+                  ((uintptr_t) _x86d__binary_x86determiniser_so_start);
+   int fd;
+   const char * tmp_dir = getenv("TMPDIR");
+
+   if (!tmp_dir) {
+      tmp_dir = "/tmp";
+   }
+   snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/%sdeterminiser-XXXXXX.so", tmp_dir, X86_OR_X64);
+   pcs->libraryName[MAX_FILE_NAME_SIZE - 1] = '\0';
+
+   fd = mkostemps (pcs->libraryName, 3, O_RDWR | O_CREAT); // 3 == strlen(".so")
+   if (fd < 0) {
+      err_printf (1, "Unable to create '%s'", pcs->libraryName);
+      exit (1);
+   }
+
+   if ((ssize_t) size != write (fd, _x86d__binary_x86determiniser_so_start, size)) {
+      err_printf (1, "Unable to fill '%s'", pcs->libraryName);
+      exit (1);
+   }
+   close (fd);
+
+   dbg_fprintf (stderr, "INITIAL: library is '%s'\n", pcs->libraryName);
+}
+
+
 // Entry point from main
 // Args already parsed into CommStruct
 int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
@@ -471,19 +505,6 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       err_printf (1, "readlink('" X86_OR_X64 "determiniser')");
       exit (1);
    }
-
-   // library name
-   snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/%sdeterminiser.so",
-      binFolder, X86_OR_X64);
-   dbg_fprintf (stderr, "INITIAL: library is '%s'\n", pcs->libraryName);
-
-   // check library exists
-   testFd = fopen (pcs->libraryName, "rb");
-   if (!testFd) {
-      err_printf (1, "open('%s')", pcs->libraryName);
-      exit (1);
-   }
-   fclose (testFd);
 
    // check child process executable exists and has the correct format
    testFd = fopen (argv[0], "rb");
@@ -521,6 +542,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          (PTR_SIZE == 4) ? 64 : 86);
       exit (1);
    }
+   SetupLibrary (pcs);
 
    // run the subprocess, preloading the library
    setenv ("LD_PRELOAD", pcs->libraryName, 1);

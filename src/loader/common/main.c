@@ -7,7 +7,8 @@
 #include "common.h"
 #include "remote_loader.h"
 
-int X86DeterminiserLoader(CommStruct * cs, int argc, char ** argv);
+int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv);
+
 
 int main (int argc, char ** argv)
 {
