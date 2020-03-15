@@ -454,10 +454,10 @@ static void PutContext (pid_t childPid, LINUX_CONTEXT * context, const char * st
 // Create and fill the x86determiniser shared object file
 static void SetupLibrary (CommStruct * pcs)
 {
-   extern uint8_t _x86d__binary_x86determiniser_so_start[];
-   extern uint8_t _x86d__binary_x86determiniser_so_end[];
-   size_t size = ((uintptr_t) _x86d__binary_x86determiniser_so_end) -
-                  ((uintptr_t) _x86d__binary_x86determiniser_so_start);
+   extern uint8_t _x86d__binary_determiniser_so_start[];
+   extern uint8_t _x86d__binary_determiniser_so_end[];
+   size_t size = ((uintptr_t) _x86d__binary_determiniser_so_end) -
+                  ((uintptr_t) _x86d__binary_determiniser_so_start);
    int fd;
    const char * tmp_dir = getenv("TMPDIR");
 
@@ -475,7 +475,7 @@ static void SetupLibrary (CommStruct * pcs)
       exit (USER_ERROR);
    }
 
-   if ((ssize_t) size != write (fd, _x86d__binary_x86determiniser_so_start, size)) {
+   if ((ssize_t) size != write (fd, _x86d__binary_determiniser_so_start, size)) {
       err_printf (1, "Unable to fill '%s'", pcs->libraryName);
       exit (INTERNAL_ERROR);
    }
