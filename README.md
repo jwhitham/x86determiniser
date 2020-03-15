@@ -1,6 +1,7 @@
 # x86determiniser
 x86determiniser is a
-"simulator" with branch tracing, instruction tracing
+"simulator" with [branch tracing](https://en.wikipedia.org/wiki/Branch_trace),
+instruction tracing
 and deterministic timing for x86 32-bit and 64-bit programs
 on Windows and Linux. It operates by "system call passthrough"
 and loads native executables.
@@ -26,27 +27,29 @@ and the operating system are ignored.
 
 # Branch tracing
 
-x86determiniser also generates branch traces. These capture the
+x86determiniser also generates
+[branch traces](https://en.wikipedia.org/wiki/Branch_trace). These capture the
 execution path through a program. The branch trace records the source
 and destination address of every branch that is taken, including
 unconditional branches, calls and returns. It also records the address
 of every branch that is not taken. Each trace record is "timestamped"
-with an instruction count. The "doc" subdirectory contains a
+with an instruction count. The `doc` subdirectory contains a
 description of the branch trace format.
 
-# Purposes of x86determiniser
+# Rationale for x86determiniser
 
 x86determiniser was created to help test a timing analysis tool named
-RapiTime, made by [Rapita Systems](https://www.rapitasystems.com/).
+[RapiTime](https://www.rapitasystems.com/products/rapitime),
+made by [Rapita Systems](https://www.rapitasystems.com/).
 Programs running on x86 CPUs do not have precisely predictable
 execution times, but deterministic execution was needed in order to make
-reliable test cases for continuous integration.
+reliable and repeatable test cases for continuous integration.
 
 Other simulators did not meet the requirements for this, because
 we wanted to compile programs on both Windows and Linux hosts, and then
 run them in simulation. Usually, simulators do not support
 "[syscall emulation](https://qemu.weilnetz.de/doc/qemu-doc.html#QEMU-User-space-emulator)", also known as "system call passthrough"
-or "userspace emulation". Instead, it simulates
+or "userspace emulation". Instead, simulators normally simulate
 an entire system, which means that we cannot take native programs from
 the host and run them in the simulator, because we must also simulate the
 OS and the hardware. [QEMU](https://www.qemu.org/)
@@ -56,10 +59,6 @@ family of simulators do
 not work on Windows at all. A search for Windows-based simulators
 with such features came up with nothing.
 
-x86determiniser was subsequently extended to generate branch traces in order
-to support another tool being developed at Rapita, allowing
-repeatable tests to be written.
-
 I set out to try to build a simulator that did as little simulating as
 possible, because x86 is a very complex architecture and simulators are
 hard to write. x86determiniser is the result. It avoids simulation as
@@ -68,20 +67,42 @@ far as possible by executing code directly - instrumentation is added
 but the instructions are counted, and instructions such as RDTSC and OUT
 are treated specially.
 
-x86determiniser initially relied on GNU objdump to disassemble code,
-but now uses the [Zydis](https://zydis.re) disassembler.
-It also once required programs
-to link directly against x86determiniser.dll and execute a setup function
-on startup, but now, programs do not have to be modified because they
-are started by x86determiniser.exe, which acts as a debugger and program
-loader. x86determiniser is now also able to capture instruction traces (in
-text format) and branch traces (in an encoded format) and this may be
-useful as a way to debug and analyse any program, not necessarily one
-requiring deterministic execution.
+# Version History
 
-Initially x86determiniser only supported 32-bit code but it now supports
-both 32-bit and 64-bit programs via two different entry points:
-x86determiniser.exe (32-bit) and x64determiniser.exe (64-bit).
+## 1.0 (January 2016)
+
+Version 1.0 relied on GNU objdump to disassemble code. It supported
+32-bit Windows and Linux only. Programs had to link against the x86determiniser
+DLL and call the `startup\_x86\_determiniser` function during `main`. This
+version used the GNU General Public License.
+
+## 1.1 (June 2018)
+
+Version 1.1 changed the branch trace format in order to provide more information
+and support testing for
+[another tool](https://www.rapitasystems.com/products/features/zero-footprint-timing-analysis)
+being developed at Rapita, allowing repeatable tests to be written.
+
+## 1.2 (December 2018)
+
+Version 1.2 changed the behaviour of IN and OUT instructions to allow custom events
+to be written to a branch trace file. The license was changed to MIT.
+
+## 2.0 (March 2020)
+
+Version 2.0 added support for 64-bit platforms. Programs no longer needed
+to link against any x86determiniser DLL or call any library function during `main`:
+x86determiniser was now an application rather than a DLL, and could run
+unmodified Linux and Windows programs when executed as follows:
+
+   C> x64determiniser.exe --inst-trace test.txt example.exe
+
+GNU objdump was no longer required, as the [Zydis](https://zydis.re) disassembler
+was now embedded within x86determiniser. Zydis and x86determiniser share the MIT
+License.
+
+x86determiniser was also now able to generate an instruction trace (with disassembly)
+and branch traces.
 
 
 # Limitations
@@ -93,6 +114,11 @@ though I recognise that this is a low barrier.
 
 The interpreter will work with 32-bit and 64-bit x86 code. It uses the Zydis
 x86 disassembler. It has only been tested with code compiled with GCC.
+
+x86determiniser versions 1.0 to 1.2 were extensively used for internal
+testing at Rapita while I was working there. Version 2.0 was completed
+after I had left, but regression tests in the `tests` directory check
+the current behaviour against reference output from 1.2.
 
 The interpreter can be trivially extended to produce other traces.
 
