@@ -23,6 +23,9 @@
 #include "common.h"
 #include "linux_context.h"
 
+#define USER_ERROR      1
+#define INTERNAL_ERROR  2
+
 #define dbg_fprintf if (pcs->debugEnabled) fprintf
 
 typedef struct SingleStepStruct {
@@ -310,9 +313,16 @@ static void StartSingleStepProc
    clear_single_step_flag(context);
 }
 
+static void UnlinkLibrary (CommStruct * pcs)
+{
+   if (unlink (pcs->libraryName) != 0) {
+      err_printf (1, "unable to unlink");
+   }
+}
+
 // Handle a signal or other event from the child process which is not related
 // to x86determiniser's operation
-static void DefaultHandler (pid_t childPid, int status, const char * state)
+static void DefaultHandler (CommStruct * pcs, pid_t childPid, int status, const char * state)
 {
    if (WIFSTOPPED(status)) {
       // This means a signal was received, other than the one we are using (SIGTRAP).
@@ -322,6 +332,7 @@ static void DefaultHandler (pid_t childPid, int status, const char * state)
 
    } else if (WIFEXITED(status)) {
       // normal exit
+      UnlinkLibrary (pcs);
       exit (WEXITSTATUS(status));
 
    } else if (WIFSIGNALED(status)) {
@@ -329,25 +340,29 @@ static void DefaultHandler (pid_t childPid, int status, const char * state)
       switch (WTERMSIG(status)) {
          case SIGILL:
             err_printf (0, "Illegal instruction");
-            exit (1);
+            UnlinkLibrary (pcs);
+            exit (USER_ERROR);
             break;
          case SIGSEGV:
             err_printf (0, "Segmentation fault");
-            exit (1);
+            UnlinkLibrary (pcs);
+            exit (USER_ERROR);
             break;
          case SIGFPE:
             err_printf (0, "Divide by zero");
-            exit (1);
+            UnlinkLibrary (pcs);
+            exit (USER_ERROR);
             break;
          default:
             // pass through
             err_printf (0, "%s: terminated by signal %d\n",
                      state, WTERMSIG(status));
-            exit (1);
+            UnlinkLibrary (pcs);
+            exit (USER_ERROR);
       }
    } else {
       err_printf (0, "%s: waitpid returned for unknown reason: status = 0x%x\n", state, status);
-      exit (1);
+      exit (INTERNAL_ERROR);
    }
 }
 
@@ -388,11 +403,11 @@ static void TestGetPutData (pid_t childPid, uintptr_t base)
          GetData (childPid, base + offset, incoming, size);
          if (memcmp (incoming, outgoing, size) != 0) {
             err_printf (0, "readback 1a test failed: read something unexpected back");
-            exit (1);
+            exit (INTERNAL_ERROR);
          }
          if (incoming[size] != 0xaa) {
             err_printf (0, "readback 1b test failed: GetData overwrote sentinel value");
-            exit (1);
+            exit (INTERNAL_ERROR);
          }
 
          // Readback 2: readback without offset (check the entire expected area)
@@ -400,11 +415,11 @@ static void TestGetPutData (pid_t childPid, uintptr_t base)
          GetData (childPid, base, incoming, max_size);
          if (memcmp (incoming, expected, max_size) != 0) {
             err_printf (0, "readback 2a test failed: memory area changed in an unexpected way");
-            exit (1);
+            exit (INTERNAL_ERROR);
          }
          if (incoming[max_size] != 0xaa) {
             err_printf (0, "readback 2b test failed: GetData overwrote sentinel value");
-            exit (1);
+            exit (INTERNAL_ERROR);
          }
       }
    }
@@ -416,11 +431,11 @@ static void GetContext (pid_t childPid, LINUX_CONTEXT * context, const char * st
    memset (context, 0, sizeof (LINUX_CONTEXT));
    if (ptrace (PTRACE_GETREGS, childPid, NULL, &context->regs) != 0) {
       err_printf (1, "%s: PTRACE_GETREGS", state);
-      exit (1);
+      exit (INTERNAL_ERROR);
    }
    if (ptrace (PTRACE_GETFPREGS, childPid, NULL, &context->fpregs) != 0) {
       err_printf (1, "%s: PTRACE_GETFPREGS", state);
-      exit (1);
+      exit (INTERNAL_ERROR);
    }
 }
 
@@ -429,11 +444,11 @@ static void PutContext (pid_t childPid, LINUX_CONTEXT * context, const char * st
 {
    if (ptrace (PTRACE_SETREGS, childPid, NULL, &context->regs) != 0) {
       err_printf (1, "%s: PTRACE_SETREGS", state);
-      exit (1);
+      exit (INTERNAL_ERROR);
    }
    if (ptrace (PTRACE_SETFPREGS, childPid, NULL, &context->fpregs) != 0) {
       err_printf (1, "%s: PTRACE_SETFPREGS", state);
-      exit (1);
+      exit (INTERNAL_ERROR);
    }
 }
 
@@ -451,18 +466,19 @@ static void SetupLibrary (CommStruct * pcs)
    if (!tmp_dir) {
       tmp_dir = "/tmp";
    }
-   snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/%sdeterminiser-XXXXXX.so", tmp_dir, X86_OR_X64);
+   snprintf (pcs->libraryName, MAX_FILE_NAME_SIZE, "%s/%sdeterminiser-%d-XXXXXX.so",
+         tmp_dir, X86_OR_X64, (int) getpid ());
    pcs->libraryName[MAX_FILE_NAME_SIZE - 1] = '\0';
 
    fd = mkostemps (pcs->libraryName, 3, O_RDWR | O_CREAT); // 3 == strlen(".so")
    if (fd < 0) {
       err_printf (1, "Unable to create '%s'", pcs->libraryName);
-      exit (1);
+      exit (USER_ERROR);
    }
 
    if ((ssize_t) size != write (fd, _x86d__binary_x86determiniser_so_start, size)) {
       err_printf (1, "Unable to fill '%s'", pcs->libraryName);
-      exit (1);
+      exit (USER_ERROR);
    }
    close (fd);
 
@@ -503,14 +519,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       *finalSlash = '\0';
    } else {
       err_printf (1, "readlink('" X86_OR_X64 "determiniser')");
-      exit (1);
+      exit (USER_ERROR);
    }
 
    // check child process executable exists and has the correct format
    testFd = fopen (argv[0], "rb");
    if (!testFd) {
       err_printf (1, "program '%s' not found", argv[0]);
-      exit (1);
+      exit (USER_ERROR);
    }
    // read errors here will be detected by memcmp below:
    (void) fread (elfHeader, 1, sizeof (elfHeader), testFd);
@@ -533,14 +549,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          break;
       default:
          err_printf (0, "program '%s' must be an x86 ELF executable", argv[0]);
-         exit (1);
+         exit (USER_ERROR);
    }
    if (elfType != (PTR_SIZE * 8)) {
       fprintf (stderr, "%s: executable appears to be %d-bit, try x%ddeterminiser instead\n",
          argv[0],
          (PTR_SIZE == 4) ? 64 : 32,
          (PTR_SIZE == 4) ? 64 : 86);
-      exit (1);
+      exit (USER_ERROR);
    }
    SetupLibrary (pcs);
 
@@ -549,15 +565,17 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    childPid = fork ();
    if (childPid < 0) {
       err_printf (1, "fork");
-      exit (1);
+      exit (USER_ERROR);
    } else if (childPid == 0) {
       // Run the child process: wait for the parent to attach via ptrace
+      uint32_t error = FAILED_EXEC;
+
       ptrace (PTRACE_TRACEME, 0, NULL, NULL);
       execv (argv[0], argv);
 
-      // TODO If exec'ing the child process failed for some reason, here is where
-      // we should provide a way to report that.
-      exit (1);
+      // If exec'ing the child process failed for some reason, report this using FAILED_EXEC message
+      __asm__ volatile ("int3" : : "a"(error));
+      exit (INTERNAL_ERROR);
    }
    dbg_fprintf (stderr, "INITIAL: child pid is %d\n", (int) childPid);
 
@@ -569,7 +587,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    while (trapCount == 0) {
       if (waitpid (childPid, &status, 0) != childPid) {
          err_printf (1, "INITIAL: waitpid");
-         exit (1);
+         exit (INTERNAL_ERROR);
       }
 
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
@@ -584,7 +602,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             if (!ReadMaps (childPid, 0, pcs)) {
                // Nothing can be found - give up
                err_printf (0, "INITIAL: unable to determine bounds of .text section for '%s'", argv[0]);
-               exit (1);
+               exit (INTERNAL_ERROR);
             }
          }
          dbg_fprintf (stderr, "INITIAL: minAddress = %p\n", (void *) pcs->minAddress);
@@ -597,30 +615,29 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       } else if (WIFSTOPPED(status)) {
          err_printf (0, "INITIAL: child process stopped unexpectedly (signal %d)",
                      (int) (WSTOPSIG(status)));
-         exit (1);
+         exit (INTERNAL_ERROR);
 
       } else if (WIFSIGNALED(status)) {
          err_printf (0, "INITIAL: child process was unexpectedly terminated by "
                      "signal %d", (int) (WTERMSIG(status)), status);
-         exit (1);
+         exit (INTERNAL_ERROR);
       } else if (WIFEXITED(status)) {
          err_printf (0, "INITIAL: child process exited immediately");
-         exit (1);
+         exit (INTERNAL_ERROR);
 
       } else {
          err_printf (0, "INITIAL: child process did something unexpected, "
                         "status = 0x%x", status);
-         exit (1);
+         exit (INTERNAL_ERROR);
       }
    }
-
 
    // AWAIT_FIRST_STAGE STAGE
    // Wait for the breakpoint indicating that the RemoteLoader procedure is executing.
    while (trapCount == 1) {
       if (waitpid (childPid, &status, 0) != childPid) {
          err_printf (1, "AWAIT_FIRST_STAGE: waitpid");
-         exit (1);
+         exit (INTERNAL_ERROR);
       }
 
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
@@ -635,7 +652,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          // check we stopped in the right place: EAX/RAX contains the expected code
          if (get_xax (&context) != COMPLETED_REMOTE) {
             err_printf (0, "AWAIT_FIRST_STAGE: breakpoint was not in RemoteLoader procedure");
-            exit (1);
+            exit (INTERNAL_ERROR);
          }
 
          // copy CommStruct data to the child: EBX/RBX contains the address
@@ -652,7 +669,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          GetData (childPid, pcsInChild, (void *) &check_copy, sizeof (CommStruct));
          if (memcmp (&check_copy, pcs, sizeof (CommStruct) != 0)) {
             err_printf (0, "AWAIT_FIRST_STAGE: readback of CommStruct failed");
-            exit (1);
+            exit (INTERNAL_ERROR);
          }
          dbg_fprintf (stderr, "AWAIT_FIRST_STAGE: readback ok (%d bytes)\n", (int) sizeof (CommStruct));
 
@@ -662,11 +679,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
       } else if (WIFSTOPPED(status)) {
          err_printf (0, "AWAIT_FIRST_STAGE: child process stopped unexpectedly (%d)", (int) (WSTOPSIG(status)));
-         exit (1);
+         exit (INTERNAL_ERROR);
 
       } else if (WIFEXITED(status)) {
          err_printf (0, "AWAIT_FIRST_STAGE: child process exited immediately");
-         exit (1);
+         exit (INTERNAL_ERROR);
       }
    }
 
@@ -677,7 +694,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    while (trapCount == 2) {
       if (waitpid (childPid, &status, 0) != childPid) {
          err_printf (1, "AWAIT_REMOTE_LOADER_BP: waitpid");
-         exit (1);
+         exit (INTERNAL_ERROR);
       }
 
       if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
@@ -702,7 +719,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: completed\n");
                if (get_xbx (&context) != pcsInChild) {
                   err_printf (0, "AWAIT_REMOTE_LOADER_BP: unexpected EBX value");
-                  exit (1);
+                  exit (INTERNAL_ERROR);
                }
 
                // read back the CommStruct, now updated with singleStepHandlerAddress
@@ -714,14 +731,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             } else if ((get_xax (&context) >= X86D_FIRST_ERROR)
             && (get_xax (&context) <= X86D_LAST_ERROR)) {
                err_printf (get_xax (&context), "AWAIT_REMOTE_LOADER");
-               exit(1);
+               exit(2);
             } else {
                // Breakpoint for some other reason
                if (pcs->debugEnabled) {
                   dbg_fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: other bp\n");
                   dbg_state (&context);
                }
-               DefaultHandler (childPid, status, "AWAIT_REMOTE_LOADER_BP");
+               DefaultHandler (pcs, childPid, status, "AWAIT_REMOTE_LOADER_BP");
             }
          }
       } else if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSEGV) {
@@ -731,23 +748,23 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
          GetContext (childPid, &context, "AWAIT_REMOTE_LOADER_BP: segv");
          if (ptrace (PTRACE_GETSIGINFO, childPid, NULL, &siginfo) != 0) {
             err_printf (1, "AWAIT_REMOTE_LOADER_BP: PTRACE_GETSIGINFO: segv");
-            exit (1);
+            exit (INTERNAL_ERROR);
          }
          fprintf (stderr, "AWAIT_REMOTE_LOADER_BP: segfault at PC 0x%p "
                "fault address %p\n",
                      (void *) get_pc (&context),
                      (void *) siginfo.si_addr);
          ReadMaps (childPid, 0, pcs);
-         exit (1);
+         exit (INTERNAL_ERROR);
 
       } else if (WIFSTOPPED(status)) {
          GetContext (childPid, &context, "AWAIT_REMOTE_LOADER_BP");
          err_printf (0, "AWAIT_REMOTE_LOADER_BP: child process stopped unexpectedly (signal %d)", (int) (WSTOPSIG(status)));
-         exit (1);
+         exit (INTERNAL_ERROR);
 
       } else if (WIFEXITED(status)) {
          err_printf (0, "AWAIT_REMOTE_LOADER_BP: child process exited immediately");
-         exit (1);
+         exit (INTERNAL_ERROR);
       }
    }
 
@@ -760,7 +777,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       while (run) {
          if (waitpid (childPid, &status, 0) != childPid) {
             err_printf (1, "RUNNING: waitpid");
-            exit (1);
+            exit (INTERNAL_ERROR);
          }
 
          if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
@@ -787,7 +804,6 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                ptrace (PTRACE_CONT, childPid, NULL, NULL);
             } else {
                // Breakpoint for some other reason
-               // DefaultHandler (childPid, status, "RUNNING");
                // continue to next event (from determiniser)
                ptrace (PTRACE_CONT, childPid, NULL, NULL);
             }
@@ -800,7 +816,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             GetContext (childPid, &context, "RUNNING: segv");
             if (ptrace (PTRACE_GETSIGINFO, childPid, NULL, &siginfo) != 0) {
                err_printf (1, "RUNNING: PTRACE_GETSIGINFO: segv");
-               exit (1);
+               exit (INTERNAL_ERROR);
             }
             if (((uintptr_t) siginfo.si_addr >= pcs->minAddress)
             && ((uintptr_t) siginfo.si_addr < pcs->maxAddress)
@@ -828,11 +844,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
             } else {
                // allow the signal to reach the program
-               DefaultHandler (childPid, status, "RUNNING");
+               DefaultHandler (pcs, childPid, status, "RUNNING");
             }
 
          } else {
-            DefaultHandler (childPid, status, "RUNNING");
+            DefaultHandler (pcs, childPid, status, "RUNNING");
          }
       }
 
@@ -843,7 +859,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       while (!run) {
          if (waitpid (childPid, &status, 0) != childPid) {
             err_printf (1, "SINGLE_STEP: waitpid");
-            exit (1);
+            exit (INTERNAL_ERROR);
          }
 
          if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP) {
@@ -852,14 +868,14 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
             if (IsSingleStep (childPid, &context)) {
                err_printf (1, "SINGLE_STEP: single-stepping in single step handler?");
-               exit (1);
+               exit (INTERNAL_ERROR);
             }
 
             // EAX contains an error code, or 0x102 on success
             // EBX is pointer to context, altered by remote
             if (get_xax (&context) != COMPLETED_SINGLE_STEP_HANDLER) {
                err_printf (get_xax (&context), "SINGLE_STEP");
-               exit (1);
+               exit (INTERNAL_ERROR);
             }
 
             // context restored
@@ -878,7 +894,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
             run = 1;
 
          } else {
-            DefaultHandler (childPid, status, "SINGLE_STEP");
+            DefaultHandler (pcs, childPid, status, "SINGLE_STEP");
          }
       }
    }

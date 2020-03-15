@@ -155,6 +155,8 @@ def check_error():
       fd2.close()
       if rc == 0:
          raise Exception("rc should be non-zero if an error occurred")
+      if rc != 1:
+         raise Exception("rc should be 1 for a user error, is %d" % rc)
 
       for line in open(TMP_FILE, "rt"):
          raise Exception("standard output should be empty if an error occurred")

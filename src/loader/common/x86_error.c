@@ -10,6 +10,8 @@ const char * X86Error(int code)
       case FAILED_GETPROCADDRESS: // 0x002
          return "GetProcAddress call failed when attempting to find the "
             "startup procedure in x86determiniser DLL";
+      case FAILED_EXEC:
+         return "Failed to start the program";
       case FAILED_MEMORY_PERMISSIONS: // 0x103
          return "Failed to set .text writable (needed for basic block rewriting)";
       case FAILED_MEMORY_BOUND_DISCOVERY: // 0x104
@@ -37,3 +39,4 @@ const char * X86Error(int code)
          return "Unknown error";
    }
 }
+
