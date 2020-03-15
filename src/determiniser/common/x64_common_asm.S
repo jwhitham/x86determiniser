@@ -21,8 +21,8 @@
 
 #include "offsets.h"
 
-#define CALL_SIZE 10
-#define RED_ZONE_SIZE 128
+#define CALL_SIZE 6
+#define RED_ZONE_SIZE 0
 #define SUPER_STACK_SIZE 0x10000
 #define SHADOW_SIZE 32
 
@@ -91,74 +91,69 @@ super_stack_top:
 _x86_begin_single_step:
 x86_begin_single_step:
     /* save the user context */
-    mov     %rax, OFF_XAX + other_context(%rip)    /* GPRs */
-    mov     %rbx, OFF_XBX + other_context(%rip)
-    mov     %rcx, OFF_XCX + other_context(%rip)
-    mov     %rdx, OFF_XDX + other_context(%rip)
-    mov     %rsp, OFF_XSP + other_context(%rip)
-    mov     %rbp, OFF_XBP + other_context(%rip)
-    mov     %rsi, OFF_XSI + other_context(%rip)
-    mov     %rdi, OFF_XDI + other_context(%rip)
-    mov     %r8, OFF_R8 + other_context(%rip)
-    mov     %r9, OFF_R9 + other_context(%rip)
-    mov     %r10, OFF_R10 + other_context(%rip)
-    mov     %r11, OFF_R11 + other_context(%rip)
-    mov     %r12, OFF_R12 + other_context(%rip)
-    mov     %r13, OFF_R13 + other_context(%rip)
-    mov     %r14, OFF_R14 + other_context(%rip)
-    mov     %r15, OFF_R15 + other_context(%rip)
-    movsd   %xmm0, OFF_Xmm0 + other_context(%rip)
-    movsd   %xmm1, OFF_Xmm1 + other_context(%rip)
-    movsd   %xmm2, OFF_Xmm2 + other_context(%rip)
-    movsd   %xmm3, OFF_Xmm3 + other_context(%rip)
-    movsd   %xmm4, OFF_Xmm4 + other_context(%rip)
-    movsd   %xmm5, OFF_Xmm5 + other_context(%rip)
-    movsd   %xmm6, OFF_Xmm6 + other_context(%rip)
-    movsd   %xmm7, OFF_Xmm7 + other_context(%rip)
-    movsd   %xmm8, OFF_Xmm8 + other_context(%rip)
-    movsd   %xmm9, OFF_Xmm9 + other_context(%rip)
-    movsd   %xmm10, OFF_Xmm10 + other_context(%rip)
-    movsd   %xmm11, OFF_Xmm11 + other_context(%rip)
-    movsd   %xmm12, OFF_Xmm12 + other_context(%rip)
-    movsd   %xmm13, OFF_Xmm13 + other_context(%rip)
-    movsd   %xmm14, OFF_Xmm14 + other_context(%rip)
-    movsd   %xmm15, OFF_Xmm15 + other_context(%rip)
+    mov     %rax, OFF_XAX + x86_other_context    /* GPRs */
+    mov     %rbx, OFF_XBX + x86_other_context
+    mov     %rcx, OFF_XCX + x86_other_context
+    mov     %rdx, OFF_XDX + x86_other_context
+    mov     %rsp, OFF_XSP + x86_other_context
+    mov     %rbp, OFF_XBP + x86_other_context
+    mov     %rsi, OFF_XSI + x86_other_context
+    mov     %rdi, OFF_XDI + x86_other_context
+    mov     %r8, OFF_R8 + x86_other_context
+    mov     %r9, OFF_R9 + x86_other_context
+    mov     %r10, OFF_R10 + x86_other_context
+    mov     %r11, OFF_R11 + x86_other_context
+    mov     %r12, OFF_R12 + x86_other_context
+    mov     %r13, OFF_R13 + x86_other_context
+    mov     %r14, OFF_R14 + x86_other_context
+    mov     %r15, OFF_R15 + x86_other_context
+    movsd   %xmm0, OFF_Xmm0 + x86_other_context
+    movsd   %xmm1, OFF_Xmm1 + x86_other_context
+    movsd   %xmm2, OFF_Xmm2 + x86_other_context
+    movsd   %xmm3, OFF_Xmm3 + x86_other_context
+    movsd   %xmm4, OFF_Xmm4 + x86_other_context
+    movsd   %xmm5, OFF_Xmm5 + x86_other_context
+    movsd   %xmm6, OFF_Xmm6 + x86_other_context
+    movsd   %xmm7, OFF_Xmm7 + x86_other_context
+    movsd   %xmm8, OFF_Xmm8 + x86_other_context
+    movsd   %xmm9, OFF_Xmm9 + x86_other_context
+    movsd   %xmm10, OFF_Xmm10 + x86_other_context
+    movsd   %xmm11, OFF_Xmm11 + x86_other_context
+    movsd   %xmm12, OFF_Xmm12 + x86_other_context
+    movsd   %xmm13, OFF_Xmm13 + x86_other_context
+    movsd   %xmm14, OFF_Xmm14 + x86_other_context
+    movsd   %xmm15, OFF_Xmm15 + x86_other_context
     pushfq
     popq    %rax
-    mov     %eax, OFF_EFL + other_context(%rip)          /* FLAGS */
-    lea     user_start_point(%rip), %rax
-    mov     %rax, OFF_XIP + other_context(%rip)    /* program counter (return point) */
+    mov     %eax, OFF_EFL + x86_other_context          /* FLAGS */
+    mov     $user_start_point, %rax
+    mov     %rax, OFF_XIP + x86_other_context    /* program counter (return point) */
 
     /* various setup */
-    lea     super_stack_top(%rip), %rsp
+    mov     $super_stack_top, %rsp
 
-    lea     switch_from_user(%rip), %rax
-    mov     %rax, switch_from_user_ptr(%rip)
+    mov     $x86_switch_from_user, %rax
+    mov     %rax, switch_from_user_ptr
 
     mov     $CALL_SIZE, %eax
-    mov     %eax, size_of_call_instruction(%rip)
+    mov     %eax, size_of_call_instruction
     mov     $RED_ZONE_SIZE, %eax
-    mov     %eax, size_of_red_zone(%rip)
+    mov     %eax, size_of_red_zone
 
     /* enter interpreter loop */
     sub     $SHADOW_SIZE, %rsp
-    call    *x86_interpreter_addr(%rip)
+    call    x86_interpreter
     add     $SHADOW_SIZE, %rsp
 
     /* supervisor should not have returned */
     mov     $1, PARAM_1
-    jmp     *exit_addr(%rip)
+    jmp     _exit
 
 user_start_point:
     /* user begins executing here */
     retq
 
-.align 8
-x86_interpreter_addr:
-    .quad x86_interpreter
-exit_addr:
-    .quad _exit
-.align 8
+.align 4
 
 /* void x86_switch_to_user (uintptr_t endpoint); */
 x86_switch_to_user:
@@ -180,34 +175,21 @@ _x86_switch_to_user:
     pushq   %r14
     pushq   %r15
 
-    /* Save whatever is already at the endpoint - need to save 18 bytes */
+    /* Save whatever is already at the endpoint - need to save 14 bytes */
     mov     0(PARAM_1), %rax
-    mov     %rax, save_space(%rip)
-    mov     8(PARAM_1), %rax
-    mov     %rax, save_space + 8(%rip)
-    mov     16(PARAM_1), %rax
-    mov     %rax, save_space + 16(%rip)
+    mov     8(PARAM_1), %rdx
+    mov     %rax, save_space
+    mov     %rdx, save_space + 8
 
-    /* encode:
-     * 00    48 83 c4 80          add $-0x80,%rsp   subtract size of red zone
-     * 04    ff 15 00 00 00 00    call *0(%rip)     dereference the value following the call
-     * 0a    xx xx xx xx          target address
-     * 0e    xx xx xx xx          target address
-     * Total: 18 bytes
-     * Size of call instruction: CALL_SIZE = 10 = 4 + 6
-     *
-     * The red zone is for immediate loading and unloading of passengers only.
-     */
+    /* encode PC-relative indirect call followed by absolute address */
 
-    mov     $0x15ff80c48348, %rax        
-    mov     %rax, 0(PARAM_1)     /* red zone sub size + call */
-    xor     %rax, %rax
-    mov     %rax, 8(PARAM_1)     /* zero */
-    lea     switch_from_user(%rip), %rdx
-    mov     %rdx, 10(PARAM_1)    /* absolute 64-bit target address */
+    mov     $0x15ff, %rax        
+    mov     %rax, 0(PARAM_1)     /* call with PC-relative address: ff 15 00 00 00 00 XX XX */
+    mov     $x86_switch_from_user, %rdx
+    mov     %rdx, 6(PARAM_1)     /* absolute 64-bit target address */
 
     /* restore the user context */
-    lea     other_context + OFF_XAX(%rip), %rsi
+    mov     $x86_other_context + OFF_XAX, %rsi
     mov     OFF_EFL - OFF_XAX(%rsi), %eax /* user FLAGS */
     pushq   %rax
     mov     OFF_XAX - OFF_XAX(%rsi), %rax /* GPRs */
@@ -248,14 +230,13 @@ _x86_switch_to_user:
     popfq                                        /* restoring FLAGS may cause single-stepping */
     xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
     xchg    OFF_XSI - OFF_XAX(%rsi), %rsi
-    jmp     *OFF_XIP + other_context(%rip)       /* user PC */
+    jmp     *(OFF_XIP + x86_other_context)       /* user PC */
 
 .align 4
 _x86_switch_from_user:
 x86_switch_from_user:
-switch_from_user:
     /* save the user context */
-    xchg    %rsi, OFF_XSI + other_context(%rip)
+    xchg    %rsi, OFF_XSI + x86_other_context
     mov     %rax, OFF_XAX - OFF_XAX(%rsi)    /* GPRs */
     mov     %rbx, OFF_XBX - OFF_XAX(%rsi)
     mov     %rdx, OFF_XDX - OFF_XAX(%rsi)
@@ -291,23 +272,21 @@ switch_from_user:
     movsd   %xmm13, OFF_Xmm13 - OFF_XAX(%rsi)
     movsd   %xmm14, OFF_Xmm14 - OFF_XAX(%rsi)
     movsd   %xmm15, OFF_Xmm15 - OFF_XAX(%rsi)
-    pop     %rax           /* get user PC from the stack */
-    add     $RED_ZONE_SIZE, %rsp    /* undo red zone removal */
+    pop     %rax                                 /* PC + call instruction size (5 bytes) */
     xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
 
     pushfq
     popq    %rbx
     mov     %ebx, OFF_EFL - OFF_XAX(%rsi)          /* user FLAGS */
+
     subq    $CALL_SIZE, %rax
-    mov     %rax, OFF_XIP - OFF_XAX(%rsi)          /* user PC */
+    mov     %rax, OFF_XIP - OFF_XAX(%rsi)    /* user PC */
 
     /* Restore endpoint */
-    mov     save_space(%rip), %rax
+    mov     save_space, %rax
+    mov     save_space + 8, %rdx
     mov     %rax, 0(PARAM_1)
-    mov     save_space + 8(%rip), %rax
-    mov     %rax, 8(PARAM_1)
-    mov     save_space + 16(%rip), %rax
-    mov     %rax, 16(PARAM_1)
+    mov     %rdx, 8(PARAM_1)
 
     /* Restore callee-save registers and return */
     popq    %r15
@@ -356,13 +335,12 @@ _x86_is_branch_taken:
     xorq    %rax, %rax          /* return value is zero by default */
 
     andq    $15, PARAM_2                     /* opcode: keep low nibble only */
-    lea     jump_base(%rip), PARAM_1
-    lea     0(PARAM_1,PARAM_2,4), PARAM_1 /* dispatch within table (below) */
+    lea     .Ljump_base(,PARAM_2,4), PARAM_1 /* dispatch within table (below) */
 
     popfq                       /* update flags */
     jmp     *PARAM_1
 
-jump_base:
+.Ljump_base:
     jo      .Ltaken
     ret
     nop
