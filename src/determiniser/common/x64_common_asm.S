@@ -235,14 +235,14 @@ _x86_switch_to_user:
     popfq                                        /* restoring FLAGS may cause single-stepping */
     xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
     xchg    OFF_XSI - OFF_XAX(%rsi), %rsi
-    jmp     *(OFF_XIP + x86_other_context)       /* user PC */
+    jmp     *OFF_XIP + other_context(%rip)       /* user PC */
 
 .align 4
 _x86_switch_from_user:
 x86_switch_from_user:
 switch_from_user:
     /* save the user context */
-    xchg    %rsi, OFF_XSI + x86_other_context
+    xchg    %rsi, OFF_XSI + other_context(%rip)
     mov     %rax, OFF_XAX - OFF_XAX(%rsi)    /* GPRs */
     mov     %rbx, OFF_XBX - OFF_XAX(%rsi)
     mov     %rdx, OFF_XDX - OFF_XAX(%rsi)
