@@ -82,7 +82,6 @@ __declspec(dllexport) void X86DeterminiserStartup (CommStruct * pcs)
 
    pcs->singleStepHandlerAddress = (uintptr_t) single_step_handler;
    pcs->freeRunFlagAddress = (uintptr_t) &x86_free_run_flag;
-   x86_free_run_flag = 0;
    x86_startup (pcs);
 
    // Now ready for the user program

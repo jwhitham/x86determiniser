@@ -13,6 +13,8 @@
 #include "linux_context.h"
 
 
+extern uint8_t x86_free_run_flag;
+
 static void single_step_handler (LINUX_CONTEXT * context)
 {
    uintptr_t * gregs = (uintptr_t *) context;
@@ -73,8 +75,9 @@ void X86DeterminiserStartup (CommStruct * pcs)
    // (On Windows this is determined within X86DeterminiserStartup based on pcs->startAddress,
    // which is not available on Linux as it points into the ld-linux.so.2 library.)
 
-   x86_startup (pcs);
    pcs->singleStepHandlerAddress = (uintptr_t) single_step_handler;
+   pcs->freeRunFlagAddress = (uintptr_t) &x86_free_run_flag;
+   x86_startup (pcs);
 
    // Now ready for the user program
    // Breakpoint with EAX = 0x101 and EBX = pointer to comm struct

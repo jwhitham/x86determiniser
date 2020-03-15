@@ -7,9 +7,10 @@
 #define CALL_SIZE 5
 #define SUPER_STACK_SIZE 0x10000
 
+/* These exports are for Linux */
 .global x86_switch_to_user
 .global x86_switch_from_user
-.global x86_begin_single_step
+.global x86_startup_stage_2
 .global x86_other_context
 .global x86_size_of_red_zone
 .global x86_size_of_call_instruction
@@ -17,9 +18,10 @@
 .global x86_is_branch_taken
 .global x86_asm_begin
 .global x86_asm_end
+/* These exports are for Windows */
 .global _x86_switch_to_user
 .global _x86_switch_from_user
-.global _x86_begin_single_step
+.global _x86_startup_stage_2
 .global _x86_other_context
 .global _x86_size_of_red_zone
 .global _x86_size_of_call_instruction
@@ -27,7 +29,29 @@
 .global _x86_is_branch_taken
 .global _x86_asm_begin
 .global _x86_asm_end
-.text
+/* These prevent the symbols being visible outside the DLL, which has the
+ * useful effect of preventing the use of PLT when they are called,
+ * see https://stackoverflow.com/questions/51573771/call-a-function-in-another-object-file-without-using-plt-within-a-shared-library */
+.hidden x86_switch_to_user
+.hidden x86_switch_from_user
+.hidden x86_startup_stage_2
+.hidden x86_other_context
+.hidden x86_size_of_red_zone
+.hidden x86_size_of_call_instruction
+.hidden x86_bp_trap
+.hidden x86_is_branch_taken
+.hidden x86_asm_begin
+.hidden x86_asm_end
+.hidden _x86_switch_to_user
+.hidden _x86_switch_from_user
+.hidden _x86_startup_stage_2
+.hidden _x86_other_context
+.hidden _x86_size_of_red_zone
+.hidden _x86_size_of_call_instruction
+.hidden _x86_bp_trap
+.hidden _x86_is_branch_taken
+.hidden _x86_asm_begin
+.hidden _x86_asm_end
 
 
 
@@ -54,8 +78,8 @@ super_stack_bottom:
     .space SUPER_STACK_SIZE
 .align 8
 super_stack_top:
-_x86_begin_single_step:
-x86_begin_single_step:
+_x86_startup_stage_2:
+x86_startup_stage_2:
     /* save the user context */
     mov     %eax, OFF_XAX + x86_other_context    /* GPRs */
     mov     %ebx, OFF_XBX + x86_other_context
@@ -175,8 +199,7 @@ x86_bp_trap:
     mov     0x4(%esp),%eax  /* code */
     mov     0x8(%esp),%ebx  /* arg */
     int3
-    mov     $0x9999,%eax    /* should never be reached */
-    int3
+    ret
 
 .align 4
 #define CF 1    /* carry */

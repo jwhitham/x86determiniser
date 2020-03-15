@@ -58,7 +58,7 @@ extern uint32_t x86_size_of_call_instruction;
 extern uint32_t x86_size_of_red_zone;
 
 void x86_switch_to_user (uintptr_t endpoint);
-void x86_begin_single_step (void);
+void x86_startup_stage_2 (void);
 int x86_is_branch_taken (uintptr_t flags, uint8_t opcode);
 
 static uint32_t * get_flags_ptr (uintptr_t * gregs)
@@ -448,13 +448,14 @@ void x86_interpreter (void)
         fprintf (stderr, "X86D: interpreter startup... pc = %p\n", (void *) x86_other_context[REG_XIP]);
     }
 
-    // Startup: run until reaching the program
+    // Startup: free run until the program is reached
     pc = pc_end = x86_other_context[REG_XIP];
     entry_flag = 1;
-    set_single_step_flag (x86_other_context);
+    x86_free_run_flag = 1;
+    x86_make_text_noexec (min_address, max_address);
     x86_switch_to_user ((uintptr_t) fake_endpoint);
-    clear_single_step_flag (x86_other_context);
-    pc = x86_other_context[REG_XIP];
+    x86_make_text_writable (min_address, max_address);
+    pc = pc_end = x86_other_context[REG_XIP];
     if ((pc < min_address) || (pc > max_address)) {
         fprintf (stderr, "Startup did not reach program (at %p)\n", (void *) pc);
         fflush (stderr);
@@ -724,7 +725,7 @@ void x86_startup (CommStruct * pcs)
    entry_flag = 1;
 
    // save this context and launch the interpreter
-   x86_begin_single_step ();
+   x86_startup_stage_2 ();
 
    // we return to here in user mode only
 }
