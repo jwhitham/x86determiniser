@@ -65,8 +65,12 @@
 x86_asm_begin:
 _x86_asm_begin:
     .space 4
-save_space:
-    .space  24
+save_space_1:
+    .space  8
+save_space_2:
+    .space  8
+save_space_3:
+    .space  8
 switch_from_user_ptr:
     .space  8
 _x86_size_of_call_instruction:
@@ -180,11 +184,13 @@ _x86_switch_to_user:
     pushq   %r14
     pushq   %r15
 
-    /* Save whatever is already at the endpoint - need to save 14 bytes */
+    /* Save whatever is already at the endpoint - need to save 18 bytes */
     mov     0(PARAM_1), %rax
-    mov     8(PARAM_1), %rdx
-    mov     %rax, save_space
-    mov     %rdx, save_space + 8
+    mov     %rax, save_space_1
+    mov     8(PARAM_1), %rax
+    mov     %rax, save_space_2
+    mov     16(PARAM_1), %rax
+    mov     %rax, save_space_3
 
     /* encode PC-relative indirect call followed by absolute address */
 
@@ -278,21 +284,23 @@ switch_from_user:
     movsd   %xmm13, OFF_Xmm13 - OFF_XAX(%rsi)
     movsd   %xmm14, OFF_Xmm14 - OFF_XAX(%rsi)
     movsd   %xmm15, OFF_Xmm15 - OFF_XAX(%rsi)
-    pop     %rax                                 /* PC + call instruction size (5 bytes) */
+    pop     %rax           /* get user PC from the stack */
+    //add     $RED_ZONE_SIZE, %rsp    /* undo red zone removal */
     xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
 
     pushfq
     popq    %rbx
     mov     %ebx, OFF_EFL - OFF_XAX(%rsi)          /* user FLAGS */
-
     subq    $CALL_SIZE, %rax
-    mov     %rax, OFF_XIP - OFF_XAX(%rsi)    /* user PC */
+    mov     %rax, OFF_XIP - OFF_XAX(%rsi)          /* user PC */
 
     /* Restore endpoint */
-    mov     save_space, %rax
-    mov     save_space + 8, %rdx
+    mov     save_space_1(%rip), %rax
     mov     %rax, 0(PARAM_1)
-    mov     %rdx, 8(PARAM_1)
+    mov     save_space_2(%rip), %rax
+    mov     %rax, 8(PARAM_1)
+    mov     save_space_3(%rip), %rax
+    mov     %rax, 16(PARAM_1)
 
     /* Restore callee-save registers and return */
     popq    %r15
