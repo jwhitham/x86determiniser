@@ -73,7 +73,7 @@ are treated specially.
 
 Version 1.0 relied on GNU objdump to disassemble code. It supported
 32-bit Windows and Linux only. Programs had to link against the x86determiniser
-DLL and call the `startup\_x86\_determiniser` function during `main`. This
+DLL and call the `startup_x86_determiniser` function during `main`. This
 version used the GNU General Public License.
 
 ## 1.1 (June 2018)
@@ -98,11 +98,11 @@ unmodified Linux and Windows programs when executed as follows:
    C> x64determiniser.exe --inst-trace test.txt example.exe
 
 GNU objdump was no longer required, as the [Zydis](https://zydis.re) disassembler
-was now embedded within x86determiniser. Zydis and x86determiniser share the MIT
-License.
+was now embedded within x86determiniser. (Zydis and x86determiniser share the MIT
+License.)
 
-x86determiniser was also now able to generate an instruction trace (with disassembly)
-and branch traces.
+x86determiniser became able to generate an instruction trace (with disassembly)
+as well as branch traces.
 
 
 # Limitations
