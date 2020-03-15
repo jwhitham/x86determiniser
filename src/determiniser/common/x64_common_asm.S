@@ -186,11 +186,11 @@ _x86_switch_to_user:
 
     /* Save whatever is already at the endpoint - need to save 18 bytes */
     mov     0(PARAM_1), %rax
-    mov     %rax, save_space_1
+    mov     %rax, save_space_1(%rip)
     mov     8(PARAM_1), %rax
-    mov     %rax, save_space_2
+    mov     %rax, save_space_2(%rip)
     mov     16(PARAM_1), %rax
-    mov     %rax, save_space_3
+    mov     %rax, save_space_3(%rip)
 
     /* encode PC-relative indirect call followed by absolute address */
 
@@ -285,7 +285,6 @@ switch_from_user:
     movsd   %xmm14, OFF_Xmm14 - OFF_XAX(%rsi)
     movsd   %xmm15, OFF_Xmm15 - OFF_XAX(%rsi)
     pop     %rax           /* get user PC from the stack */
-    //add     $RED_ZONE_SIZE, %rsp    /* undo red zone removal */
     xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
 
     pushfq
@@ -293,6 +292,8 @@ switch_from_user:
     mov     %ebx, OFF_EFL - OFF_XAX(%rsi)          /* user FLAGS */
     subq    $CALL_SIZE, %rax
     mov     %rax, OFF_XIP - OFF_XAX(%rsi)          /* user PC */
+
+    addq    $RED_ZONE_SIZE, OFF_XSP - OFF_XAX(%rsi) /* undo red zone removal */
 
     /* Restore endpoint */
     mov     save_space_1(%rip), %rax
