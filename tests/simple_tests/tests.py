@@ -21,6 +21,21 @@ def clean():
             time.sleep(0.01)
          error += 1
 
+# Temporary directory should be empty at the end of each test
+def check_tmpdir():
+   tmp_files = set(os.listdir(TMPDIR))
+
+   # These temporary files can stay:
+   tmp_files.discard(os.path.basename(TMP_FILE))
+   tmp_files.discard(os.path.basename(TMP_FILE_2))
+   tmp_files.discard(os.path.basename(TMP_EXE_FILE))
+
+   # But anything else is not allowed
+   if len(tmp_files) != 0:
+      raise Exception("files left in temporary directory! "
+            "x86determiniser did not clean up after itself! Check " + TMPDIR +
+            " for " + repr(tmp_files))
+
 # Here is a test of the args program, with and without the x86determiniser loader.
 # Weird parameters should be passed through without change.
 def args_test(use_loader):
@@ -144,6 +159,8 @@ def help_test(args, unknown_option):
       if not ok:
          raise Exception("No unknown option message printed for %s" % args)
 
+   check_tmpdir()
+
 def check_error():
    clean()
 
@@ -164,6 +181,7 @@ def check_error():
       for line in open(TMP_FILE_2, "rt"):
          output.append(line)
 
+      check_tmpdir()
       return "".join(output)
 
    name = "this program does not exist.exe"
@@ -255,6 +273,8 @@ def pipe_test():
    if not open(TMP_FILE, "rb").read().startswith("abcdefghij"):
       raise Exception("stdout file should contain letters")
 
+   check_tmpdir()
+
 def example_test():
    clean()
    subprocess.call([LOADER, "example" + SUFFIX],
@@ -267,6 +287,8 @@ def example_test():
             fields.pop(0)
          if len(set(fields)) != 1:
             raise Exception("All timings should be the same: %s" % line)
+
+   check_tmpdir()
 
 if __name__ == "__main__":
    if len(sys.argv) != 2:
@@ -295,7 +317,8 @@ if __name__ == "__main__":
    if os.path.isdir(TMPDIR):
       shutil.rmtree(TMPDIR)
    os.mkdir(TMPDIR)
-   os.environ["TMPDIR"] = TMPDIR
+   os.environ["TMPDIR"] = TMPDIR    # Linux
+   os.environ["TMP"] = TMPDIR       # Windows
 
    help_test([], False)
    help_test(["-?"], True)
@@ -310,11 +333,8 @@ if __name__ == "__main__":
    pipe_test()
    example_test()
    clean()
+   check_tmpdir()
    
-   if len(os.listdir(TMPDIR)) != 0:
-      raise Exception("files left in temporary directory! "
-            "x86determiniser did not clean up after itself! Check " + TMPDIR)
-
    print ("simple_tests completed ok for " + PLATFORM)
    open("tests." + PLATFORM + ".ok", "wt").write("")
 

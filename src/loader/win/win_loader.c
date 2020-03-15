@@ -415,12 +415,13 @@ static void UnlinkLibrary (CommStruct * pcs, DEBUG_EVENT * pDebugEvent, PROCESS_
             } else if (failure_count < 100) {
                // On subsequent failures, we eat up any remaining debug events
                TerminateProcess (pProcessInformation->hProcess, 0);
-               if (WaitForDebugEvent (pDebugEvent, INFINITE)) {
+               if (WaitForDebugEvent (pDebugEvent, 10)) {
                   ContinueDebugEvent (pDebugEvent->dwProcessId, pDebugEvent->dwThreadId, DBG_CONTINUE);
                }
             } else {
                // That's enough failures. Give up.
                err_printf (1, "unable to unlink '%s'", pcs->libraryName);
+               exit (INTERNAL_ERROR);
                return;
             }
             failure_count ++;
@@ -430,6 +431,7 @@ static void UnlinkLibrary (CommStruct * pcs, DEBUG_EVENT * pDebugEvent, PROCESS_
             // unlink failed for some other reason
             // Don't keep trying
             err_printf (1, "unable to unlink '%s'", pcs->libraryName);
+            exit (INTERNAL_ERROR);
             return;
       }
    }
@@ -473,6 +475,9 @@ static void SetupLibrary (CommStruct * pcs)
       exit (INTERNAL_ERROR);
    }
    fclose (fd);
+
+   // delete original tmp file created by the OS
+   DeleteFile (tmp_file);
 
    dbg_fprintf (stderr, "INITIAL: library is '%s'\n", pcs->libraryName);
 }
@@ -527,10 +532,12 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       if ((PTR_SIZE == 4) && (GetLastError () == ERROR_NOT_SUPPORTED)) {
          /* Loading 64-bit .exe using x86determiniser */
          err_wrong_architecture (argv[0]);
-         return 1;
+         DeleteFile (pcs->libraryName);
+         exit (USER_ERROR);
       }
       err_printf (1, "CreateProcess ('%s')", argv[0]);
-      return 1;
+      DeleteFile (pcs->libraryName);
+      exit (USER_ERROR);
    }
 
    // INITIAL STAGE
