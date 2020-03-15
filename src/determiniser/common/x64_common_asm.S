@@ -21,7 +21,7 @@
 
 #include "offsets.h"
 
-#define CALL_SIZE 10
+#define CALL_SIZE 11
 #define RED_ZONE_SIZE 0
 #define SUPER_STACK_SIZE 0x10000
 #define SHADOW_SIZE 32
@@ -184,7 +184,7 @@ _x86_switch_to_user:
     pushq   %r14
     pushq   %r15
 
-    /* Save whatever is already at the endpoint - need to save 18 bytes */
+    /* Save whatever is already at the endpoint - need to save >= 19 bytes */
     mov     0(PARAM_1), %rax
     mov     %rax, save_space_1(%rip)
     mov     8(PARAM_1), %rax
@@ -192,14 +192,22 @@ _x86_switch_to_user:
     mov     16(PARAM_1), %rax
     mov     %rax, save_space_3(%rip)
 
-    /* encode PC-relative indirect call followed by absolute address */
+    /* encode:
+     * 00    48 8d 64 24 xx       lea xx(%rsp),%rsp   subtract size of red zone
+     * 05    ff 15 00 00 00 00    call *0(%rip)       call the target address
+     * 0b    xx xx xx xx          target address
+     * 0f    xx xx xx xx          target address
+     * Total: 19 bytes
+     * Size of call instruction: CALL_SIZE = 11 = 5 + 6
+     * LEA used rather than ADD to avoid changing flags
+     */
 
-    mov     $0x90909090, %rax        
-    mov     %rax, 0(PARAM_1)
-    mov     $0x15ff, %rax        
-    mov     %rax, 4(PARAM_1)     /* call with PC-relative address: ff 15 00 00 00 00 XX XX */
-    mov     $x86_switch_from_user, %rdx
-    mov     %rdx, 10(PARAM_1)     /* absolute 64-bit target address */
+    mov     $0x24648d48, %eax
+    mov     %eax, 0x0(PARAM_1)     /* bytes 00..03 */
+    mov     $0x0015ff00 | RED_ZONE_SIZE, %eax
+    mov     %rax, 0x4(PARAM_1)     /* bytes 04..0c */
+    lea     switch_from_user(%rip), %rdx
+    mov     %rdx, 0xb(PARAM_1)    /* absolute 64-bit target address */
 
     /* restore the user context */
     lea     other_context + OFF_XAX(%rip), %rsi
