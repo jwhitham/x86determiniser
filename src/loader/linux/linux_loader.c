@@ -491,7 +491,6 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 {
    unsigned    trapCount = 0;
    pid_t       childPid = -1;
-   char        binFolder[BUFSIZ];
    int         status = 0;
    FILE *      testFd = 0;
    int         run = 1;
@@ -510,16 +509,6 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    (void) argc;
    (void) enterSSContext_xss;
 
-   if (readlink ("/proc/self/exe", binFolder, sizeof (binFolder) - 1) > 0) {
-      char * finalSlash = strrchr (binFolder, '/');
-      if (!finalSlash) {
-         finalSlash = binFolder;
-      }
-      *finalSlash = '\0';
-   } else {
-      err_printf (1, "readlink('" X86_OR_X64 "determiniser')");
-      exit (USER_ERROR);
-   }
 
    // check child process executable exists and has the correct format
    testFd = fopen (argv[0], "rb");
