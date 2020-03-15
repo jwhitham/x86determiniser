@@ -350,10 +350,11 @@ switch_from_user:
 _x86_bp_trap:
 x86_bp_trap:
     /* (int code, void * arg) */
-
+    push    %rbx
     mov     PARAM_1,%rax  /* code */
     mov     PARAM_2,%rbx  /* arg */
     int3
+    pop     %rbx
     ret
 
 .align 4

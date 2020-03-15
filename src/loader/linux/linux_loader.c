@@ -126,6 +126,7 @@ static uintptr_t align_64 (uintptr_t v)
    return v & ~63;
 }
 
+static void GetContext (pid_t childPid, LINUX_CONTEXT * context, const char * state);
 
 // parent receives data from child
 static void GetData
@@ -326,6 +327,12 @@ static void DefaultHandler (CommStruct * pcs, pid_t childPid, int status, const 
       // This means a signal was received, other than the one we are using (SIGTRAP).
       // It's normal for the user program to receive signals.
       // Pass them onwards to the program.
+      if (pcs->debugEnabled) {
+         LINUX_CONTEXT context;
+         fprintf (stderr, "Signal %d being passed through\n", WSTOPSIG(status));
+         GetContext (childPid, &context, "SINGLE_STEP");
+         dbg_state(&context);
+      }
       ptrace (PTRACE_CONT, childPid, NULL, (void *) (uintptr_t) WSTOPSIG(status));
 
    } else if (WIFEXITED(status)) {
