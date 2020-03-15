@@ -21,7 +21,7 @@
 
 #include "offsets.h"
 
-#define CALL_SIZE 6
+#define CALL_SIZE 10
 #define RED_ZONE_SIZE 0
 #define SUPER_STACK_SIZE 0x10000
 #define SHADOW_SIZE 32
@@ -194,13 +194,15 @@ _x86_switch_to_user:
 
     /* encode PC-relative indirect call followed by absolute address */
 
+    mov     $0x90909090, %rax        
+    mov     %rax, 0(PARAM_1)
     mov     $0x15ff, %rax        
-    mov     %rax, 0(PARAM_1)     /* call with PC-relative address: ff 15 00 00 00 00 XX XX */
+    mov     %rax, 4(PARAM_1)     /* call with PC-relative address: ff 15 00 00 00 00 XX XX */
     mov     $x86_switch_from_user, %rdx
-    mov     %rdx, 6(PARAM_1)     /* absolute 64-bit target address */
+    mov     %rdx, 10(PARAM_1)     /* absolute 64-bit target address */
 
     /* restore the user context */
-    mov     $x86_other_context + OFF_XAX, %rsi
+    lea     other_context + OFF_XAX(%rip), %rsi
     mov     OFF_EFL - OFF_XAX(%rsi), %eax /* user FLAGS */
     pushq   %rax
     mov     OFF_XAX - OFF_XAX(%rsi), %rax /* GPRs */
