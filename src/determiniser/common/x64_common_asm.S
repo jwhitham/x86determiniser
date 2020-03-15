@@ -22,7 +22,7 @@
 #include "offsets.h"
 
 #define CALL_SIZE 11
-#define RED_ZONE_SIZE 0
+#define RED_ZONE_SIZE 0x80  /* Win64 does not have a red zone but this simplifies things */
 #define SUPER_STACK_SIZE 0x10000
 #define SHADOW_SIZE 32
 
@@ -64,34 +64,30 @@
 .align 8
 x86_asm_begin:
 _x86_asm_begin:
-    .space 4
 save_space_1:
-    .space  8
+    .quad 0
 save_space_2:
-    .space  8
+    .quad 0
 save_space_3:
-    .space  8
+    .quad 0
 switch_from_user_ptr:
-    .space  8
+    .quad 0
 _x86_size_of_call_instruction:
 x86_size_of_call_instruction:
 size_of_call_instruction:
-    .space  4
+    .long 0
 _x86_size_of_red_zone:
 x86_size_of_red_zone:
 size_of_red_zone:
-    .space  4
-.align 8
+    .long 0
 _x86_other_context:
 x86_other_context:
 other_context:
     .space OFF_LIMIT
 super_stack_bottom:
     .space SUPER_STACK_SIZE
-super_stack_top:
-    .space 1
 .align 8
-
+super_stack_top:
 _x86_begin_single_step:
 x86_begin_single_step:
     /* save the user context */

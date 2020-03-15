@@ -11,6 +11,7 @@
 .global x86_switch_from_user
 .global x86_begin_single_step
 .global x86_other_context
+.global x86_size_of_red_zone
 .global x86_size_of_call_instruction
 .global x86_bp_trap
 .global x86_is_branch_taken 
@@ -20,6 +21,7 @@
 .global _x86_switch_from_user
 .global _x86_begin_single_step
 .global _x86_other_context
+.global _x86_size_of_red_zone
 .global _x86_size_of_call_instruction
 .global _x86_bp_trap
 .global _x86_is_branch_taken 
@@ -33,23 +35,25 @@
 .align 8
 x86_asm_begin:
 _x86_asm_begin:
-    .space 4
-save_space:
-    .space  8
+save_space_1:
+    .long   0
+save_space_2:
+    .long   0
 switch_from_user_ptr:
-    .space  4
+    .long   0
 _x86_size_of_call_instruction:
 x86_size_of_call_instruction:
-    .space  4
+    .long   0
+_x86_size_of_red_zone:
+x86_size_of_red_zone:
+    .long   0
 _x86_other_context:
 x86_other_context:
     .space OFF_LIMIT
 super_stack_bottom:
     .space SUPER_STACK_SIZE
-super_stack_top:
-    .space 1
 .align 8
-
+super_stack_top:
 _x86_begin_single_step:
 x86_begin_single_step:
     /* save the user context */
@@ -74,6 +78,9 @@ x86_begin_single_step:
 
     mov     $CALL_SIZE, %eax
     mov     %eax, x86_size_of_call_instruction
+
+    mov     $0, %eax
+    mov     %eax, x86_size_of_red_zone
 
     /* enter interpreter loop */
     call    x86_interpreter
@@ -104,8 +111,8 @@ _x86_switch_to_user:
     mov     PARAM_1(%ebp), %edi   /* endpoint */
     mov     0(%edi), %eax
     mov     4(%edi), %ebx
-    mov     %eax, save_space
-    mov     %ebx, save_space+4
+    mov     %eax, save_space_1
+    mov     %ebx, save_space_2
 
     /* modify endpoint with call */
     mov     $x86_switch_from_user - CALL_SIZE, %eax     /* target PC (absolute) */
@@ -150,8 +157,8 @@ x86_switch_from_user:
     mov     %eax, OFF_XIP - OFF_XAX(%esi)    /* user PC */
 
     /* Restore endpoint */
-    mov     save_space, %eax
-    mov     save_space+4, %ebx
+    mov     save_space_1, %eax
+    mov     save_space_2, %ebx
     mov     %eax, 0(%edi)
     mov     %ebx, 4(%edi)
 
