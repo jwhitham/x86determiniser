@@ -449,7 +449,7 @@ void x86_interpreter (void)
     }
 
     // Startup: run until reaching the program
-    pc = x86_other_context[REG_XIP];
+    pc = pc_end = x86_other_context[REG_XIP];
     entry_flag = 1;
     set_single_step_flag (x86_other_context);
     x86_switch_to_user ((uintptr_t) fake_endpoint);
