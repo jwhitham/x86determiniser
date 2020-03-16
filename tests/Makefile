@@ -1,7 +1,7 @@
 
-PLATFORM=win32
+PLATFORM=UNDEFINED
 ROOT=..
-include ../$(PLATFORM).cfg
+include ../cfg/$(PLATFORM).cfg
 
 OK_FILES=complex_test/ctest.$(PLATFORM).ok simple_tests/tests.$(PLATFORM).ok
 

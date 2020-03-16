@@ -1,7 +1,7 @@
 
-PLATFORM=win32
+PLATFORM=UNDEFINED
 ROOT=../..
-include ../../$(PLATFORM).cfg
+include ../../cfg/$(PLATFORM).cfg
 
 all: ctest.$(PLATFORM).ok
 

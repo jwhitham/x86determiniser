@@ -1,7 +1,7 @@
 
-PLATFORM=win32
+PLATFORM=UNDEFINED
 ROOT=..
-include ../$(PLATFORM).cfg
+include $(ROOT)/cfg/$(PLATFORM).cfg
 
 ZYDIS=determiniser/zydis-2.0.2
 
