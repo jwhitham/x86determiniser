@@ -316,8 +316,8 @@ switch_from_user:
     popq    %r13
     popq    %r12
 #ifdef WIN64
-    popq    %rdi
     popq    %rsi
+    popq    %rdi
 #endif
     popq    %rbx
     popq    %rbp
