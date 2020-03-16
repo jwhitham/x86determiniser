@@ -8,7 +8,7 @@ and loads native executables.
 
 # Example:
 
-   C> x64determiniser.exe --inst-trace test.txt ..\\tests\\simple\_tests\\args.win64.exe
+  `C> x64determiniser.exe --inst-trace test.txt ..\tests\simple_tests\args.win64.exe`
 
 test.txt will contain a list of all instructions executed by the
 "args.win64.exe" program, excluding those in library code (not within
@@ -95,7 +95,7 @@ to link against any x86determiniser DLL or call any library function during `mai
 x86determiniser was now an application rather than a DLL, and could run
 unmodified Linux and Windows programs when executed as follows:
 
-   C> x64determiniser.exe --inst-trace test.txt example.exe
+   `C> x64determiniser.exe --inst-trace test.txt example.exe`
 
 GNU objdump was no longer required, as the [Zydis](https://zydis.re) disassembler
 was now embedded within x86determiniser. (Zydis and x86determiniser share the MIT
@@ -103,6 +103,31 @@ License.)
 
 x86determiniser became able to generate an instruction trace (with disassembly)
 as well as branch traces.
+
+# Build instructions
+
+There are four supported platforms: win32, win64, linux32, linux64. You can pick
+one or more. The supported compiler is GCC, and I have tested using the GCC versions
+provided by [Adacore](https://www.adacore.com/), which are:
+
+Platform | Tested GCC version | Adacore compiler name
+-------- | ------------------ | ---------------------
+linux32  | 4.7.4 20140401     | GNAT GPL 2014 x86
+linux64  | 6.3.1 20170510     | GNAT GPL 2017 x86\_64
+win32    | 6.3.1 20170510     | GNAT GPL 2017 x86
+win64    | 8.3.1 20190518     | GNAT GPL 2019 x86\_64
+
+You can install one of these compilers (they are 
+[free downloads](https://www.adacore.com/download/more)) or you can use
+whichever GCC you already have. There is no particular need to use an Adacore
+compiler, but I have used this configuration anyway in order to test x86determiniser
+with programs written in Ada.
+
+Edit `paths.cfg` to configure the location of the
+compilers for the platforms you wish to build, then use `make win32`, `make linux64` etc.
+A program is built within the `bin` directory and then tested as part of the build process.
+If the tests complete successfully, you will see a message such as
+`simple_tests completed ok for win64`.
 
 
 # Limitations
