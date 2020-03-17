@@ -20,6 +20,4 @@ complex_test/ctest.$(PLATFORM).ok:
 simple_tests/tests.$(PLATFORM).ok:
 	make -C simple_tests tests.$(PLATFORM).ok PLATFORM=$(PLATFORM)
 
-version1:
-	make -C version1shim PLATFORM=$(PLATFORM)
 
