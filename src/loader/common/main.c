@@ -39,6 +39,7 @@ int main (int argc, char ** argv)
          "   --inst-trace <file name>    disassemble + write instructions to <file name>\n"
          "   --debug                     debug x86determiniser itself (more output)\n"
          "   --remote-debug              debug x86determiniser's loader (even more output)\n"
+         "   --await                     do not output any trace until the first IN or OUT instruction is reached\n"
          "   --version / --help          print information about x86determiniser itself\n\n";
       static struct option long_options[] = {
          {"out-trace", 1, 0, 'o'},
@@ -46,6 +47,7 @@ int main (int argc, char ** argv)
          {"inst-trace", 1, 0, 'i'},
          {"debug", 0, 0, 'd'},
          {"remote-debug", 0, 0, 'D'},
+         {"await", 0, 0, 'A'},
          {"version", 0, 0, 'v'},
          {"help", 0, 0, '?'},
          {NULL, 0, 0, 0},
@@ -70,6 +72,9 @@ int main (int argc, char ** argv)
          case 'D':
             cs.debugEnabled = 1;
             cs.remoteDebugEnabled = 1;
+            break;
+         case 'A':
+            cs.awaitEnabled = 1;
             break;
          case 'v':
             fputs (version, stdout);

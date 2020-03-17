@@ -33,6 +33,7 @@ typedef struct CommStruct {
 
    int debugEnabled;
    int remoteDebugEnabled;
+   int awaitEnabled;
 } CommStruct;
 
 void RemoteLoaderStart (void);

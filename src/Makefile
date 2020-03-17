@@ -39,6 +39,9 @@ INCS=-I$(ZYDIS)/include \
    -I$(ZYDIS)/src \
    -I$(GENERATED) -I$(LOADER_COMMON) -I$(DETERMINISER_COMMON) \
    -I$(LOADER_PLATFORM) -I$(DETERMINISER_PLATFORM)
+VERSION1_SRCS=\
+   version1shim/compatibility.c
+VERSION1_DLL=../bin/version1shim/libx86determiniser$(DLL)
 
 
 
@@ -70,6 +73,14 @@ $(DETERMINISER_DLL): $(DETERMINISER_SRCS) $(HEADERS) $(OFFSETS_H)
 $(OFFSETS_H): $(MAKE_H_SRCS)
 	$(CC) -o $(MAKE_H) $(MAKE_H_SRCS) $(INCS) $(CFLAGS)
 	$(MAKE_H) > $(OFFSETS_H)
+
+version1: $(VERSION1_DLL)
+
+$(VERSION1_DLL): $(VERSION1_SRCS) ../bin/version1shim
+	$(CC) -o $@ -shared $(VERSION1_SRCS) $(LDFLAGS)
+
+../bin/version1shim: ../bin
+	mkdir -p ../bin/version1shim
 
 ../bin:
 	mkdir -p ../bin

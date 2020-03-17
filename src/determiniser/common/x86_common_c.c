@@ -28,6 +28,7 @@
 static uint8_t          entry_flag = 1;
 uint8_t                 x86_quiet_mode = 0;
 uint8_t                 x86_free_run_flag = 0;
+static uint8_t          enable_output = 1;
 
 static uint8_t          fake_endpoint[16];
 static uintptr_t        min_address = 0;
@@ -104,7 +105,7 @@ static void superblock_decoder (superblock_info * si, uintptr_t pc);
 // for values greater than 1 << 28
 static void branch_trace_encode (uint32_t trace_opcode, uintptr_t addr)
 {
-   if (branch_trace) {
+   if (branch_trace && enable_output) {
       uint32_t top_nibble = addr >> 28;
 
       if ((top_nibble != branch_trace_temp)
@@ -240,17 +241,19 @@ static int interpret_control_flow (void)
          pc += (int8_t) pc_bytes[1];
          branch_taken (src, pc);
          break;
-      case 0xe4: // IN imm8, AL (reset counter)
+      case 0xe4: // IN imm8, AL (reset counter, enable output if --await)
          pc += 2;
+         enable_output = 1;
          inst_count = 0;
          break;
-      case 0xe5: // IN imm8, EAX (get counter value and then reset counter)
+      case 0xe5: // IN imm8, EAX (get counter value and then reset counter, enable output if --await)
          pc += 2;
          x86_other_context[REG_XAX] = (uint32_t) inst_count;
+         enable_output = 1;
          inst_count = 0;
          break;
       case 0xe6: // OUT imm8, AL (special instruction; generate a marker)
-      case 0xe7: // OUT imm8, EAX
+      case 0xe7: // OUT imm8, EAX (enable output if --await)
          pc += 2;
          v = x86_other_context[REG_XAX];
          if (pc_bytes[0] == 0xe6) {
@@ -263,6 +266,7 @@ static int interpret_control_flow (void)
                fprintf (stderr, "marker %u\n", (uint32_t) v);
             }
          }
+         enable_output = 1;
          if (out_trace) {
             // fields:
             //  port number
@@ -528,7 +532,7 @@ void x86_interpreter (void)
                   if (!x86_quiet_mode) {
                      fprintf (stderr, "X86D: %p: %s\n", (void *) address, buffer);
                   }
-                  if (inst_trace) {
+                  if (inst_trace && enable_output) {
 #ifdef IS_64_BIT
                      fprintf (inst_trace, "%08x", (uint32_t) ((uint64_t) address >> (uint64_t) 32));
 #endif
@@ -536,7 +540,7 @@ void x86_interpreter (void)
                   }
                   address += instruction.length;
                }
-               if (inst_trace) {
+               if (inst_trace && enable_output) {
                   fflush (inst_trace);
                }
             }
@@ -670,6 +674,7 @@ void x86_startup (CommStruct * pcs)
       x86_bp_trap (FAILED_DOUBLE_LOAD, NULL);
    }
    x86_quiet_mode = !pcs->debugEnabled;
+   enable_output = !pcs->awaitEnabled;
    x86_free_run_flag = 0;
    min_address = (uintptr_t) pcs->minAddress;
    max_address = (uintptr_t) pcs->maxAddress;
