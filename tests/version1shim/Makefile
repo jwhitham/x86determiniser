@@ -9,7 +9,10 @@ COPY_LIBNAME=$(ROOT)/bin/version1shim/libx86determiniser$(DLL)
 LDFLAGS2=-L. -lx86determiniser
 CFLAGS2=-m32 -Wall -O0
 
-all: example.exe example2.exe
+all: tests.$(PLATFORM).ok
+
+tests.$(PLATFORM).ok: example.exe example2.exe
+	python ./tests.py $(PLATFORM)
 
 example.exe: example.c $(LIBNAME)
 	$(CC) -o example.exe example.c $(CFLAGS2) $(LDFLAGS2)

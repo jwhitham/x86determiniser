@@ -1,0 +1,19 @@
+libx86determiniser is disassembling the program...
+  objdump -d /proc/31785/exe
+program address range: 08049b30 .. 08067d8a
+interpreter startup...
+interpreter ok, entry EIP 0804a04f ESP ffa0baa0, program running:
+ 8
+ 204
+loop 25
+loop 25
+loop 25
+loop 25
+loop 25
+loop 25
+loop 25
+loop 25
+loop 25
+ 3699
+OK: 26436
+exit interpreter by return to f751aa63: stop interpretation
