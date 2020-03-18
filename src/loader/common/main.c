@@ -31,7 +31,7 @@ int main (int argc, char ** argv)
          "Optionally, a branch trace may be produced, and OUT instructions can be\n"
          "recorded.\n\n"
          "Basic usage:\n"
-         "   x86determiniser [options] -- <program name> [program args...]\n\n"
+         "   " X86_OR_X64 "determiniser [options] -- <program name> [program args...]\n\n"
          "Options:\n"
         //1                                                                              80
          "   --out-trace <file name>     write values of OUT instructions to <file name>\n"
