@@ -4,7 +4,8 @@ ROOT=../..
 include ../../cfg/$(PLATFORM).cfg
 
 HERE=$(ROOT)/tests/sox123
-INSTALL=$(PWD)/install
+INSTALL=$(PWD)/install.$(PLATFORM)
+X86DRUN=$(LOADER_EXE) --out-trace x.txt --
 
 export CC
 
@@ -55,11 +56,9 @@ $(INSTALL)/bin/mpg123$(EXE):
 	cd mpg123-1.25.13; make CC=$(CC) all install
 
 test.$(PLATFORM).ok: $(INSTALL)/bin/sox$(EXE) $(INSTALL)/bin/mpg123$(EXE)
-	$(LOADER_EXE) --out-trace x1.txt -- \
-      $(INSTALL)/bin/mpg123 -w test.wav input.mp3
-	$(LOADER_EXE) --out-trace x3.txt -- \
-      $(INSTALL)/bin/sox -R test.wav test2.wav \
+	$(X86DRUN) $(INSTALL)/bin/mpg123 -w test.wav input.mp3
+	$(X86DRUN) $(INSTALL)/bin/sox -R test.wav test2.wav \
           phaser 0.89 0.85 1.0 0.24 2.0 -t
-	md5sum -c expect.txt
+	md5sum -c expect.$(PLATFORM).txt
 	touch test.$(PLATFORM).ok
 
