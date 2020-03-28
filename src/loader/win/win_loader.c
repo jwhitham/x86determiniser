@@ -492,9 +492,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    DWORD dwCreationFlags;
    BOOL rc, run = TRUE;
    char buf[BUFSIZ];
-   SIZE_T len;
+   SIZE_T len, exeLen;
    CONTEXT startContext;
-   //CONTEXT stepContext;
    uintptr_t getProcAddressOffset = 0;
    uintptr_t loadLibraryOffset = 0;
    uintptr_t getLastErrorOffset = 0;
@@ -502,6 +501,8 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    LPVOID startAddress = NULL;
    char startInstruction = 0;
    char *commandLine;
+   char *argv0;
+   const char *exeText = ".exe";
    DWORD todo = DBG_CONTINUE;
 
    memset (&startupInfo, 0, sizeof (startupInfo));
@@ -511,13 +512,29 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    startupInfo.cb = sizeof (startupInfo);
    pcs->singleStepHandlerAddress = 0;
 
+   // add .exe extension if missing
+   argv0 = argv[0];
+   len = strlen (argv0);
+   exeLen = strlen (exeText);
+   if ((len < exeLen) || (strcasecmp (&argv0[len - exeLen], exeText) != 0)) {
+      // No .exe extension present: add it
+      argv0 = calloc (1, len + exeLen + 1);
+      if (!argv0) {
+         err_printf (0, "Memory allocation error");
+         exit (INTERNAL_ERROR);
+      }
+      strcpy (argv0, argv[0]);
+      strcat (argv0, exeText);
+   }
+
+   // Deploy .dll in temporary directory
    SetupLibrary (pcs);
 
    dwCreationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS;
    commandLine = GenerateArgs (pcs, (size_t) argc, argv);
    dbg_fprintf (stderr, "[[%s]]\n", commandLine);
    rc = CreateProcess(
-     /* _In_opt_    LPCTSTR               */ argv[0],
+     /* _In_opt_    LPCTSTR               */ argv0,
      /* _Inout_opt_ LPTSTR                */ commandLine /* lpCommandLine */,
      /* _In_opt_    LPSECURITY_ATTRIBUTES */ NULL /* lpProcessAttributes */,
      /* _In_opt_    LPSECURITY_ATTRIBUTES */ NULL /* lpThreadAttributes */,

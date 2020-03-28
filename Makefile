@@ -24,17 +24,17 @@ linux:
 
 win32:
 	make -C src PLATFORM=win32 all
-	make -C tests PLATFORM=win32 all
+	make -C tests PLATFORM=win32 most
 
 linux32:
 	make -C src PLATFORM=linux32 all
-	make -C tests PLATFORM=linux32 all
+	make -C tests PLATFORM=linux32 most
 
 win64:
 	make -C src PLATFORM=win64 all
-	make -C tests PLATFORM=win64 all
+	make -C tests PLATFORM=win64 most
 
 linux64:
 	make -C src PLATFORM=linux64 all
-	make -C tests PLATFORM=linux64 all
+	make -C tests PLATFORM=linux64 most
 

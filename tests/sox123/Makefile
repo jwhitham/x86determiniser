@@ -8,16 +8,19 @@ INSTALL=$(PWD)/install.$(PLATFORM)
 X86DRUN=$(LOADER_EXE) --out-trace x.txt --
 
 export CC
+export LD
+export RANLIB
 
-all: test.$(PLATFORM).ok
+all: tests.$(PLATFORM).ok
 
 clean:
-	-rm -rf $(CLEANUP)
+	-rm -rf sox-14.4.2
+	-rm -rf mpg123-1.25.13
 
 $(INSTALL)/bin/sox$(EXE):
 	rm -rf sox-14.4.2
 	tar xf sox-14.4.2.tar.bz2
-	cd sox-14.4.2; ./configure --prefix=$(INSTALL) \
+	cd sox-14.4.2; bash ./configure \
       --enable-static --disable-shared \
       --disable-stack-protector --disable-openmp \
       --without-magic \
@@ -45,20 +48,32 @@ $(INSTALL)/bin/sox$(EXE):
       --without-mp3 \
       --without-gsm \
       --without-lpc10
-	cd sox-14.4.2; make CC=$(CC) all install
+	cd sox-14.4.2; make CC=$(CC) all
+	mkdir -p $(INSTALL)/bin
+	cp	sox-14.4.2/src/sox$(EXE) $(INSTALL)/bin
 
 $(INSTALL)/bin/mpg123$(EXE):
 	rm -rf mpg123-1.25.13
 	tar xf mpg123-1.25.13.tar.bz2
-	cd mpg123-1.25.13; ./configure \
-		--with-audio=dummy --prefix=$(INSTALL) \
+	cd mpg123-1.25.13; bash ./configure \
+		--with-audio=dummy \
 		--with-cpu=generic --enable-static --disable-shared
 	cd mpg123-1.25.13; make CC=$(CC) all install
+	mkdir -p $(INSTALL)/bin
+	cp	mpg123-1.25.13/src/mpg123$(EXE) $(INSTALL)/bin
 
-test.$(PLATFORM).ok: $(INSTALL)/bin/sox$(EXE) $(INSTALL)/bin/mpg123$(EXE)
-	$(X86DRUN) $(INSTALL)/bin/mpg123 -w test.wav input.mp3
-	$(X86DRUN) $(INSTALL)/bin/sox -R test.wav test2.wav \
+tests.$(PLATFORM).ok: $(INSTALL)/bin/mpg123$(EXE) $(INSTALL)/bin/sox$(EXE) 
+	echo 'First run without determiniser'
+	$(INSTALL)/bin/mpg123 -w ref1.wav input.mp3
+	$(INSTALL)/bin/sox -R ref1.wav ref2.wav \
           phaser 0.89 0.85 1.0 0.24 2.0 -t
-	md5sum -c expect.$(PLATFORM).txt
+	echo 'Second run with determiniser - should produce same outputs'
+	$(X86DRUN) $(INSTALL)/bin/mpg123 -w test1.wav input.mp3
+	$(X86DRUN) $(INSTALL)/bin/sox -R test1.wav test2.wav \
+          phaser 0.89 0.85 1.0 0.24 2.0 -t
+	echo 'Compare outputs'
+	cmp test1.wav ref1.wav
+	cmp test2.wav ref2.wav
+	echo 'Good'
 	touch test.$(PLATFORM).ok
 
