@@ -58,7 +58,7 @@ $(INSTALL)/bin/mpg123$(EXE):
 	cd mpg123-1.25.13; bash ./configure \
 		--with-audio=dummy \
 		--with-cpu=generic --enable-static --disable-shared
-	cd mpg123-1.25.13; make CC=$(CC) all install
+	cd mpg123-1.25.13; make CC=$(CC) all
 	mkdir -p $(INSTALL)/bin
 	cp	mpg123-1.25.13/src/mpg123$(EXE) $(INSTALL)/bin
 
