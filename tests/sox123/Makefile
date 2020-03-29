@@ -4,7 +4,7 @@ ROOT=../..
 include ../../cfg/$(PLATFORM).cfg
 
 HERE=$(ROOT)/tests/sox123
-INSTALL=$(PWD)/install.$(PLATFORM)
+INSTALL=$(HERE)/install.$(PLATFORM)
 X86DRUN=$(LOADER_EXE) --out-trace x.txt --
 
 export CC
@@ -20,7 +20,7 @@ clean:
 $(INSTALL)/bin/sox$(EXE):
 	rm -rf sox-14.4.2
 	tar xf sox-14.4.2.tar.bz2
-	cd sox-14.4.2; bash ./configure \
+	cd sox-14.4.2; $(WIN_BASH) ./configure \
       --enable-static --disable-shared \
       --disable-stack-protector --disable-openmp \
       --without-magic \
@@ -55,7 +55,7 @@ $(INSTALL)/bin/sox$(EXE):
 $(INSTALL)/bin/mpg123$(EXE):
 	rm -rf mpg123-1.25.13
 	tar xf mpg123-1.25.13.tar.bz2
-	cd mpg123-1.25.13; bash ./configure \
+	cd mpg123-1.25.13; $(WIN_BASH) ./configure \
 		--with-audio=dummy \
 		--with-cpu=generic --enable-static --disable-shared
 	cd mpg123-1.25.13; make CC=$(CC) all
