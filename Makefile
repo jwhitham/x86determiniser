@@ -38,3 +38,15 @@ linux64:
 	make -C src PLATFORM=linux64 all
 	make -C tests PLATFORM=linux64 most
 
+win.test:
+	make deepclean
+	make win32 win64
+	make -C tests PLATFORM=win32 all
+	make -C tests PLATFORM=win64 all
+
+linux.test:
+	make deepclean
+	make linux32 linux64
+	make -C tests PLATFORM=linux32 all
+	make -C tests PLATFORM=linux64 all
+
