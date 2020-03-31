@@ -16,6 +16,7 @@ all: tests.$(PLATFORM).ok
 clean:
 	-rm -rf sox-14.4.2
 	-rm -rf mpg123-1.25.13
+	-rm -rf $(INSTALL) tests.$(PLATFORM).ok
 
 $(INSTALL)/bin/sox$(EXE):
 	rm -rf sox-14.4.2

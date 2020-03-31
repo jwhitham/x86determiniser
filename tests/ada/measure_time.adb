@@ -1,20 +1,12 @@
 
-with System ;
-with System.Machine_Code;
 with Interfaces ;
 
 package body Measure_Time is 
 
     use Interfaces ;
-    function rdtsc return Unsigned_32 is
-        result, tmp : Unsigned_32;
-    begin
-        System.Machine_Code.Asm ("rdtsc",
-                                 (Unsigned_32'Asm_Output("=A", result),
-                                  Unsigned_32'Asm_Output("=D", tmp)),
-                                 Volatile => True);
-        return result;
-    end rdtsc;
+
+    function rdtsc return Unsigned_32;
+    pragma Import (C, rdtsc, "rdtsc");
 
     function Time ( D : Data; Iterations : in Natural) return Natural is
         Start, Finish : Unsigned_32;
