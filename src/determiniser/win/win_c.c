@@ -41,9 +41,18 @@ void x86_make_text_writable (uintptr_t minAddress, uintptr_t maxAddress)
 void x86_make_text_noexec (uintptr_t minAddress, uintptr_t maxAddress)
 {
    MEMORY_BASIC_INFORMATION mbi;
+   DWORD flags = 0;
+   BOOL permanent = FALSE;
+
+   // If DEP is enabled, then we can use PAGE_READWRITE to detect attempts to execute
+   // the program without also preventing reading/writing the code. But if DEP is not
+   // enabled, then PAGE_READWRITE means the same thing as PAGE_EXECUTE_READWRITE, so
+   // we can't use it :(
+   GetProcessDEPPolicy (GetCurrentProcess (), &flags, &permanent);
 
    if (!VirtualProtect ((void *) minAddress, maxAddress - minAddress,
-         PAGE_READWRITE, &mbi.Protect)) {
+         (flags & PROCESS_DEP_ENABLE) ? PAGE_READWRITE : PAGE_NOACCESS,
+         &mbi.Protect)) {
       x86_bp_trap (FAILED_MEMORY_PERMISSIONS, NULL);
    }
 }
