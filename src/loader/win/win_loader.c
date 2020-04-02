@@ -1127,9 +1127,10 @@ static DWORD DefaultHandler (
                   break;
                default:
                   // pass through
-                  dbg_fprintf (stderr, "%s: Exception at %p code 0x%0x\n",
+                  dbg_fprintf (stderr, "%s: Exception at %p code 0x%0x (first chance %d)\n",
                      state, (void *) get_pc (&context),
-                     (unsigned) pDebugEvent->u.Exception.ExceptionRecord.ExceptionCode);
+                     (unsigned) pDebugEvent->u.Exception.ExceptionRecord.ExceptionCode,
+                     !!pDebugEvent->u.Exception.dwFirstChance);
                   todo = DBG_EXCEPTION_NOT_HANDLED;
                   break;
             }

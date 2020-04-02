@@ -62,9 +62,13 @@
 #endif
 
 .text
-.align 8
+.align 32
 x86_asm_begin:
 _x86_asm_begin:
+x86_other_context:
+_x86_other_context:
+other_context:
+    .space OFF_LIMIT
 save_space_1:
     .quad 0
 save_space_2:
@@ -81,13 +85,9 @@ _x86_size_of_red_zone:
 x86_size_of_red_zone:
 size_of_red_zone:
     .long 0
-_x86_other_context:
-x86_other_context:
-other_context:
-    .space OFF_LIMIT
 super_stack_bottom:
     .space SUPER_STACK_SIZE
-.align 8
+.align 32
 super_stack_top:
 _x86_startup_stage_2:
 x86_startup_stage_2:
@@ -108,22 +108,22 @@ x86_startup_stage_2:
     mov     %r13, OFF_R13 + other_context(%rip)
     mov     %r14, OFF_R14 + other_context(%rip)
     mov     %r15, OFF_R15 + other_context(%rip)
-    movsd   %xmm0, OFF_Xmm0 + other_context(%rip)
-    movsd   %xmm1, OFF_Xmm1 + other_context(%rip)
-    movsd   %xmm2, OFF_Xmm2 + other_context(%rip)
-    movsd   %xmm3, OFF_Xmm3 + other_context(%rip)
-    movsd   %xmm4, OFF_Xmm4 + other_context(%rip)
-    movsd   %xmm5, OFF_Xmm5 + other_context(%rip)
-    movsd   %xmm6, OFF_Xmm6 + other_context(%rip)
-    movsd   %xmm7, OFF_Xmm7 + other_context(%rip)
-    movsd   %xmm8, OFF_Xmm8 + other_context(%rip)
-    movsd   %xmm9, OFF_Xmm9 + other_context(%rip)
-    movsd   %xmm10, OFF_Xmm10 + other_context(%rip)
-    movsd   %xmm11, OFF_Xmm11 + other_context(%rip)
-    movsd   %xmm12, OFF_Xmm12 + other_context(%rip)
-    movsd   %xmm13, OFF_Xmm13 + other_context(%rip)
-    movsd   %xmm14, OFF_Xmm14 + other_context(%rip)
-    movsd   %xmm15, OFF_Xmm15 + other_context(%rip)
+    movdqu  %xmm0, OFF_Xmm0 + other_context(%rip)
+    movdqu  %xmm1, OFF_Xmm1 + other_context(%rip)
+    movdqu  %xmm2, OFF_Xmm2 + other_context(%rip)
+    movdqu  %xmm3, OFF_Xmm3 + other_context(%rip)
+    movdqu  %xmm4, OFF_Xmm4 + other_context(%rip)
+    movdqu  %xmm5, OFF_Xmm5 + other_context(%rip)
+    movdqu  %xmm6, OFF_Xmm6 + other_context(%rip)
+    movdqu  %xmm7, OFF_Xmm7 + other_context(%rip)
+    movdqu  %xmm8, OFF_Xmm8 + other_context(%rip)
+    movdqu  %xmm9, OFF_Xmm9 + other_context(%rip)
+    movdqu  %xmm10, OFF_Xmm10 + other_context(%rip)
+    movdqu  %xmm11, OFF_Xmm11 + other_context(%rip)
+    movdqu  %xmm12, OFF_Xmm12 + other_context(%rip)
+    movdqu  %xmm13, OFF_Xmm13 + other_context(%rip)
+    movdqu  %xmm14, OFF_Xmm14 + other_context(%rip)
+    movdqu  %xmm15, OFF_Xmm15 + other_context(%rip)
     pushfq
     popq    %rax
     mov     %eax, OFF_EFL + other_context(%rip)          /* FLAGS */
@@ -229,22 +229,22 @@ _x86_switch_to_user:
     mov     OFF_R13 - OFF_XAX(%rsi), %r13
     mov     OFF_R14 - OFF_XAX(%rsi), %r14
     mov     OFF_R15 - OFF_XAX(%rsi), %r15
-    movsd   OFF_Xmm0 - OFF_XAX(%rsi), %xmm0
-    movsd   OFF_Xmm1 - OFF_XAX(%rsi), %xmm1
-    movsd   OFF_Xmm2 - OFF_XAX(%rsi), %xmm2
-    movsd   OFF_Xmm3 - OFF_XAX(%rsi), %xmm3
-    movsd   OFF_Xmm4 - OFF_XAX(%rsi), %xmm4
-    movsd   OFF_Xmm5 - OFF_XAX(%rsi), %xmm5
-    movsd   OFF_Xmm6 - OFF_XAX(%rsi), %xmm6
-    movsd   OFF_Xmm7 - OFF_XAX(%rsi), %xmm7
-    movsd   OFF_Xmm8 - OFF_XAX(%rsi), %xmm8
-    movsd   OFF_Xmm9 - OFF_XAX(%rsi), %xmm9
-    movsd   OFF_Xmm10 - OFF_XAX(%rsi), %xmm10
-    movsd   OFF_Xmm11 - OFF_XAX(%rsi), %xmm11
-    movsd   OFF_Xmm12 - OFF_XAX(%rsi), %xmm12
-    movsd   OFF_Xmm13 - OFF_XAX(%rsi), %xmm13
-    movsd   OFF_Xmm14 - OFF_XAX(%rsi), %xmm14
-    movsd   OFF_Xmm15 - OFF_XAX(%rsi), %xmm15
+    movdqu  OFF_Xmm0 - OFF_XAX(%rsi), %xmm0
+    movdqu  OFF_Xmm1 - OFF_XAX(%rsi), %xmm1
+    movdqu  OFF_Xmm2 - OFF_XAX(%rsi), %xmm2
+    movdqu  OFF_Xmm3 - OFF_XAX(%rsi), %xmm3
+    movdqu  OFF_Xmm4 - OFF_XAX(%rsi), %xmm4
+    movdqu  OFF_Xmm5 - OFF_XAX(%rsi), %xmm5
+    movdqu  OFF_Xmm6 - OFF_XAX(%rsi), %xmm6
+    movdqu  OFF_Xmm7 - OFF_XAX(%rsi), %xmm7
+    movdqu  OFF_Xmm8 - OFF_XAX(%rsi), %xmm8
+    movdqu  OFF_Xmm9 - OFF_XAX(%rsi), %xmm9
+    movdqu  OFF_Xmm10 - OFF_XAX(%rsi), %xmm10
+    movdqu  OFF_Xmm11 - OFF_XAX(%rsi), %xmm11
+    movdqu  OFF_Xmm12 - OFF_XAX(%rsi), %xmm12
+    movdqu  OFF_Xmm13 - OFF_XAX(%rsi), %xmm13
+    movdqu  OFF_Xmm14 - OFF_XAX(%rsi), %xmm14
+    movdqu  OFF_Xmm15 - OFF_XAX(%rsi), %xmm15
     popfq                                        /* restoring FLAGS may cause single-stepping */
     xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
     xchg    OFF_XSI - OFF_XAX(%rsi), %rsi
@@ -275,22 +275,22 @@ switch_from_user:
     mov     %r13, OFF_R13 - OFF_XAX(%rsi)
     mov     %r14, OFF_R14 - OFF_XAX(%rsi)
     mov     %r15, OFF_R15 - OFF_XAX(%rsi)
-    movsd   %xmm0, OFF_Xmm0 - OFF_XAX(%rsi)
-    movsd   %xmm1, OFF_Xmm1 - OFF_XAX(%rsi)
-    movsd   %xmm2, OFF_Xmm2 - OFF_XAX(%rsi)
-    movsd   %xmm3, OFF_Xmm3 - OFF_XAX(%rsi)
-    movsd   %xmm4, OFF_Xmm4 - OFF_XAX(%rsi)
-    movsd   %xmm5, OFF_Xmm5 - OFF_XAX(%rsi)
-    movsd   %xmm6, OFF_Xmm6 - OFF_XAX(%rsi)
-    movsd   %xmm7, OFF_Xmm7 - OFF_XAX(%rsi)
-    movsd   %xmm8, OFF_Xmm8 - OFF_XAX(%rsi)
-    movsd   %xmm9, OFF_Xmm9 - OFF_XAX(%rsi)
-    movsd   %xmm10, OFF_Xmm10 - OFF_XAX(%rsi)
-    movsd   %xmm11, OFF_Xmm11 - OFF_XAX(%rsi)
-    movsd   %xmm12, OFF_Xmm12 - OFF_XAX(%rsi)
-    movsd   %xmm13, OFF_Xmm13 - OFF_XAX(%rsi)
-    movsd   %xmm14, OFF_Xmm14 - OFF_XAX(%rsi)
-    movsd   %xmm15, OFF_Xmm15 - OFF_XAX(%rsi)
+    movdqu  %xmm0, OFF_Xmm0 - OFF_XAX(%rsi)
+    movdqu  %xmm1, OFF_Xmm1 - OFF_XAX(%rsi)
+    movdqu  %xmm2, OFF_Xmm2 - OFF_XAX(%rsi)
+    movdqu  %xmm3, OFF_Xmm3 - OFF_XAX(%rsi)
+    movdqu  %xmm4, OFF_Xmm4 - OFF_XAX(%rsi)
+    movdqu  %xmm5, OFF_Xmm5 - OFF_XAX(%rsi)
+    movdqu  %xmm6, OFF_Xmm6 - OFF_XAX(%rsi)
+    movdqu  %xmm7, OFF_Xmm7 - OFF_XAX(%rsi)
+    movdqu  %xmm8, OFF_Xmm8 - OFF_XAX(%rsi)
+    movdqu  %xmm9, OFF_Xmm9 - OFF_XAX(%rsi)
+    movdqu  %xmm10, OFF_Xmm10 - OFF_XAX(%rsi)
+    movdqu  %xmm11, OFF_Xmm11 - OFF_XAX(%rsi)
+    movdqu  %xmm12, OFF_Xmm12 - OFF_XAX(%rsi)
+    movdqu  %xmm13, OFF_Xmm13 - OFF_XAX(%rsi)
+    movdqu  %xmm14, OFF_Xmm14 - OFF_XAX(%rsi)
+    movdqu  %xmm15, OFF_Xmm15 - OFF_XAX(%rsi)
     pop     %rax           /* get user PC from the stack */
     xchg    %rsp, OFF_XSP - OFF_XAX(%rsi)
 
