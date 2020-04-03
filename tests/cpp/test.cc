@@ -56,7 +56,7 @@ int main()
          std::cout << "Sort," << i << ",reversed items required," << total_time << ",ticks:,"
                    << per_item << ",per item\n";
 
-         if (total_size > 200000) {  
+         if (total_size > 100000) {  
             throw std::invalid_argument("stop here");
          }
       }

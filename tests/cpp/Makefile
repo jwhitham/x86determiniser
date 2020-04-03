@@ -12,8 +12,7 @@ clean:
 	-rm -f *.o $(TCPP) tests.$(PLATFORM).ok
 
 $(TCPP):
-	-cp $(GCC_DIR)/libstdc++*.dll .
-	$(GCC_DIR)/g++ -O2 -g -o $(TCPP) test.cc
+	$(GCC_DIR)/g++ -O2 -g -o $(TCPP) test.cc -static
 
 tests.$(PLATFORM).ok: $(TCPP)
 	echo 'Two runs produce the same timings'
