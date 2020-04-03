@@ -260,17 +260,17 @@ def pipe_test():
    p = subprocess.Popen([LOADER, "pipetest" + SUFFIX],
          stdout = fd, stderr = fd2, stdin = subprocess.PIPE)
 
-   p.stdin.write("0a1b2c3d4e")
-   p.stdin.write("5f6g7h8i9j\n")
+   p.stdin.write(b"0a1b2c3d4e")
+   p.stdin.write(b"5f6g7h8i9j\n")
    p.stdin.close()
    p.wait()
 
    fd.close()
    fd2.close()
 
-   if not open(TMP_FILE_2, "rb").read().startswith("0123456789"):
+   if not open(TMP_FILE_2, "rb").read().startswith(b"0123456789"):
       raise Exception("stderr file should contain digits")
-   if not open(TMP_FILE, "rb").read().startswith("abcdefghij"):
+   if not open(TMP_FILE, "rb").read().startswith(b"abcdefghij"):
       raise Exception("stdout file should contain letters")
 
    check_tmpdir()

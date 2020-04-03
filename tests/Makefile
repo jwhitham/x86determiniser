@@ -4,7 +4,8 @@ ROOT=..
 include ../cfg/$(PLATFORM).cfg
 
 OK_FILES=complex_test/ctest.$(PLATFORM).ok simple_tests/tests.$(PLATFORM).ok
-MORE_OK_FILES=sox123/tests.$(PLATFORM).ok ada/tests.$(PLATFORM).ok cpp/tests.$(PLATFORM).ok
+MORE_OK_FILES=ada/tests.$(PLATFORM).ok cpp/tests.$(PLATFORM).ok \
+              sox123/tests.$(PLATFORM).ok 
 
 most:
 	rm -f $(OK_FILES)
