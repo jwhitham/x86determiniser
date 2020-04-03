@@ -211,13 +211,13 @@ def check_error():
                   "got '%s' instead" % (option, s))
 
       name = os.path.abspath(TMP_EXE_FILE)
-      open(name, "wb").write("")
+      open(name, "wt").write("")
       s = sub_check_error([name])
       if not (s.find(name) and (s.find("not a valid Win32 application") > 0)):
          raise Exception("Did not see expected error message for non-executable file")
 
       name = os.path.abspath(TMP_EXE_FILE)
-      open(name, "wb").write("not an executable file")
+      open(name, "wt").write("not an executable file")
       s = sub_check_error([name])
       if not (s.find(name) and (s.find("is not compatible") > 0)):
          raise Exception("Did not see expected error message for non-executable file")
