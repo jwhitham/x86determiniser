@@ -4,7 +4,7 @@ ROOT=..
 include ../cfg/$(PLATFORM).cfg
 
 OK_FILES=complex_test/ctest.$(PLATFORM).ok simple_tests/tests.$(PLATFORM).ok
-MORE_OK_FILES=sox123/tests.$(PLATFORM).ok ada/tests.$(PLATFORM).ok
+MORE_OK_FILES=sox123/tests.$(PLATFORM).ok ada/tests.$(PLATFORM).ok cpp/tests.$(PLATFORM).ok
 
 most:
 	rm -f $(OK_FILES)
@@ -19,6 +19,7 @@ clean:
 	make -C simple_tests clean PLATFORM=$(PLATFORM)
 	make -C sox123 clean PLATFORM=$(PLATFORM)
 	make -C ada clean PLATFORM=$(PLATFORM)
+	make -C cpp clean PLATFORM=$(PLATFORM)
 
 # ctest: branch trace of C program
 complex_test/ctest.$(PLATFORM).ok:
@@ -33,3 +34,5 @@ sox123/tests.$(PLATFORM).ok:
 ada/tests.$(PLATFORM).ok:
 	make -C ada tests.$(PLATFORM).ok PLATFORM=$(PLATFORM)
 
+cpp/tests.$(PLATFORM).ok:
+	make -C cpp tests.$(PLATFORM).ok PLATFORM=$(PLATFORM)
