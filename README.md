@@ -3,18 +3,20 @@ x86determiniser is a
 "simulator" with [branch tracing](https://en.wikipedia.org/wiki/Branch_trace),
 instruction tracing
 and deterministic timing for x86 32-bit and 64-bit programs
-on Windows and Linux. It operates by "system call passthrough"
-and loads native executables.
+on Windows and Linux. It operates by "syscall emulation"
+and runs native executables. There's a longer description
+[on my website](https://www.jwhitham.org/2020/04/x86determiniser.html)
+along with [precompiled binaries](https://www.jwhitham.org/x86determiniser/bin/).
 
 ## Example:
 
-  `C> x64determiniser.exe --inst-trace test.txt ..\tests\simple_tests\args.win64.exe`
+  `C> x64determiniser.exe --inst-trace test.txt example.exe`
 
 test.txt will contain a list of all instructions executed by the
-"args.win64.exe" program, excluding those in library code (not within
+"example.exe" program, excluding those in library code (not within
 the .exe file).
 
-`--help` prints out a list of other supported options.
+`x64determiniser.exe --help` prints out a list of other options.
 
 # Documentation
 
