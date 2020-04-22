@@ -231,7 +231,7 @@ def check_error():
                   "got '%s' instead" % (option, s))
 
       name = os.path.abspath(TMP_EXE_FILE)
-      open(name, "wb").write("")
+      open(name, "wb").write(b"")
       s = sub_check_error([name])
       if not (s.find(name) and (s.find("must be an x86 ELF executable") > 0)):
          raise Exception("Did not see expected error message for non-executable file")
