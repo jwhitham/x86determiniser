@@ -25,20 +25,3 @@ this_is_a_subroutine:
 1: ret
 
 
-
-.global start_test
-.global _start_test
-start_test:
-_start_test:
-   inl      $0x30, %eax
-   mov      $1, %eax
-   outl     %eax, $0x30
-   ret
-
-.global stop_test
-.global _stop_test
-stop_test:
-_stop_test:
-   mov      $252, %eax
-   outl     %eax, $0x30
-   ret

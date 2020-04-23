@@ -1,16 +1,18 @@
-
+#ifdef WIN32
 #include <windows.h>
+#define WIN
+#elif WIN64
+#include <windows.h>
+#define WIN
+#else
+#include <dlfcn.h>
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 
-void test_1 (void);
-void test_3 (void);
-void test_4 (void);
-void test_5 (void);
-void test_6 (void);
-void test_7 (void);
-void start_test (void);
-void stop_test (void);
+
+void all_tests (void);
 
 int main(int argc, char ** argv)
 {
@@ -18,11 +20,19 @@ int main(int argc, char ** argv)
    void (* startup_x86_determiniser) (uint32_t * ER) = NULL;
 
    if (argc == 2) {
+#ifdef WIN
       HMODULE lib = LoadLibrary (argv[1]);
       if (!lib) {
          return 1;
       }
       startup_x86_determiniser = (void *) GetProcAddress (lib, "startup_x86_determiniser");
+#else
+      void * lib = dlopen (argv[1], RTLD_NOW);
+      if (!lib) {
+         return 1;
+      }
+      startup_x86_determiniser = (void *) dlsym (lib, "startup_x86_determiniser");
+#endif
       if (!startup_x86_determiniser) {
          return 2;
       }
@@ -30,15 +40,9 @@ int main(int argc, char ** argv)
    }
 
    printf ("start\n");
-   start_test ();
-   test_1 ();
-   test_3 ();
-   test_4 ();
-   test_5 ();
-   test_6 ();
-   test_7 ();
-   stop_test ();
+   all_tests ();
    printf ("stop\n");
    return 0;
 }
+
 

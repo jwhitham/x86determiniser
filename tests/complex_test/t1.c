@@ -119,4 +119,18 @@ void test_1 (void)
    call_site_2 ();
 }
 
+void test_1 (void);
+void test_3 (void);
+void test_4 (void);
+void test_5 (void);
+void test_6 (void);
+
+void all_tests (void)
+{
+   test_1 ();
+   test_3 ();
+   test_4 ();
+   test_5 ();
+   test_6 ();
+}
 

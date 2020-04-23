@@ -69,7 +69,7 @@ int f9 (int x);
 
 void f1 (int x) { f2 (x); f3 (x); }
 void f2 (int x) { f4 (x); }
-void f3 (int x) { }
+void f3 (int x) { (void) x; }
 void f4 (int x) { f5 (x); }
 void f5 (int x) { if (x < 10) { f5 (x + 1); } f6 (x); }
 void f6 (int x) { 
@@ -83,13 +83,13 @@ void f6 (int x) {
    f9 (x);
 }
 void f7 (int x) {
-   int i;
+   int i; (void) x;
    for (i = 0; i < 4; i++) {
       f8 (i);
    }
 }
 
-void f8 (int x) { }
+void f8 (int x) { (void) x; }
 int f9 (int x) {
    /* There are two ways into this loop. That is one way to make it
     * irreducible. The header is not well defined. */
@@ -108,6 +108,8 @@ start:
 
 
 void crash_longjmp (unsigned env, int v) {
+   (void) env;
+   (void) v;
    while (1) {}
 }
 
