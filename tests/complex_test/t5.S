@@ -1,6 +1,14 @@
 
+.global test_5
+.global _test_5
 
-.text
+#ifdef X64
+
+test_5:
+_test_5:
+    ret
+
+#else
 /* 
     This implementation of memset is from uClibc.
     memset_test uses the Linux calling convention.
@@ -35,8 +43,6 @@ memset_test:
     pop    %edi                             /* 12bd06:       5f                       */
     ret                                     /* 12bd07:       c3                       */
 
-.global test_5
-.global _test_5
 test_5:
 _test_5:
     pushl  $99  /* set 99 bytes */
@@ -52,4 +58,5 @@ _test_5:
 memset_scratch_area:
     .space 99
 
+#endif
 
