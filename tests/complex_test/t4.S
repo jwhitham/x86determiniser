@@ -1,7 +1,7 @@
 .text
 .global test_4
 .global _test_4
-.align 4096
+.align 16
 test_4:
 _test_4:
     mov     $100, %ecx
