@@ -11,7 +11,7 @@ clean:
       *.trace *.ok
 
 
-ctest.$(PLATFORM).ok: $(LOADER_EXE) ctest.$(PLATFORM)$(EXE)
+ctest.$(PLATFORM).ok: $(LOADER_EXE) ctest.$(PLATFORM)$(EXE) ctest.$(PLATFORM).ref
 	$(LOADER_EXE) --branch-trace ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM)$(EXE)
 	python normalise_trace.py ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM).trace
 	diff -q ctest.$(PLATFORM).trace ctest.$(PLATFORM).ref
@@ -40,12 +40,17 @@ t6.$(PLATFORM).S: t6.c
 	sed -i 's/[.]L/t6_L/g' $@
 
 all_tests.$(PLATFORM).S: $(ASM)
+	# All assembly files together
 	cat $(ASM) > $@
+	# Global symbols removed (treated differently on Linux/Windows)
 	sed -i 's/^.*[.]glob.*//g' $@
+	# Special section markers squashed to .text
 	sed -i 's/[.]section.*note[.].*/.text/g' $@
 	sed -i 's/[.]section.*text[.].*/.text/g' $@
+	# Directives that are only supported for ELF are removed
 	sed -i 's/^.*[.]\(size\|type\|local\).*//' $@
 	sed -i 's/^\(.*[.]section.*\),".*".*/\1/' $@
+	# Only the entry point (all_tests) is global
 	echo '.global all_tests' >> $@
 	echo '.global _all_tests' >> $@
 
@@ -53,7 +58,7 @@ all_tests.$(PLATFORM).S: $(ASM)
 ifeq ($(PLATFORM),linux32)
 
 # Here is a reference file made with the old version.
-# Only possible with 32-bit Linux.
+# Only possible to build this with 32-bit Linux.
 
 ctest.$(PLATFORM).ref: main.c all_tests.$(PLATFORM).S
 	cp /tmp/x86determiniser/libx86determiniser$(DLL) .
@@ -79,6 +84,7 @@ all_tests.win%.S: all_tests.linux%.S
 	cp $< $@
 
 ctest.win%.ref: ctest.linux%.ref
+	@echo $@ should be identical to $<
 	cp $< $@
 
 endif
