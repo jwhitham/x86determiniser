@@ -35,4 +35,17 @@ License.)
 x86determiniser became able to generate an instruction trace (with disassembly)
 as well as branch traces.
 
+## 2.1 (April 2020)
+
+Version 2.1 was a bug fix release. It fixed a critical bug for 64-bit Linux
+which could cause stack corruption in programs that use the "red zone". A new test
+checks for this specific bug.
+
+The "complex test" was redesigned to avoid the need for a checked-in executable,
+making it more portable across Linux distributions and across CPU microarchitectures
+(the test failed on CPUs with AVX). Finally, the last dependency on Python 2 was
+removed. Python 3 is now preferred.
+
+
+
 

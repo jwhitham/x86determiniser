@@ -1,9 +1,9 @@
 # Migration from version 1.x
 
-When upgrading from version 1.x to version 2.0, some changes
+When upgrading from version 1.x to version 2.x, some changes
 may be required.
 
-## In version 2.0, there's no DLL or startup function
+## In version 2.x, there's no DLL or startup function
 
 x86determiniser version 1.x required each program to link against
 a DLL (or shared object) named `libx86determiniser.dll`. This DLL
@@ -27,7 +27,7 @@ be called from the program. It would normally be called within
 
 ```
 
-In version 2.0, x86determiniser no longer has a DLL or any
+In version 2.x, x86determiniser no longer has a DLL or any
 `startup_x86_determiniser` function. Instead, the program is
 'determinised' from the point where the executable actually begins
 to run. The first instruction to be determinised is the entry point of the
@@ -35,33 +35,33 @@ executable, often named `_start` or `_mainCRTStartup`. As before, any
 shared library code and system calls are ignored, so the dynamic loader
 (e.g. `ld-linux.so.2`) is not determinised. 
 
-## In version 2.0, run the program within x86determiniser
+## In version 2.x, run the program within x86determiniser
 
 In version 1.x, programs are linked against x86determiniser's DLL
 and then started normally.
 
-In version 2.0, x86determiniser acts like a loader or debugger, so programs
+In version 2.x, x86determiniser acts like a loader or debugger, so programs
 are started as follows:
 
   `C> x64determiniser.exe [options] program.exe`
 
-## In version 2.0, the X86D environment variables have no effect
+## In version 2.x, the X86D environment variables have no effect
 
 Version 1.x used the `X86D_QUIET_MODE` to turn off verbose output
 and `X86D_BRANCH_TRACE` to allow a branch trace file to be specified.
 
-Version 2.0 does not have these environment variables. Instead,
+Version 2.x does not have these environment variables. Instead,
 specify the required options on the command line. `--branch-trace`
 replaces `X86D_BRANCH_TRACE` and `X86D_QUIET_MODE` is the default:
 specify `--debug` for extra output.
 
-## In version 2.0, tracing starts at the entry to the executable
+## In version 2.x, tracing starts at the entry to the executable
 
 In version 1.x, code would be 'determinised' from the point where 
 `startup_x86_determiniser` returned, to the point where `main` exited.
 Any shared library or system calls would be ignored. 
 
-In version 2.0, the program is
+In version 2.x, the program is
 'determinised' from the point where the executable actually begins
 to run. Even in small C programs, there is plenty of initialisation 
 before `main` is reached.

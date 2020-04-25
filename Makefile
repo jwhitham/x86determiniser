@@ -1,4 +1,6 @@
 
+VERSION=2.1
+
 all:
 	@echo 'Use an appropriate make target for your platform:'
 	@echo '   "make linux" - Linux, 32-bit and 64-bit'
@@ -41,12 +43,24 @@ linux64:
 win.test:
 	make deepclean
 	make win32 win64
+	cd ..; zip -9r x86determiniser/x86determiniser-windows-$(VERSION).zip \
+            x86determiniser/bin/*determiniser \
+            x86determiniser/doc/ \
+            x86determiniser/README.md \
+            x86determiniser/LICENSE
 	make -C tests PLATFORM=win32 all
 	make -C tests PLATFORM=win64 all
 
 linux.test:
 	make deepclean
+	cd ..; tar cvzf x86determiniser/v$(VERSION).tar.gz \
+            x86determiniser/*
 	make linux32 linux64
+	cd ..; tar cvzf x86determiniser/x86determiniser-linux-$(VERSION).tar.gz \
+            x86determiniser/bin/*determiniser \
+            x86determiniser/doc/ \
+            x86determiniser/README.md \
+            x86determiniser/LICENSE
 	make -C tests PLATFORM=linux32 all
 	make -C tests PLATFORM=linux64 all
 
