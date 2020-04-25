@@ -286,7 +286,7 @@ static void StartSingleStepProc
    memcpy (&localCs.context, context, sizeof (LINUX_CONTEXT));
 
    // reserve stack space for SingleStepStruct
-   new_sp = get_stack_ptr (context) - sizeof (localCs);
+   new_sp = get_stack_ptr (context) - sizeof (localCs) - RED_ZONE_SIZE;
    new_sp = align_64 (new_sp);
    set_stack_ptr(context, new_sp);
 

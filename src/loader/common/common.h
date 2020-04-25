@@ -25,6 +25,8 @@
 #define X86D_FIRST_ERROR               (0x000 | X86D_SPECIAL_VALUE)
 #define X86D_LAST_ERROR                (0xfff | X86D_SPECIAL_VALUE)
 
+#define RED_ZONE_SIZE                  0x80
+
 struct CommStruct;
 
 int X86DeterminiserLoader(struct CommStruct * pcs, int argc, char ** argv);
