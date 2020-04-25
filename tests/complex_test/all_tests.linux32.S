@@ -498,7 +498,9 @@ t1_LFB10:
 	.cfi_endproc
 t1_LFE10:
 
-	.comm	fptr,4,4
+.bss
+.align 4
+fptr: .space 4
 	.ident	"GCC: (GNU) 4.7.4 20140401 for GNAT GPL gpl-2014 (20140405)"
 	.text
 .text
@@ -3960,7 +3962,9 @@ input_data:
 	.byte	127
 	.byte	0
 	.byte	-13
-	.comm	output_data,700,32
+.bss
+.align 32
+output_data: .space 700
 
 	.data
 	.align 32
@@ -4046,17 +4050,29 @@ above:
 virgin.1576:
 	.long	1
 
-	.comm	lencode.1581,8,4
+.bss
+.align 4
+lencode.1581: .space 8
 
-	.comm	lencnt.1577,32,32
+.bss
+.align 32
+lencnt.1577: .space 32
 
-	.comm	lensym.1578,576,32
+.bss
+.align 32
+lensym.1578: .space 576
 
-	.comm	distcode.1582,8,4
+.bss
+.align 4
+distcode.1582: .space 8
 
-	.comm	distcnt.1579,32,32
+.bss
+.align 32
+distcnt.1579: .space 32
 
-	.comm	distsym.1580,60,32
+.bss
+.align 32
+distsym.1580: .space 60
 	.section	.rodata
 	.align 32
 

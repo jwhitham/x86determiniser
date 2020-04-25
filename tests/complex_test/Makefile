@@ -51,7 +51,7 @@ all_tests.$(PLATFORM).S: $(ASM)
 	sed -i 's/^.*[.]\(size\|type\|local\).*//' $@
 	sed -i 's/^\(.*[.]section.*\),".*".*/\1/' $@
 	# .comm works for Win32 but there were issues for Win64; convert it to .bss
-	sed -i 's/^.*[.]comm\(.*\),\([0-9]*\),\([0-9]*\)/.bss\n.align \3; \1: .space \2/' $@
+	sed -i 's/^.*[.]comm[\t ]*\(.*\),\([0-9]*\),\([0-9]*\)/.bss\n.align \3\n\1: .space \2/' $@
 	# Only the entry point (all_tests) is global
 	echo '.global all_tests' >> $@
 	echo '.global _all_tests' >> $@

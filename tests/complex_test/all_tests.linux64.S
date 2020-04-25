@@ -464,7 +464,9 @@ t1_LFB10:
 	.cfi_endproc
 t1_LFE10:
 
-	.comm	fptr,8,8
+.bss
+.align 8
+fptr: .space 8
 	.ident	"GCC: (GNU) 6.3.1 20170510 (for GNAT GPL 2017 20170515)"
 	.text
 .text
@@ -3396,17 +3398,29 @@ lens.1955:
 	.value	227
 	.value	258
 
-	.comm	distsym.1971,60,32
+.bss
+.align 32
+distsym.1971: .space 60
 
-	.comm	distcnt.1970,32,32
+.bss
+.align 32
+distcnt.1970: .space 32
 
-	.comm	distcode.1973,16,16
+.bss
+.align 16
+distcode.1973: .space 16
 
-	.comm	lensym.1969,576,32
+.bss
+.align 32
+lensym.1969: .space 576
 
-	.comm	lencnt.1968,32,32
+.bss
+.align 32
+lencnt.1968: .space 32
 
-	.comm	lencode.1972,16,16
+.bss
+.align 16
+lencode.1972: .space 16
 	.data
 	.align 4
 
@@ -4345,7 +4359,9 @@ input_data:
 	.byte	127
 	.byte	0
 	.byte	-13
-	.comm	output_data,700,32
+.bss
+.align 32
+output_data: .space 700
 
 	.data
 	.align 32
