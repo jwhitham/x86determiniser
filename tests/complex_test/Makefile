@@ -50,6 +50,8 @@ all_tests.$(PLATFORM).S: $(ASM)
 	# Directives that are only supported for ELF are removed
 	sed -i 's/^.*[.]\(size\|type\|local\).*//' $@
 	sed -i 's/^\(.*[.]section.*\),".*".*/\1/' $@
+	# .comm works for Win32 but there were issues for Win64; convert it to .bss
+	sed -i 's/^.*[.]comm\(.*\),\([0-9]*\),\([0-9]*\)/.bss\n.align \3; \1: .space \2/' $@
 	# Only the entry point (all_tests) is global
 	echo '.global all_tests' >> $@
 	echo '.global _all_tests' >> $@
