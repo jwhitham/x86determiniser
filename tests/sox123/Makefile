@@ -6,10 +6,12 @@ include ../../cfg/$(PLATFORM).cfg
 HERE=$(ROOT)/tests/sox123
 INSTALL=$(HERE)/install.$(PLATFORM)
 X86DRUN=$(LOADER_EXE) --out-trace x.txt --
+LD=$(GCC_DIR)/ld
 
 export CC
 export LD
 export RANLIB
+export AR
 
 all: tests.$(PLATFORM).ok
 
