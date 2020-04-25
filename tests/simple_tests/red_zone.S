@@ -130,7 +130,7 @@ error:   /* Oh no! Test failed! red zone has become corrupted! crash */
 /* This test does not do anything for 32-bit code */
 main:
 _main:
-   mov      $0, %rax
+   mov      $0, %eax
    ret
 
 #endif
