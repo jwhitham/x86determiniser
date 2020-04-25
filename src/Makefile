@@ -5,7 +5,7 @@ include $(ROOT)/cfg/$(PLATFORM).cfg
 
 ZYDIS=determiniser/zydis-2.0.2
 
-VERSION=2.0
+VERSION=2.x
 
 LOADER_COMMON=loader/common
 DETERMINISER_COMMON=determiniser/common

@@ -2,6 +2,7 @@
 VERSION=2.1
 
 all:
+	@echo 'x86determiniser version '$(VERSION)
 	@echo 'Use an appropriate make target for your platform:'
 	@echo '   "make linux" - Linux, 32-bit and 64-bit'
 	@echo '   "make linux32" - Linux, 32-bit only'
@@ -25,19 +26,19 @@ linux:
 	make linux32 linux64
 
 win32:
-	make -C src PLATFORM=win32 all
+	make -C src PLATFORM=win32 VERSION=$(VERSION) all
 	make -C tests PLATFORM=win32 most
 
 linux32:
-	make -C src PLATFORM=linux32 all
+	make -C src PLATFORM=linux32 VERSION=$(VERSION) all
 	make -C tests PLATFORM=linux32 most
 
 win64:
-	make -C src PLATFORM=win64 all
+	make -C src PLATFORM=win64 VERSION=$(VERSION) all
 	make -C tests PLATFORM=win64 most
 
 linux64:
-	make -C src PLATFORM=linux64 all
+	make -C src PLATFORM=linux64 VERSION=$(VERSION) all
 	make -C tests PLATFORM=linux64 most
 
 win.test:
