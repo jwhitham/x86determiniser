@@ -33,7 +33,7 @@ _all_tests:
 	.text
 	.align 2
 	.p2align 4,,15
-	.globl	one_tick
+
 
 one_tick:
 t1_LFB2:
@@ -50,7 +50,7 @@ t1_LFE2:
 
 	.align 2
 	.p2align 4,,15
-	.globl	quirky
+
 
 quirky:
 t1_LFB0:
@@ -62,7 +62,7 @@ t1_LFE0:
 
 	.align 2
 	.p2align 4,,15
-	.globl	zero_ticks
+
 
 zero_ticks:
 t1_LFB1:
@@ -91,7 +91,7 @@ t1_LFE1:
 
 	.align 2
 	.p2align 4,,15
-	.globl	two_ticks
+
 
 two_ticks:
 t1_LFB3:
@@ -111,7 +111,7 @@ t1_LFE3:
 
 	.align 2
 	.p2align 4,,15
-	.globl	four_ticks
+
 
 four_ticks:
 t1_LFB4:
@@ -152,7 +152,7 @@ t1_LFE4:
 
 	.align 2
 	.p2align 4,,15
-	.globl	five_ticks
+
 
 five_ticks:
 t1_LFB5:
@@ -196,7 +196,7 @@ t1_LFE5:
 
 	.align 2
 	.p2align 4,,15
-	.globl	x_ticks
+
 
 x_ticks:
 t1_LFB6:
@@ -237,7 +237,7 @@ t1_LFE6:
 
 	.align 2
 	.p2align 4,,15
-	.globl	nineteen_ticks
+
 
 nineteen_ticks:
 t1_LFB7:
@@ -394,7 +394,7 @@ t1_LFE7:
 
 	.align 2
 	.p2align 4,,15
-	.globl	runme_root1
+
 
 runme_root1:
 t1_LFB8:
@@ -466,7 +466,7 @@ t1_LFE8:
 
 	.align 2
 	.p2align 4,,15
-	.globl	call_site_2
+
 
 call_site_2:
 t1_LFB9:
@@ -483,7 +483,7 @@ t1_LFE9:
 
 	.align 2
 	.p2align 4,,15
-	.globl	test_1
+
 
 test_1:
 t1_LFB10:
@@ -768,7 +768,7 @@ memset_scratch_area:
 	.text
 	.align 2
 	.p2align 4,,15
-	.globl	target1
+
 
 target1:
 t6_LFB0:
@@ -831,7 +831,7 @@ t6_LFE0:
 
 	.align 2
 	.p2align 4,,15
-	.globl	target2
+
 
 target2:
 t6_LFB1:
@@ -854,7 +854,7 @@ t6_LFE1:
 
 	.align 2
 	.p2align 4,,15
-	.globl	target3
+
 
 target3:
 t6_LFB2:
@@ -917,7 +917,7 @@ t6_LFE2:
 
 	.align 2
 	.p2align 4,,15
-	.globl	target4
+
 
 target4:
 t6_LFB3:
@@ -978,36 +978,21 @@ t6_L12:
 	.cfi_endproc
 t6_LFE3:
 
-	.globl	__udivdi3
 	.align 2
 	.p2align 4,,15
-	.globl	target5
+
 
 target5:
 t6_LFB4:
 	.cfi_startproc
-	subl	$28, %esp
-	.cfi_def_cfa_offset 32
-	movl	above, %eax
-	movl	above+4, %edx
-	movl	%eax, (%esp)
-	movl	below, %eax
-	movl	%edx, 4(%esp)
-	movl	below+4, %edx
-	movl	%eax, 8(%esp)
-	movl	%edx, 12(%esp)
-	call	__udivdi3
-	movl	%eax, above
-	movl	%edx, above+4
-	addl	$28, %esp
-	.cfi_def_cfa_offset 4
+	rep
 	ret
 	.cfi_endproc
 t6_LFE4:
 
 	.align 2
 	.p2align 4,,15
-	.globl	target6
+
 
 target6:
 t6_LFB5:
@@ -1021,7 +1006,7 @@ t6_LFB5:
 	flds	t6_LC0
 	fxch	%st(1)
 	fucomi	%st(1), %st
-	jae	t6_L18
+	jae	t6_L17
 	fstp	%st(1)
 	fnstcw	6(%esp)
 	movzwl	6(%esp), %eax
@@ -1032,7 +1017,7 @@ t6_LFB5:
 	fldcw	6(%esp)
 	movl	8(%esp), %eax
 	movl	12(%esp), %edx
-t6_L19:
+t6_L18:
 	movl	%eax, above
 	movl	%edx, above+4
 	movl	below, %eax
@@ -1041,8 +1026,8 @@ t6_L19:
 	movl	%edx, 12(%esp)
 	testl	%edx, %edx
 	fildq	8(%esp)
-	js	t6_L22
-t6_L20:
+	js	t6_L21
+t6_L19:
 	fstpl	16(%esp)
 	fldl	16(%esp)
 	fstpl	t2
@@ -1055,7 +1040,7 @@ t6_L20:
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L18:
+t6_L17:
 	.cfi_restore_state
 	fnstcw	6(%esp)
 	fsubp	%st, %st(1)
@@ -1069,18 +1054,18 @@ t6_L18:
 	movl	8(%esp), %eax
 	leal	-2147483648(%edx), %ecx
 	movl	%ecx, %edx
-	jmp	t6_L19
+	jmp	t6_L18
 	.p2align 4,,7
 	.p2align 3
-t6_L22:
+t6_L21:
 	fadds	t6_LC5
-	jmp	t6_L20
+	jmp	t6_L19
 	.cfi_endproc
 t6_LFE5:
 
 	.align 2
 	.p2align 4,,15
-	.globl	target7
+
 
 target7:
 t6_LFB6:
@@ -1105,7 +1090,7 @@ t6_LFE6:
 
 	.align 2
 	.p2align 4,,15
-	.globl	target8
+
 
 target8:
 t6_LFB7:
@@ -1118,7 +1103,7 @@ t6_LFE7:
 
 	.align 2
 	.p2align 4,,15
-	.globl	target9
+
 
 target9:
 t6_LFB8:
@@ -1137,7 +1122,7 @@ t6_LFE8:
 
 	.align 2
 	.p2align 4,,15
-	.globl	targeta
+
 
 targeta:
 t6_LFB9:
@@ -1152,7 +1137,7 @@ t6_LFE9:
 
 	.align 2
 	.p2align 4,,15
-	.globl	targetb
+
 
 targetb:
 t6_LFB10:
@@ -1202,20 +1187,20 @@ t6_LFB21:
 	movl	28(%eax), %edx
 	movl	24(%eax), %edi
 	cmpl	%edx, %ebp
-	jle	t6_L32
+	jle	t6_L31
 	movl	16(%eax), %ecx
 	movl	20(%eax), %ebx
 	movl	%ecx, (%esp)
 	cmpl	%ecx, %ebx
-	je	t6_L41
+	je	t6_L40
 	movl	12(%eax), %ecx
 	movl	%ecx, 4(%esp)
 	movl	%edx, %ecx
-	jmp	t6_L35
-t6_L36:
-	cmpl	(%esp), %ebx
-	je	t6_L33
+	jmp	t6_L34
 t6_L35:
+	cmpl	(%esp), %ebx
+	je	t6_L32
+t6_L34:
 	movl	4(%esp), %edx
 	movzbl	(%edx,%ebx), %esi
 	addl	$1, %ebx
@@ -1225,9 +1210,9 @@ t6_L35:
 	orl	%esi, %edi
 	cmpl	%ecx, %ebp
 	movl	%ecx, 28(%eax)
-	jg	t6_L36
+	jg	t6_L35
 	movl	%ecx, %edx
-t6_L32:
+t6_L31:
 	movl	%ebp, %ecx
 	movl	%edi, %ebx
 	sarl	%cl, %ebx
@@ -1254,13 +1239,13 @@ t6_L32:
 	.cfi_restore 5
 	.cfi_def_cfa_offset 4
 	ret
-t6_L41:
+t6_L40:
 	.cfi_restore_state
-t6_L33:
+t6_L32:
 	.p2align 4,,7
 	.p2align 3
-t6_L39:
-	jmp	t6_L39
+t6_L38:
+	jmp	t6_L38
 	.cfi_endproc
 t6_LFE21:
 
@@ -1298,24 +1283,24 @@ t6_LFB23:
 	addl	$2, %edx
 	movl	%edx, 8(%esp)
 	movl	20(%esp), %edx
-t6_L52:
+t6_L51:
 	testl	%edx, %edx
-	jne	t6_L46
-t6_L56:
+	jne	t6_L45
+t6_L55:
 	movb	$16, %dl
 	subl	(%esp), %edx
-	je	t6_L50
+	je	t6_L49
 	movl	20(%eax), %ecx
 	cmpl	16(%eax), %ecx
-	je	t6_L53
+	je	t6_L52
 	movl	12(%eax), %esi
 	movzbl	(%esi,%ecx), %esi
 	addl	$1, %ecx
 	cmpl	$8, %edx
 	movl	%ecx, 20(%eax)
-	jle	t6_L52
+	jle	t6_L51
 	movl	$8, %edx
-t6_L46:
+t6_L45:
 	movl	8(%esp), %ebx
 	movl	%esi, %ecx
 	andl	$1, %ecx
@@ -1327,7 +1312,7 @@ t6_L46:
 	movl	%ecx, %ebx
 	subl	%edi, %ebx
 	cmpl	%ebx, %ebp
-	jg	t6_L55
+	jg	t6_L54
 	addl	%edi, %ebp
 	subl	$1, %edx
 	addl	%edi, 12(%esp)
@@ -1335,13 +1320,13 @@ t6_L46:
 	addl	$1, (%esp)
 	testl	%edx, %edx
 	leal	(%ecx,%ecx), %edi
-	jne	t6_L46
-	jmp	t6_L56
+	jne	t6_L45
+	jmp	t6_L55
 	.p2align 4,,7
 	.p2align 3
-t6_L53:
-	jmp	t6_L53
-t6_L50:
+t6_L52:
+	jmp	t6_L52
+t6_L49:
 	addl	$28, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -1359,7 +1344,7 @@ t6_L50:
 	.cfi_restore 5
 	.cfi_def_cfa_offset 4
 	ret
-t6_L55:
+t6_L54:
 	.cfi_restore_state
 	movl	(%esp), %ebx
 	movl	20(%esp), %edx
@@ -1416,72 +1401,72 @@ t6_LFB24:
 	xorl	%eax, %eax
 	.p2align 4,,7
 	.p2align 3
-t6_L58:
+t6_L57:
 	movw	$0, (%ebx,%eax,2)
 	addl	$1, %eax
 	cmpl	$16, %eax
-	jne	t6_L58
+	jne	t6_L57
 	testl	%ecx, %ecx
 	movl	%edx, %eax
 	leal	(%edx,%ecx,2), %edi
-	jle	t6_L63
+	jle	t6_L62
 	.p2align 4,,7
 	.p2align 3
-t6_L70:
+t6_L69:
 	movswl	(%eax), %esi
 	addl	$2, %eax
 	addw	$1, (%ebx,%esi,2)
 	cmpl	%edi, %eax
-	jne	t6_L70
-t6_L63:
+	jne	t6_L69
+t6_L62:
 	movswl	(%ebx), %eax
 	cmpl	%ecx, %eax
-	je	t6_L67
+	je	t6_L66
 	movl	$1, %eax
 	movl	$1, %esi
 	.p2align 4,,7
 	.p2align 3
-t6_L61:
+t6_L60:
 	movswl	(%ebx,%esi,2), %edi
 	addl	%eax, %eax
 	subl	%edi, %eax
-	js	t6_L60
+	js	t6_L59
 	addl	$1, %esi
 	cmpl	$16, %esi
-	jne	t6_L61
+	jne	t6_L60
 	movw	$0, 6(%esp)
 	xorl	%edi, %edi
 	movw	$1, %si
 	.p2align 4,,7
 	.p2align 3
-t6_L64:
+t6_L63:
 	addl	$1, %esi
 	addw	-2(%ebx,%esi,2), %di
 	cmpl	$15, %esi
 	movw	%di, 4(%esp,%esi,2)
-	jne	t6_L64
+	jne	t6_L63
 	testl	%ecx, %ecx
-	jle	t6_L60
+	jle	t6_L59
 	xorl	%ebx, %ebx
 	movl	%eax, (%esp)
 	.p2align 4,,7
 	.p2align 3
-t6_L66:
+t6_L65:
 	movswl	(%edx,%ebx,2), %eax
 	testw	%ax, %ax
-	je	t6_L65
+	je	t6_L64
 	movswl	4(%esp,%eax,2), %edi
 	movl	4(%ebp), %esi
 	movw	%bx, (%esi,%edi,2)
 	movzwl	4(%esp,%eax,2), %esi
 	addl	$1, %esi
 	movw	%si, 4(%esp,%eax,2)
-t6_L65:
+t6_L64:
 	addl	$1, %ebx
 	cmpl	%ecx, %ebx
-	jne	t6_L66
+	jne	t6_L65
 	movl	(%esp), %eax
-t6_L60:
+t6_L59:
 	addl	$36, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -1500,7 +1485,7 @@ t6_L60:
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L67:
+t6_L66:
 	.cfi_restore_state
 	addl	$36, %esp
 	.cfi_def_cfa_offset 20
@@ -1544,34 +1529,34 @@ t6_LFB25:
 	.cfi_def_cfa_offset 32
 	movl	%edx, 4(%esp)
 	movl	%ecx, 8(%esp)
-t6_L107:
+t6_L106:
 	movl	4(%esp), %edx
 	movl	%ebx, %eax
 	call	decode
 	testl	%eax, %eax
 	movl	%eax, %edi
-	js	t6_L82
+	js	t6_L81
 	cmpl	$255, %eax
-	jg	t6_L83
+	jg	t6_L82
 	movl	(%ebx), %eax
 	testl	%eax, %eax
-	je	t6_L84
+	je	t6_L83
 	movl	8(%ebx), %edx
 	cmpl	4(%ebx), %edx
-	je	t6_L89
+	je	t6_L88
 	movl	%edi, %ecx
 	movb	%cl, (%eax,%edx)
-t6_L84:
+t6_L83:
 	addl	$1, 8(%ebx)
-	jmp	t6_L107
+	jmp	t6_L106
 	.p2align 4,,7
 	.p2align 3
-t6_L83:
+t6_L82:
 	cmpl	$256, %eax
-	je	t6_L93
+	je	t6_L92
 	subl	$257, %edi
 	cmpl	$28, %edi
-	jg	t6_L94
+	jg	t6_L93
 	movswl	lext.1565(%edi,%edi), %edx
 	movl	%ebx, %eax
 	movswl	lens.1564(%edi,%edi), %esi
@@ -1582,7 +1567,7 @@ t6_L83:
 	call	decode
 	testl	%eax, %eax
 	movl	%eax, %edi
-	js	t6_L82
+	js	t6_L81
 	movswl	dext.1567(%eax,%eax), %edx
 	movswl	dists.1566(%eax,%eax), %ebp
 	movl	%ebx, %eax
@@ -1590,23 +1575,23 @@ t6_L83:
 	movl	8(%ebx), %edx
 	addl	%ebp, %eax
 	cmpl	%edx, %eax
-	ja	t6_L95
+	ja	t6_L94
 	movl	(%ebx), %ecx
 	testl	%ecx, %ecx
-	je	t6_L88
+	je	t6_L87
 	leal	(%esi,%edx), %ebp
 	cmpl	4(%ebx), %ebp
-	ja	t6_L89
+	ja	t6_L88
 	testl	%esi, %esi
 	leal	-1(%esi), %ebp
-	je	t6_L92
+	je	t6_L91
 	movl	%eax, (%esp)
-	jmp	t6_L108
+	jmp	t6_L107
 	.p2align 4,,7
 	.p2align 3
-t6_L112:
+t6_L111:
 	movl	(%ebx), %ecx
-t6_L108:
+t6_L107:
 	movl	%edx, %esi
 	subl	$1, %ebp
 	subl	(%esp), %esi
@@ -1616,15 +1601,15 @@ t6_L108:
 	addl	$1, %edx
 	cmpl	$-1, %ebp
 	movl	%edx, 8(%ebx)
-	jne	t6_L112
-t6_L92:
+	jne	t6_L111
+t6_L91:
 	cmpl	$256, %edi
-	jne	t6_L107
+	jne	t6_L106
 	.p2align 4,,7
 	.p2align 3
-t6_L93:
+t6_L92:
 	xorl	%edi, %edi
-t6_L82:
+t6_L81:
 	addl	$12, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -1644,24 +1629,24 @@ t6_L82:
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L88:
+t6_L87:
 	.cfi_restore_state
 	addl	%esi, %edx
 	cmpl	$256, %edi
 	movl	%edx, 8(%ebx)
-	jne	t6_L107
-	jmp	t6_L93
+	jne	t6_L106
+	jmp	t6_L92
 	.p2align 4,,7
 	.p2align 3
-t6_L89:
+t6_L88:
 	movl	$1, %edi
-	jmp	t6_L82
-t6_L94:
+	jmp	t6_L81
+t6_L93:
 	movl	$-10, %edi
-	jmp	t6_L82
-t6_L95:
+	jmp	t6_L81
+t6_L94:
 	movl	$-11, %edi
-	jmp	t6_L82
+	jmp	t6_L81
 	.cfi_endproc
 t6_LFE25:
 
@@ -1682,7 +1667,7 @@ t6_LFB26:
 	.cfi_def_cfa_offset 588
 	movl	virgin.1576, %eax
 	testl	%eax, %eax
-	je	t6_L114
+	je	t6_L113
 	movl	$lencnt.1577, lencode.1581
 	movl	%esp, %ebx
 	movl	%esp, %edx
@@ -1692,28 +1677,28 @@ t6_LFB26:
 	movl	$distsym.1580, distcode.1582+4
 	.p2align 4,,7
 	.p2align 3
-t6_L115:
+t6_L114:
 	movw	$8, (%edx)
+	addl	$2, %edx
+	cmpl	%eax, %edx
+	jne	t6_L114
+	leal	512(%esp), %eax
+	.p2align 4,,7
+	.p2align 3
+t6_L115:
+	movw	$9, (%edx)
 	addl	$2, %edx
 	cmpl	%eax, %edx
 	jne	t6_L115
 	leal	512(%esp), %eax
-	.p2align 4,,7
-	.p2align 3
-t6_L116:
-	movw	$9, (%edx)
-	addl	$2, %edx
-	cmpl	%eax, %edx
-	jne	t6_L116
-	leal	512(%esp), %eax
 	leal	560(%esp), %edx
 	.p2align 4,,7
 	.p2align 3
-t6_L117:
+t6_L116:
 	movw	$7, (%eax)
 	addl	$2, %eax
 	cmpl	%edx, %eax
-	jne	t6_L117
+	jne	t6_L116
 	movl	$288, %ecx
 	movl	%esp, %edx
 	movl	$lencode.1581, %eax
@@ -1729,17 +1714,17 @@ t6_L117:
 	leal	60(%esp), %eax
 	.p2align 4,,7
 	.p2align 3
-t6_L118:
+t6_L117:
 	movw	$5, (%ebx)
 	addl	$2, %ebx
 	cmpl	%eax, %ebx
-	jne	t6_L118
+	jne	t6_L117
 	movl	$30, %ecx
 	movl	%esp, %edx
 	movl	$distcode.1582, %eax
 	call	construct
 	movl	$0, virgin.1576
-t6_L114:
+t6_L113:
 	movl	%esi, %eax
 	movl	$distcode.1582, %ecx
 	movl	$lencode.1581, %edx
@@ -1800,15 +1785,15 @@ t6_LFB27:
 	call	bits
 	cmpl	$30, 4(%esp)
 	leal	4(%eax), %edi
-	jg	t6_L144
+	jg	t6_L143
 	cmpl	$286, (%esp)
-	jg	t6_L144
+	jg	t6_L143
 	xorl	%ebx, %ebx
 	testl	%edi, %edi
-	jle	t6_L173
+	jle	t6_L172
 	.p2align 4,,7
 	.p2align 3
-t6_L159:
+t6_L158:
 	movl	$3, %edx
 	movl	%esi, %eax
 	movswl	order.1615(%ebx,%ebx), %ebp
@@ -1816,79 +1801,79 @@ t6_L159:
 	addl	$1, %ebx
 	cmpl	%ebx, %edi
 	movw	%ax, 720(%esp,%ebp,2)
-	jne	t6_L159
+	jne	t6_L158
 	cmpl	$18, %edi
-	jg	t6_L174
+	jg	t6_L173
 	.p2align 4,,7
 	.p2align 3
-t6_L158:
+t6_L157:
 	movswl	order.1615(%edi,%edi), %eax
 	addl	$1, %edi
 	cmpl	$18, %edi
 	movw	$0, 720(%esp,%eax,2)
-	jle	t6_L158
-t6_L174:
+	jle	t6_L157
+t6_L173:
 	movl	$19, %ecx
 	leal	720(%esp), %edx
 	leal	8(%esp), %eax
 	call	construct
 	testl	%eax, %eax
-	jne	t6_L175
+	jne	t6_L174
 	movl	(%esp), %edi
 	xorl	%ebx, %ebx
 	addl	4(%esp), %edi
 	.p2align 4,,7
 	.p2align 3
-t6_L167:
+t6_L166:
 	cmpl	%edi, %ebx
-	jge	t6_L176
-t6_L138:
+	jge	t6_L175
+t6_L137:
 	leal	8(%esp), %edx
 	movl	%esi, %eax
 	call	decode
 	cmpl	$15, %eax
-	jg	t6_L132
+	jg	t6_L131
 	movw	%ax, 720(%esp,%ebx,2)
 	addl	$1, %ebx
 	cmpl	%edi, %ebx
-	jl	t6_L138
-t6_L176:
+	jl	t6_L137
+t6_L175:
 	cmpw	$0, 1232(%esp)
-	je	t6_L150
+	je	t6_L149
 	movl	(%esp), %ecx
 	leal	720(%esp), %edx
 	leal	8(%esp), %eax
 	call	construct
 	cmpl	$0, %eax
-	je	t6_L139
-	jl	t6_L142
+	je	t6_L138
+	jl	t6_L141
 	movl	8(%esp), %eax
 	movswl	(%eax), %edx
 	movswl	2(%eax), %eax
 	addl	%edx, %eax
 	cmpl	(%esp), %eax
-	jne	t6_L142
-t6_L139:
+	jne	t6_L141
+t6_L138:
 	movl	(%esp), %eax
 	movl	4(%esp), %ecx
 	leal	720(%esp,%eax,2), %edx
 	leal	16(%esp), %eax
 	call	construct
 	cmpl	$0, %eax
-	je	t6_L140
-	jl	t6_L143
+	je	t6_L139
+	jl	t6_L142
 	movl	16(%esp), %eax
 	movswl	(%eax), %edx
 	movswl	2(%eax), %eax
 	addl	%edx, %eax
 	cmpl	4(%esp), %eax
-	jne	t6_L143
-t6_L140:
+	jne	t6_L142
+t6_L139:
 	leal	16(%esp), %ecx
 	movl	%esi, %eax
 	leal	8(%esp), %edx
 	call	codes
-t6_L125:
+t6_L124:
 	addl	$1352, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -1907,39 +1892,39 @@ t6_L125:
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L132:
+t6_L131:
 	.cfi_restore_state
 	cmpl	$16, %eax
-	je	t6_L177
+	je	t6_L176
 	cmpl	$17, %eax
-	je	t6_L178
+	je	t6_L177
 	movl	$7, %edx
 	movl	%esi, %eax
 	call	bits
 	leal	11(%eax), %edx
-t6_L141:
+t6_L140:
 	leal	(%ebx,%edx), %eax
 	xorl	%ebp, %ebp
 	cmpl	%edi, %eax
-	jg	t6_L149
-t6_L179:
+	jg	t6_L148
+t6_L178:
 	testl	%edx, %edx
 	leal	-1(%edx), %ecx
-	je	t6_L167
+	je	t6_L166
 	leal	720(%esp,%ebx,2), %edx
 	leal	720(%esp,%eax,2), %eax
 	.p2align 4,,7
 	.p2align 3
-t6_L137:
+t6_L136:
 	movw	%bp, (%edx)
 	addl	$2, %edx
 	cmpl	%eax, %edx
-	jne	t6_L137
+	jne	t6_L136
 	leal	1(%ebx,%ecx), %ebx
-	jmp	t6_L167
-t6_L177:
+	jmp	t6_L166
+t6_L176:
 	testl	%ebx, %ebx
-	je	t6_L148
+	je	t6_L147
 	movl	$2, %edx
 	movl	%esi, %eax
 	movswl	718(%esp,%ebx,2), %ebp
@@ -1947,8 +1932,8 @@ t6_L177:
 	leal	3(%eax), %edx
 	leal	(%ebx,%edx), %eax
 	cmpl	%edi, %eax
-	jle	t6_L179
-t6_L149:
+	jle	t6_L178
+t6_L148:
 	addl	$1352, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -1966,14 +1951,14 @@ t6_L149:
 	.cfi_restore 5
 	.cfi_def_cfa_offset 4
 	ret
-t6_L178:
+t6_L177:
 	.cfi_restore_state
 	movl	$3, %edx
 	movl	%esi, %eax
 	call	bits
 	leal	3(%eax), %edx
-	jmp	t6_L141
-t6_L148:
+	jmp	t6_L140
+t6_L147:
 	addl	$1352, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -1991,11 +1976,11 @@ t6_L148:
 	.cfi_restore 5
 	.cfi_def_cfa_offset 4
 	ret
-t6_L173:
+t6_L172:
 	.cfi_restore_state
 	xorl	%edi, %edi
-	jmp	t6_L158
-t6_L150:
+	jmp	t6_L157
+t6_L149:
 	addl	$1352, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -2013,19 +1998,19 @@ t6_L150:
 	.cfi_restore 5
 	.cfi_def_cfa_offset 4
 	ret
-t6_L142:
+t6_L141:
 	.cfi_restore_state
 	movl	$-7, %eax
-	jmp	t6_L125
-t6_L143:
+	jmp	t6_L124
+t6_L142:
 	movl	$-8, %eax
-	jmp	t6_L125
-t6_L144:
+	jmp	t6_L124
+t6_L143:
 	movl	$-3, %eax
-	jmp	t6_L125
-t6_L175:
+	jmp	t6_L124
+t6_L174:
 	movl	$-4, %eax
-	jmp	t6_L125
+	jmp	t6_L124
 	.cfi_endproc
 t6_LFE27:
 
@@ -2050,7 +2035,7 @@ t6_LFB30:
 	.cfi_offset 3, -20
 	subl	$4, %esp
 	.cfi_def_cfa_offset 24
-t6_L181:
+t6_L180:
 	movzbl	(%edx,%ecx,4), %ebx
 	movb	%bl, (%eax,%ecx,4)
 	movzbl	1(%edx,%ecx,4), %ebx
@@ -2061,18 +2046,18 @@ t6_L181:
 	movb	%bl, 3(%eax,%ecx,4)
 	addl	$1, %ecx
 	cmpl	$4, %ecx
-	jne	t6_L181
+	jne	t6_L180
 	addl	$12, %eax
 	.p2align 4,,7
 	.p2align 3
-t6_L183:
+t6_L182:
 	movzbl	3(%eax), %edx
 	testb	$3, %cl
 	movzbl	(%eax), %edi
 	movzbl	1(%eax), %esi
 	movzbl	2(%eax), %ebx
 	movb	%dl, 3(%esp)
-	jne	t6_L182
+	jne	t6_L181
 	andl	$255, %esi
 	andl	$255, %edi
 	movzbl	sbox(%esi), %ebp
@@ -2085,7 +2070,7 @@ t6_L183:
 	movzbl	Rcon(%edi), %edx
 	xorl	%ebp, %edx
 	movl	%edx, %edi
-t6_L182:
+t6_L181:
 	movzbl	-12(%eax), %edx
 	addl	$1, %ecx
 	xorb	-10(%eax), %bl
@@ -2102,7 +2087,7 @@ t6_L182:
 	movb	%dl, 7(%eax)
 	addl	$4, %eax
 	cmpl	$44, %ecx
-	jne	t6_L183
+	jne	t6_L182
 	addl	$4, %esp
 	.cfi_def_cfa_offset 20
 	popl	%ebx
@@ -2144,19 +2129,19 @@ t6_LFB42:
 	.cfi_offset 3, -20
 	subl	$20, %esp
 	.cfi_def_cfa_offset 40
-t6_L188:
+t6_L187:
 	leal	0(%ebp,%edi,4), %ecx
 	leal	4(%eax), %esi
-t6_L189:
+t6_L188:
 	movzbl	(%eax), %ebx
 	addl	$1, %eax
 	xorb	%bl, (%ecx)
 	addl	$1, %ecx
 	cmpl	%esi, %eax
-	jne	t6_L189
+	jne	t6_L188
 	addl	$1, %edi
 	cmpl	$4, %edi
-	jne	t6_L188
+	jne	t6_L187
 	leal	16(%edx), %eax
 	addl	$160, %edx
 	leal	16(%ebp), %ecx
@@ -2165,22 +2150,22 @@ t6_L189:
 	movl	%ecx, 12(%esp)
 	.p2align 4,,7
 	.p2align 3
-t6_L190:
+t6_L189:
 	movl	12(%esp), %esi
 	xorl	%ecx, %ecx
-t6_L198:
+t6_L197:
 	leal	0(%ebp,%ecx), %eax
 	leal	(%esi,%ecx), %ebx
-t6_L191:
+t6_L190:
 	movzbl	(%eax), %edx
 	movzbl	sbox(%edx), %edx
 	movb	%dl, (%eax)
 	addl	$4, %eax
 	cmpl	%eax, %ebx
-	jne	t6_L191
+	jne	t6_L190
 	addl	$1, %ecx
 	cmpl	$4, %ecx
-	jne	t6_L198
+	jne	t6_L197
 	movzbl	9(%ebp), %eax
 	movzbl	5(%ebp), %esi
 	movzbl	1(%ebp), %edx
@@ -2209,7 +2194,7 @@ t6_L191:
 	movb	%cl, 11(%ebp)
 	movb	%al, 7(%ebp)
 	movl	%ebp, %eax
-t6_L194:
+t6_L193:
 	movzbl	(%eax), %ecx
 	xorl	%ebx, %edx
 	xorl	%ecx, %esi
@@ -2271,49 +2256,49 @@ t6_L194:
 	movb	%dl, 3(%eax)
 	addl	$4, %eax
 	subb	$1, 3(%esp)
-	je	t6_L204
+	je	t6_L203
 	movzbl	1(%eax), %esi
 	movzbl	2(%eax), %ebx
 	movzbl	3(%eax), %edx
-	jmp	t6_L194
+	jmp	t6_L193
 	.p2align 4,,7
 	.p2align 3
-t6_L204:
+t6_L203:
 	movl	8(%esp), %ebp
 	xorl	%ebx, %ebx
 	movl	4(%esp), %eax
-t6_L193:
+t6_L192:
 	leal	0(%ebp,%ebx,4), %edx
 	leal	4(%eax), %esi
-t6_L195:
+t6_L194:
 	movzbl	(%eax), %ecx
 	addl	$1, %eax
 	xorb	%cl, (%edx)
 	addl	$1, %edx
 	cmpl	%esi, %eax
-	jne	t6_L195
+	jne	t6_L194
 	addl	$1, %ebx
 	cmpl	$4, %ebx
-	jne	t6_L193
+	jne	t6_L192
 	addl	$16, 4(%esp)
 	movl	16(%esp), %eax
 	cmpl	%eax, 4(%esp)
-	jne	t6_L190
+	jne	t6_L189
 	movl	12(%esp), %esi
 	xorl	%ecx, %ecx
-t6_L197:
+t6_L196:
 	leal	0(%ebp,%ecx), %eax
 	leal	(%esi,%ecx), %ebx
-t6_L199:
+t6_L198:
 	movzbl	(%eax), %edx
 	movzbl	sbox(%edx), %edx
 	movb	%dl, (%eax)
 	addl	$4, %eax
 	cmpl	%eax, %ebx
-	jne	t6_L199
+	jne	t6_L198
 	addl	$1, %ecx
 	cmpl	$4, %ecx
-	jne	t6_L197
+	jne	t6_L196
 	movzbl	5(%ebp), %eax
 	xorl	%esi, %esi
 	movzbl	1(%ebp), %edx
@@ -2340,19 +2325,19 @@ t6_L199:
 	movb	%dl, 7(%ebp)
 	movb	%al, 11(%ebp)
 	movl	16(%esp), %eax
-t6_L201:
+t6_L200:
 	leal	0(%ebp,%esi,4), %edx
 	leal	4(%eax), %ebx
-t6_L202:
+t6_L201:
 	movzbl	(%eax), %ecx
 	addl	$1, %eax
 	xorb	%cl, (%edx)
 	addl	$1, %edx
 	cmpl	%ebx, %eax
-	jne	t6_L202
+	jne	t6_L201
 	addl	$1, %esi
 	cmpl	$4, %esi
-	jne	t6_L201
+	jne	t6_L200
 	addl	$20, %esp
 	.cfi_def_cfa_offset 20
 	popl	%ebx
@@ -2397,22 +2382,22 @@ t6_LFB43:
 	.cfi_def_cfa_offset 56
 	xorl	%ebx, %ebx
 	movl	%edx, 24(%esp)
-t6_L214:
+t6_L213:
 	leal	(%edi,%ebx,4), %edx
 	movl	%ecx, %ebp
 	leal	4(%eax), %esi
 	movl	%ecx, 12(%esp)
-t6_L215:
+t6_L214:
 	movzbl	(%eax), %ecx
 	addl	$1, %eax
 	xorb	%cl, (%edx)
 	addl	$1, %edx
 	cmpl	%esi, %eax
-	jne	t6_L215
+	jne	t6_L214
 	addl	$1, %ebx
 	movl	12(%esp), %ecx
 	cmpl	$4, %ebx
-	jne	t6_L214
+	jne	t6_L213
 	movl	24(%esp), %edx
 	leal	16(%edi), %ecx
 	movl	%ebp, 32(%esp)
@@ -2421,7 +2406,7 @@ t6_L215:
 	movl	%edx, 16(%esp)
 	.p2align 4,,7
 	.p2align 3
-t6_L222:
+t6_L221:
 	movzbl	9(%edi), %eax
 	xorl	%ecx, %ecx
 	movzbl	13(%edi), %edx
@@ -2448,38 +2433,38 @@ t6_L222:
 	movzbl	15(%edi), %eax
 	movb	%dl, 15(%edi)
 	movb	%al, 11(%edi)
-t6_L217:
+t6_L216:
 	leal	(%edi,%ecx), %eax
 	leal	(%esi,%ecx), %ebx
-t6_L218:
+t6_L217:
 	movzbl	(%eax), %edx
 	movzbl	rsbox(%edx), %edx
 	movb	%dl, (%eax)
 	addl	$4, %eax
 	cmpl	%eax, %ebx
-	jne	t6_L218
+	jne	t6_L217
 	addl	$1, %ecx
 	cmpl	$4, %ecx
-	jne	t6_L217
+	jne	t6_L216
 	movl	16(%esp), %eax
 	xorl	%ebx, %ebx
-t6_L219:
+t6_L218:
 	leal	(%edi,%ebx,4), %edx
 	leal	4(%eax), %esi
-t6_L220:
+t6_L219:
 	movzbl	(%eax), %ecx
 	addl	$1, %eax
 	xorb	%cl, (%edx)
 	addl	$1, %edx
 	cmpl	%esi, %eax
-	jne	t6_L220
+	jne	t6_L219
 	addl	$1, %ebx
 	cmpl	$4, %ebx
-	jne	t6_L219
+	jne	t6_L218
 	movl	%edi, %ecx
 	movl	$0, 12(%esp)
 	movl	%edi, 20(%esp)
-t6_L221:
+t6_L220:
 	movzbl	(%ecx), %eax
 	movzbl	1(%ecx), %edx
 	movb	%al, 9(%esp)
@@ -2645,12 +2630,12 @@ t6_L221:
 	movb	%al, 3(%ecx)
 	addl	$4, %ecx
 	cmpl	$4, 12(%esp)
-	jne	t6_L221
+	jne	t6_L220
 	subl	$16, 16(%esp)
 	movl	24(%esp), %edx
 	cmpl	%edx, 16(%esp)
 	movl	20(%esp), %edi
-	jne	t6_L222
+	jne	t6_L221
 	movzbl	9(%edi), %eax
 	xorl	%ecx, %ecx
 	movzbl	13(%edi), %edx
@@ -2677,34 +2662,34 @@ t6_L221:
 	movzbl	15(%edi), %eax
 	movb	%dl, 15(%edi)
 	movb	%al, 11(%edi)
-t6_L223:
+t6_L222:
 	leal	(%edi,%ecx), %eax
 	leal	(%esi,%ecx), %ebx
-t6_L224:
+t6_L223:
 	movzbl	(%eax), %edx
 	movzbl	rsbox(%edx), %edx
 	movb	%dl, (%eax)
 	addl	$4, %eax
 	cmpl	%eax, %ebx
-	jne	t6_L224
+	jne	t6_L223
 	addl	$1, %ecx
 	cmpl	$4, %ecx
-	jne	t6_L223
+	jne	t6_L222
 	movl	32(%esp), %eax
 	xorl	%ebx, %ebx
-t6_L225:
+t6_L224:
 	leal	(%edi,%ebx,4), %edx
 	leal	4(%eax), %esi
-t6_L226:
+t6_L225:
 	movzbl	(%eax), %ecx
 	addl	$1, %eax
 	xorb	%cl, (%edx)
 	addl	$1, %edx
 	cmpl	%esi, %eax
-	jne	t6_L226
+	jne	t6_L225
 	addl	$1, %ebx
 	cmpl	$4, %ebx
-	jne	t6_L225
+	jne	t6_L224
 	addl	$36, %esp
 	.cfi_def_cfa_offset 20
 	popl	%ebx
@@ -2725,7 +2710,7 @@ t6_LFE43:
 
 	.align 2
 	.p2align 4,,15
-	.globl	f3
+
 
 f3:
 t6_LFB13:
@@ -2737,29 +2722,29 @@ t6_LFE13:
 
 	.align 2
 	.p2align 4,,15
-	.globl	f5
+
 
 f5:
 t6_LFB15:
 	.cfi_startproc
 	movl	4(%esp), %eax
-t6_L242:
-	cmpl	$9, %eax
-	jle	t6_L243
 t6_L241:
+	cmpl	$9, %eax
+	jle	t6_L242
+t6_L240:
 	rep
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L243:
+t6_L242:
 	addl	$1, %eax
-	jmp	t6_L242
+	jmp	t6_L241
 	.cfi_endproc
 t6_LFE15:
 
 	.align 2
 	.p2align 4,,15
-	.globl	f4
+
 
 f4:
 t6_LFB14:
@@ -2771,7 +2756,7 @@ t6_LFE14:
 
 	.align 2
 	.p2align 4,,15
-	.globl	f2
+
 
 f2:
 t6_LFB12:
@@ -2783,7 +2768,7 @@ t6_LFE12:
 
 	.align 2
 	.p2align 4,,15
-	.globl	f1
+
 
 f1:
 t6_LFB11:
@@ -2795,7 +2780,7 @@ t6_LFE11:
 
 	.align 2
 	.p2align 4,,15
-	.globl	f6
+
 
 f6:
 t6_LFB16:
@@ -2807,7 +2792,7 @@ t6_LFE16:
 
 	.align 2
 	.p2align 4,,15
-	.globl	f7
+
 
 f7:
 t6_LFB17:
@@ -2819,7 +2804,7 @@ t6_LFE17:
 
 	.align 2
 	.p2align 4,,15
-	.globl	f8
+
 
 f8:
 t6_LFB18:
@@ -2831,48 +2816,48 @@ t6_LFE18:
 
 	.align 2
 	.p2align 4,,15
-	.globl	f9
+
 
 f9:
 t6_LFB19:
 	.cfi_startproc
 	movl	4(%esp), %eax
 	testl	%eax, %eax
-	jne	t6_L251
+	jne	t6_L250
 	xorl	%edx, %edx
-t6_L254:
+t6_L253:
 	addl	$1, %edx
 	addl	$2, %eax
 	cmpl	$9, %edx
-	jle	t6_L254
+	jle	t6_L253
 	rep
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L251:
+t6_L250:
 	addl	$1, %eax
 	movl	$6, %edx
-	jmp	t6_L254
+	jmp	t6_L253
 	.cfi_endproc
 t6_LFE19:
 
 	.align 2
 	.p2align 4,,15
-	.globl	crash_longjmp
+
 
 crash_longjmp:
 t6_LFB20:
 	.cfi_startproc
 	.p2align 4,,7
 	.p2align 3
-t6_L258:
-	jmp	t6_L258
+t6_L257:
+	jmp	t6_L257
 	.cfi_endproc
 t6_LFE20:
 
 	.align 2
 	.p2align 4,,15
-	.globl	puff
+
 
 puff:
 t6_LFB28:
@@ -2907,7 +2892,7 @@ t6_LFB28:
 	movl	%eax, 36(%esp)
 	.p2align 4,,7
 	.p2align 3
-t6_L273:
+t6_L272:
 	movl	$1, %edx
 	leal	20(%esp), %eax
 	call	bits
@@ -2916,21 +2901,21 @@ t6_L273:
 	leal	20(%esp), %eax
 	call	bits
 	testl	%eax, %eax
-	je	t6_L286
+	je	t6_L285
 	cmpl	$1, %eax
-	je	t6_L287
+	je	t6_L286
 	cmpl	$2, %eax
 	.p2align 4,,3
-	je	t6_L288
+	je	t6_L287
 	movl	$-1, %eax
-t6_L271:
+t6_L270:
 	movl	28(%esp), %edx
 	movl	80(%esp), %ecx
 	movl	88(%esp), %edi
 	movl	%edx, (%ecx)
 	movl	40(%esp), %edx
 	movl	%edx, (%edi)
-t6_L274:
+t6_L273:
 	addl	$56, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -2949,7 +2934,7 @@ t6_L274:
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L286:
+t6_L285:
 	.cfi_restore_state
 	movl	40(%esp), %edx
 	movl	36(%esp), %esi
@@ -2957,8 +2942,8 @@ t6_L286:
 	movl	$0, 48(%esp)
 	leal	4(%edx), %eax
 	cmpl	%esi, %eax
-	jbe	t6_L261
-t6_L265:
+	jbe	t6_L260
+t6_L264:
 	addl	$56, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -2978,21 +2963,21 @@ t6_L265:
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L287:
+t6_L286:
 	.cfi_restore_state
 	leal	20(%esp), %eax
 	call	fixed
-t6_L269:
+t6_L268:
 	cmpl	$0, %eax
-	jne	t6_L272
-t6_L283:
+	jne	t6_L271
+t6_L282:
 	testl	%ebx, %ebx
-	je	t6_L273
+	je	t6_L272
 	.p2align 4,,6
-	jmp	t6_L271
+	jmp	t6_L270
 	.p2align 4,,7
 	.p2align 3
-t6_L261:
+t6_L260:
 	movl	32(%esp), %ecx
 	leal	1(%edx), %ebp
 	movzbl	(%ecx,%edx), %edi
@@ -3011,35 +2996,35 @@ t6_L261:
 	movl	%edi, 40(%esp)
 	movzbl	(%esp), %edi
 	cmpl	%edi, 4(%esp)
-	jne	t6_L264
+	jne	t6_L263
 	movzbl	3(%ecx,%edx), %edx
 	movl	%eax, 40(%esp)
 	movl	%edx, 4(%esp)
 	movl	(%esp), %edx
 	movzbl	%dh, %edi
 	cmpl	%edi, 4(%esp)
-	jne	t6_L264
+	jne	t6_L263
 	leal	0(%ebp,%eax), %edi
 	cmpl	%edi, %esi
 	movl	%edi, (%esp)
-	jb	t6_L265
+	jb	t6_L264
 	movl	20(%esp), %esi
 	testl	%esi, %esi
-	je	t6_L266
+	je	t6_L265
 	movl	28(%esp), %edx
 	leal	0(%ebp,%edx), %edi
 	cmpl	24(%esp), %edi
-	ja	t6_L276
+	ja	t6_L275
 	testl	%ebp, %ebp
-	je	t6_L275
+	je	t6_L274
 	movl	(%esp), %edi
-	jmp	t6_L281
+	jmp	t6_L280
 	.p2align 4,,7
 	.p2align 3
-t6_L289:
+t6_L288:
 	movl	20(%esp), %esi
 	movl	32(%esp), %ecx
-t6_L281:
+t6_L280:
 	movzbl	(%ecx,%eax), %ecx
 	addl	$1, %eax
 	movb	%cl, (%esi,%edx)
@@ -3047,23 +3032,23 @@ t6_L281:
 	cmpl	%eax, %edi
 	movl	%edx, 28(%esp)
 	movl	%eax, 40(%esp)
-	jne	t6_L289
-t6_L275:
+	jne	t6_L288
+t6_L274:
 	xorl	%eax, %eax
-	jmp	t6_L283
+	jmp	t6_L282
 	.p2align 4,,7
 	.p2align 3
-t6_L288:
+t6_L287:
 	leal	20(%esp), %eax
 	call	dynamic
 	.p2align 4,,2
-	jmp	t6_L269
+	jmp	t6_L268
 	.p2align 4,,7
 	.p2align 3
-t6_L264:
+t6_L263:
 	movl	$-2, %eax
-	jmp	t6_L271
-t6_L276:
+	jmp	t6_L270
+t6_L275:
 	addl	$56, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 20
@@ -3081,22 +3066,22 @@ t6_L276:
 	.cfi_restore 5
 	.cfi_def_cfa_offset 4
 	ret
-t6_L266:
+t6_L265:
 	.cfi_restore_state
 	movl	(%esp), %eax
 	addl	%ebp, 28(%esp)
 	movl	%eax, 40(%esp)
 	xorl	%eax, %eax
-	jmp	t6_L283
-t6_L272:
-	jg	t6_L274
-	jmp	t6_L271
+	jmp	t6_L282
+t6_L271:
+	jg	t6_L273
+	jmp	t6_L270
 	.cfi_endproc
 t6_LFE28:
 
 	.align 2
 	.p2align 4,,15
-	.globl	my_memcpy
+
 
 my_memcpy:
 t6_LFB29:
@@ -3112,16 +3097,16 @@ t6_LFB29:
 	movl	12(%esp), %esi
 	movl	16(%esp), %ebx
 	testl	%ecx, %ecx
-	je	t6_L290
+	je	t6_L289
 	.p2align 4,,7
 	.p2align 3
-t6_L294:
+t6_L293:
 	movzbl	(%ebx,%eax), %edx
 	movb	%dl, (%esi,%eax)
 	addl	$1, %eax
 	cmpl	%ecx, %eax
-	jne	t6_L294
-t6_L290:
+	jne	t6_L293
+t6_L289:
 	popl	%ebx
 	.cfi_restore 3
 	.cfi_def_cfa_offset 8
@@ -3134,7 +3119,7 @@ t6_LFE29:
 
 	.align 2
 	.p2align 4,,15
-	.globl	AES_init_ctx
+
 
 AES_init_ctx:
 t6_LFB31:
@@ -3147,7 +3132,7 @@ t6_LFE31:
 
 	.align 2
 	.p2align 4,,15
-	.globl	AES_init_ctx_iv
+
 
 AES_init_ctx_iv:
 t6_LFB32:
@@ -3166,12 +3151,12 @@ t6_LFB32:
 	xorl	%edx, %edx
 	.p2align 4,,7
 	.p2align 3
-t6_L299:
+t6_L298:
 	movzbl	(%esi,%edx), %ecx
 	movb	%cl, 176(%ebx,%edx)
 	addl	$1, %edx
 	cmpl	$16, %edx
-	jne	t6_L299
+	jne	t6_L298
 	popl	%ebx
 	.cfi_restore 3
 	.cfi_def_cfa_offset 8
@@ -3184,7 +3169,7 @@ t6_LFE32:
 
 	.align 2
 	.p2align 4,,15
-	.globl	AES_ctx_set_iv
+
 
 AES_ctx_set_iv:
 t6_LFB33:
@@ -3197,12 +3182,12 @@ t6_LFB33:
 	movl	12(%esp), %ecx
 	.p2align 4,,7
 	.p2align 3
-t6_L303:
+t6_L302:
 	movzbl	(%ecx,%eax), %edx
 	movb	%dl, 176(%ebx,%eax)
 	addl	$1, %eax
 	cmpl	$16, %eax
-	jne	t6_L303
+	jne	t6_L302
 	popl	%ebx
 	.cfi_restore 3
 	.cfi_def_cfa_offset 4
@@ -3212,7 +3197,7 @@ t6_LFE33:
 
 	.align 2
 	.p2align 4,,15
-	.globl	AES_ECB_encrypt
+
 
 AES_ECB_encrypt:
 t6_LFB44:
@@ -3225,7 +3210,7 @@ t6_LFE44:
 
 	.align 2
 	.p2align 4,,15
-	.globl	AES_ECB_decrypt
+
 
 AES_ECB_decrypt:
 t6_LFB45:
@@ -3238,7 +3223,7 @@ t6_LFE45:
 
 	.align 2
 	.p2align 4,,15
-	.globl	AES_CBC_encrypt_buffer
+
 
 AES_CBC_encrypt_buffer:
 t6_LFB47:
@@ -3261,19 +3246,19 @@ t6_LFB47:
 	testl	%esi, %esi
 	leal	176(%ebp), %edx
 	movl	%edi, %ebx
-	je	t6_L310
+	je	t6_L309
 	.p2align 4,,7
 	.p2align 3
-t6_L317:
+t6_L316:
 	xorl	%ecx, %ecx
 	.p2align 4,,7
 	.p2align 3
-t6_L311:
+t6_L310:
 	movzbl	(%edx,%ecx), %eax
 	xorb	%al, (%ebx,%ecx)
 	addl	$1, %ecx
 	cmpl	$16, %ecx
-	jne	t6_L311
+	jne	t6_L310
 	movl	%ebp, %edx
 	movl	%ebx, %eax
 	call	Cipher
@@ -3282,19 +3267,19 @@ t6_L311:
 	movl	%eax, %ecx
 	subl	%edi, %ecx
 	cmpl	%ecx, %esi
-	jbe	t6_L310
+	jbe	t6_L309
 	movl	%eax, %ebx
-	jmp	t6_L317
-t6_L310:
+	jmp	t6_L316
+t6_L309:
 	xorl	%eax, %eax
 	.p2align 4,,7
 	.p2align 3
-t6_L313:
+t6_L312:
 	movzbl	(%edx,%eax), %ecx
 	movb	%cl, 176(%ebp,%eax)
 	addl	$1, %eax
 	cmpl	$16, %eax
-	jne	t6_L313
+	jne	t6_L312
 	popl	%ebx
 	.cfi_restore 3
 	.cfi_def_cfa_offset 16
@@ -3313,7 +3298,7 @@ t6_LFE47:
 
 	.align 2
 	.p2align 4,,15
-	.globl	AES_CBC_decrypt_buffer
+
 
 AES_CBC_decrypt_buffer:
 t6_LFB48:
@@ -3337,45 +3322,45 @@ t6_LFB48:
 	movl	36(%esp), %esi
 	movl	40(%esp), %ebp
 	testl	%eax, %eax
-	je	t6_L320
+	je	t6_L319
 	.p2align 4,,7
 	.p2align 3
-t6_L330:
+t6_L329:
 	leal	0(%ebp,%edi), %ebx
 	xorl	%eax, %eax
 	.p2align 4,,7
 	.p2align 3
-t6_L322:
+t6_L321:
 	movzbl	(%ebx,%eax), %edx
 	movb	%dl, (%esp,%eax)
 	addl	$1, %eax
 	cmpl	$16, %eax
-	jne	t6_L322
+	jne	t6_L321
 	movl	%ebx, %eax
 	movl	%esi, %edx
 	call	InvCipher
 	xorl	%eax, %eax
 	.p2align 4,,7
 	.p2align 3
-t6_L323:
+t6_L322:
 	movzbl	176(%esi,%eax), %edx
 	xorb	%dl, (%ebx,%eax)
 	addl	$1, %eax
 	cmpl	$16, %eax
-	jne	t6_L323
+	jne	t6_L322
 	xorb	%al, %al
 	.p2align 4,,7
 	.p2align 3
-t6_L324:
+t6_L323:
 	movzbl	(%esp,%eax), %edx
 	movb	%dl, 176(%esi,%eax)
 	addl	$1, %eax
 	cmpl	$16, %eax
-	jne	t6_L324
+	jne	t6_L323
 	addl	$16, %edi
 	cmpl	%edi, 44(%esp)
-	ja	t6_L330
-t6_L320:
+	ja	t6_L329
+t6_L319:
 	addl	$16, %esp
 	.cfi_def_cfa_offset 20
 	popl	%ebx
@@ -3396,7 +3381,7 @@ t6_LFE48:
 
 	.align 2
 	.p2align 4,,15
-	.globl	AES_CTR_xcrypt_buffer
+
 
 AES_CTR_xcrypt_buffer:
 t6_LFB49:
@@ -3418,49 +3403,49 @@ t6_LFB49:
 	movl	32(%esp), %ebx
 	testl	%edx, %edx
 	leal	(%esi,%edx), %edi
-	jne	t6_L341
-	jmp	t6_L332
+	jne	t6_L340
+	jmp	t6_L331
 	.p2align 4,,7
 	.p2align 3
-t6_L347:
+t6_L346:
 	movl	%eax, %edx
 	addl	$1, %eax
 	movzbl	(%esp,%edx), %edx
 	xorb	%dl, (%esi)
 	addl	$1, %esi
 	cmpl	%edi, %esi
-	je	t6_L332
-t6_L341:
+	je	t6_L331
+t6_L340:
 	cmpl	$16, %eax
-	jne	t6_L347
+	jne	t6_L346
 	xorl	%eax, %eax
 	.p2align 4,,7
 	.p2align 3
-t6_L334:
+t6_L333:
 	movzbl	176(%ebx,%eax), %ecx
 	movb	%cl, (%esp,%eax)
 	addl	$1, %eax
 	cmpl	$16, %eax
-	jne	t6_L334
+	jne	t6_L333
 	movl	%esp, %eax
 	movl	%ebx, %edx
 	call	Cipher
 	movl	$15, %eax
-t6_L337:
+t6_L336:
 	movzbl	176(%ebx,%eax), %edx
 	cmpb	$-1, %dl
-	je	t6_L348
+	je	t6_L347
 	addl	$1, %edx
 	movb	%dl, 176(%ebx,%eax)
-t6_L346:
+t6_L345:
 	xorl	%edx, %edx
 	movl	$1, %eax
 	movzbl	(%esp,%edx), %edx
 	xorb	%dl, (%esi)
 	addl	$1, %esi
 	cmpl	%edi, %esi
-	jne	t6_L341
-t6_L332:
+	jne	t6_L340
+t6_L331:
 	addl	$16, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 16
@@ -3476,19 +3461,19 @@ t6_L332:
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L348:
+t6_L347:
 	.cfi_restore_state
 	movb	$0, 176(%ebx,%eax)
 	subl	$1, %eax
 	cmpl	$-1, %eax
-	jne	t6_L337
-	jmp	t6_L346
+	jne	t6_L336
+	jmp	t6_L345
 	.cfi_endproc
 t6_LFE49:
 
 	.align 2
 	.p2align 4,,15
-	.globl	test_6
+
 
 test_6:
 t6_LFB50:
@@ -3501,14 +3486,14 @@ t6_LFB50:
 	.cfi_def_cfa_offset 256
 	movl	target_list, %eax
 	testl	%eax, %eax
-	je	t6_L353
-t6_L362:
+	je	t6_L352
+t6_L361:
 	addl	$1, %ebx
 	call	*%eax
 	movl	target_list(,%ebx,4), %eax
 	testl	%eax, %eax
-	jne	t6_L362
-t6_L353:
+	jne	t6_L361
+t6_L352:
 	movl	$input_len, 12(%esp)
 	movl	$input_data, 8(%esp)
 	movl	$output_len, 4(%esp)
@@ -3516,26 +3501,26 @@ t6_L353:
 	call	puff
 	testl	%eax, %eax
 	movl	%eax, %ebx
-	je	t6_L371
-t6_L351:
+	je	t6_L370
+t6_L350:
 	.p2align 4,,7
 	.p2align 3
-t6_L367:
-	jmp	t6_L367
-t6_L371:
+t6_L366:
+	jmp	t6_L366
+t6_L370:
 	cmpl	$630, output_len
-	jne	t6_L351
+	jne	t6_L350
 	cmpb	$83, output_data+90
-	jne	t6_L351
+	jne	t6_L350
 	cmpb	$114, output_data+626
-	jne	t6_L351
+	jne	t6_L350
 	xorl	%eax, %eax
-t6_L354:
+t6_L353:
 	movzbl	output_data(%eax), %edx
 	movb	%dl, 16(%esp,%eax)
 	addl	$1, %eax
 	cmpl	$32, %eax
-	jne	t6_L354
+	jne	t6_L353
 	movl	$input_data, %edx
 	leal	48(%esp), %eax
 	call	KeyExpansion
@@ -3543,26 +3528,26 @@ t6_L354:
 	leal	16(%esp), %eax
 	call	Cipher
 	cmpb	$-108, 17(%esp)
-	je	t6_L372
-t6_L355:
+	je	t6_L371
+t6_L354:
 	.p2align 4,,7
 	.p2align 3
-t6_L368:
-	jmp	t6_L368
-t6_L372:
+t6_L367:
+	jmp	t6_L367
+t6_L371:
 	cmpb	$58, 23(%esp)
-	jne	t6_L355
+	jne	t6_L354
 	leal	48(%esp), %edx
 	leal	16(%esp), %eax
 	call	InvCipher
-t6_L359:
+t6_L358:
 	movzbl	16(%esp,%ebx), %edx
 	movsbl	output_data(%ebx), %eax
 	cmpl	%eax, %edx
-	jne	t6_L369
+	jne	t6_L368
 	addl	$1, %ebx
 	cmpl	$32, %ebx
-	jne	t6_L359
+	jne	t6_L358
 	addl	$248, %esp
 	.cfi_remember_state
 	.cfi_def_cfa_offset 8
@@ -3573,26 +3558,26 @@ t6_L359:
 	ret
 	.p2align 4,,7
 	.p2align 3
-t6_L369:
+t6_L368:
 	.cfi_restore_state
-	jmp	t6_L369
+	jmp	t6_L368
 	.cfi_endproc
 t6_LFE50:
 
-	.globl	output_len
+
 	.data
 	.align 4
 
 
 output_len:
 	.long	700
-	.globl	input_len
+
 	.align 4
 
 
 input_len:
 	.long	376
-	.globl	input_data
+
 	.section	.rodata
 	.align 32
 
@@ -3976,7 +3961,7 @@ input_data:
 	.byte	0
 	.byte	-13
 	.comm	output_data,700,32
-	.globl	target_list
+
 	.data
 	.align 32
 
@@ -4008,20 +3993,20 @@ target_list:
 	.long	targeta
 	.long	targetb
 	.long	0
-	.globl	t3
+
 	.align 4
 
 
 t3:
 	.long	1088421888
-	.globl	t2
+
 	.align 8
 
 
 t2:
 	.long	0
 	.long	1075314688
-	.globl	t1
+
 	.align 16
 
 
@@ -4029,26 +4014,26 @@ t1:
 	.long	0
 	.long	-1610612736
 	.long	16385
-	.globl	x2
+
 	.align 4
 
 
 x2:
 	.long	4
-	.globl	x1
+
 	.align 4
 
 
 x1:
 	.long	3
-	.globl	below
+
 	.align 8
 
 
 below:
 	.long	2
 	.long	0
-	.globl	above
+
 	.align 8
 
 

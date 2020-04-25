@@ -16,7 +16,7 @@ void target1 () { above = t1; x1 ++; t1 ++; }
 void target2 () { above *= 2; x1 *= 2; t1 *= 3.141; }
 void target3 () { below = t2; x2 ++; t2 ++; }
 void target4 () { below = t3; x2 *= 2; t2 *= 3.141f; }
-void target5 () { above = above / below; }
+void target5 () { }
 void target6 () { above = t1; t2 = below; }
 void target7 () { t1 = x1 % x2; }
 void target8 () { t1 = t2; }

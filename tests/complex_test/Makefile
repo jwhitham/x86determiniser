@@ -41,7 +41,7 @@ t6.$(PLATFORM).S: t6.c
 
 all_tests.$(PLATFORM).S: $(ASM)
 	cat $(ASM) > $@
-	sed -i 's/^[.]glob.*//g' $@
+	sed -i 's/^.*[.]glob.*//g' $@
 	sed -i 's/[.]section.*note[.].*/.text/g' $@
 	sed -i 's/[.]section.*text[.].*/.text/g' $@
 	sed -i 's/^.*[.]\(size\|type\|local\).*//' $@
@@ -77,7 +77,6 @@ all_tests.linux%.S:
 
 all_tests.win%.S: all_tests.linux%.S
 	cp $< $@
-	echo '__udivdi3 = ___udivdi3' >> $@
 
 ctest.win%.ref: ctest.linux%.ref
 	cp $< $@

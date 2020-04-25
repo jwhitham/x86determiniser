@@ -32,7 +32,7 @@ _all_tests:
 	.file	"t1.c"
 	.text
 	.p2align 4,,15
-	.globl	one_tick
+
 
 one_tick:
 t1_LFB2:
@@ -48,7 +48,7 @@ t1_LFB2:
 t1_LFE2:
 
 	.p2align 4,,15
-	.globl	quirky
+
 
 quirky:
 t1_LFB0:
@@ -58,7 +58,7 @@ t1_LFB0:
 t1_LFE0:
 
 	.p2align 4,,15
-	.globl	zero_ticks
+
 
 zero_ticks:
 t1_LFB1:
@@ -82,7 +82,7 @@ t1_L3:
 t1_LFE1:
 
 	.p2align 4,,15
-	.globl	two_ticks
+
 
 two_ticks:
 t1_LFB3:
@@ -101,7 +101,7 @@ t1_LFB3:
 t1_LFE3:
 
 	.p2align 4,,15
-	.globl	four_ticks
+
 
 four_ticks:
 t1_LFB4:
@@ -137,7 +137,7 @@ t1_L12:
 t1_LFE4:
 
 	.p2align 4,,15
-	.globl	five_ticks
+
 
 five_ticks:
 t1_LFB5:
@@ -176,7 +176,7 @@ t1_L18:
 t1_LFE5:
 
 	.p2align 4,,15
-	.globl	x_ticks
+
 
 x_ticks:
 t1_LFB6:
@@ -212,7 +212,7 @@ t1_L32:
 t1_LFE6:
 
 	.p2align 4,,15
-	.globl	nineteen_ticks
+
 
 nineteen_ticks:
 t1_LFB7:
@@ -365,7 +365,7 @@ t1_L33:
 t1_LFE7:
 
 	.p2align 4,,15
-	.globl	runme_root1
+
 
 runme_root1:
 t1_LFB8:
@@ -437,7 +437,7 @@ t1_L68:
 t1_LFE8:
 
 	.p2align 4,,15
-	.globl	call_site_2
+
 
 call_site_2:
 t1_LFB9:
@@ -448,7 +448,7 @@ t1_LFB9:
 t1_LFE9:
 
 	.p2align 4,,15
-	.globl	test_1
+
 
 test_1:
 t1_LFB10:
@@ -733,7 +733,7 @@ memset_scratch_area:
 	.file	"t6.c"
 	.text
 	.p2align 4,,15
-	.globl	target1
+
 
 target1:
 t6_LFB0:
@@ -780,7 +780,7 @@ t6_L2:
 t6_LFE0:
 
 	.p2align 4,,15
-	.globl	target2
+
 
 target2:
 t6_LFB1:
@@ -799,7 +799,7 @@ t6_LFB1:
 t6_LFE1:
 
 	.p2align 4,,15
-	.globl	target3
+
 
 target3:
 t6_LFB2:
@@ -830,7 +830,7 @@ t6_L7:
 t6_LFE2:
 
 	.p2align 4,,15
-	.globl	target4
+
 
 target4:
 t6_LFB3:
@@ -860,22 +860,17 @@ t6_L10:
 t6_LFE3:
 
 	.p2align 4,,15
-	.globl	target5
+
 
 target5:
 t6_LFB4:
 	.cfi_startproc
-	movq	above(%rip), %rax
-	movq	below(%rip), %rcx
-	xorl	%edx, %edx
-	divq	%rcx
-	movq	%rax, above(%rip)
-	ret
+	rep ret
 	.cfi_endproc
 t6_LFE4:
 
 	.p2align 4,,15
-	.globl	target6
+
 
 target6:
 t6_LFB5:
@@ -934,7 +929,7 @@ t6_L16:
 t6_LFE5:
 
 	.p2align 4,,15
-	.globl	target7
+
 
 target7:
 t6_LFB6:
@@ -952,7 +947,7 @@ t6_LFB6:
 t6_LFE6:
 
 	.p2align 4,,15
-	.globl	target8
+
 
 target8:
 t6_LFB7:
@@ -964,7 +959,7 @@ t6_LFB7:
 t6_LFE7:
 
 	.p2align 4,,15
-	.globl	target9
+
 
 target9:
 t6_LFB8:
@@ -978,7 +973,7 @@ t6_LFB8:
 t6_LFE8:
 
 	.p2align 4,,15
-	.globl	targeta
+
 
 targeta:
 t6_LFB9:
@@ -992,7 +987,7 @@ t6_LFB9:
 t6_LFE9:
 
 	.p2align 4,,15
-	.globl	targetb
+
 
 targetb:
 t6_LFB10:
@@ -2330,7 +2325,7 @@ t6_L202:
 t6_LFE43:
 
 	.p2align 4,,15
-	.globl	f3
+
 
 f3:
 t6_LFB58:
@@ -2340,7 +2335,7 @@ t6_LFB58:
 t6_LFE58:
 
 	.p2align 4,,15
-	.globl	f5
+
 
 f5:
 t6_LFB15:
@@ -2387,7 +2382,7 @@ t6_L228:
 t6_LFE15:
 
 	.p2align 4,,15
-	.globl	f4
+
 
 f4:
 t6_LFB14:
@@ -2397,7 +2392,7 @@ t6_LFB14:
 t6_LFE14:
 
 	.p2align 4,,15
-	.globl	f2
+
 
 f2:
 t6_LFB52:
@@ -2407,7 +2402,7 @@ t6_LFB52:
 t6_LFE52:
 
 	.p2align 4,,15
-	.globl	f1
+
 
 f1:
 t6_LFB54:
@@ -2417,7 +2412,7 @@ t6_LFB54:
 t6_LFE54:
 
 	.p2align 4,,15
-	.globl	f6
+
 
 f6:
 t6_LFB16:
@@ -2435,7 +2430,7 @@ t6_L234:
 t6_LFE16:
 
 	.p2align 4,,15
-	.globl	f7
+
 
 f7:
 t6_LFB56:
@@ -2445,7 +2440,7 @@ t6_LFB56:
 t6_LFE56:
 
 	.p2align 4,,15
-	.globl	f8
+
 
 f8:
 t6_LFB18:
@@ -2455,7 +2450,7 @@ t6_LFB18:
 t6_LFE18:
 
 	.p2align 4,,15
-	.globl	f9
+
 
 f9:
 t6_LFB19:
@@ -2478,7 +2473,7 @@ t6_L247:
 t6_LFE19:
 
 	.p2align 4,,15
-	.globl	crash_longjmp
+
 
 crash_longjmp:
 t6_LFB20:
@@ -2491,7 +2486,7 @@ t6_L249:
 t6_LFE20:
 
 	.p2align 4,,15
-	.globl	puff
+
 
 puff:
 t6_LFB28:
@@ -2778,7 +2773,7 @@ t6_L262:
 t6_LFE28:
 
 	.p2align 4,,15
-	.globl	my_memcpy
+
 
 my_memcpy:
 t6_LFB29:
@@ -2800,7 +2795,7 @@ t6_L306:
 t6_LFE29:
 
 	.p2align 4,,15
-	.globl	AES_init_ctx
+
 
 AES_init_ctx:
 t6_LFB31:
@@ -2810,7 +2805,7 @@ t6_LFB31:
 t6_LFE31:
 
 	.p2align 4,,15
-	.globl	AES_init_ctx_iv
+
 
 AES_init_ctx_iv:
 t6_LFB32:
@@ -2833,7 +2828,7 @@ t6_L314:
 t6_LFE32:
 
 	.p2align 4,,15
-	.globl	AES_ctx_set_iv
+
 
 AES_ctx_set_iv:
 t6_LFB33:
@@ -2853,7 +2848,7 @@ t6_L317:
 t6_LFE33:
 
 	.p2align 4,,15
-	.globl	AES_ECB_encrypt
+
 
 AES_ECB_encrypt:
 t6_LFB44:
@@ -2866,7 +2861,7 @@ t6_LFB44:
 t6_LFE44:
 
 	.p2align 4,,15
-	.globl	AES_ECB_decrypt
+
 
 AES_ECB_decrypt:
 t6_LFB45:
@@ -2879,7 +2874,7 @@ t6_LFB45:
 t6_LFE45:
 
 	.p2align 4,,15
-	.globl	AES_CBC_encrypt_buffer
+
 
 AES_CBC_encrypt_buffer:
 t6_LFB47:
@@ -2964,7 +2959,7 @@ t6_L326:
 t6_LFE47:
 
 	.p2align 4,,15
-	.globl	AES_CBC_decrypt_buffer
+
 
 AES_CBC_decrypt_buffer:
 t6_LFB48:
@@ -3053,7 +3048,7 @@ t6_L332:
 t6_LFE48:
 
 	.p2align 4,,15
-	.globl	AES_CTR_xcrypt_buffer
+
 
 AES_CTR_xcrypt_buffer:
 t6_LFB49:
@@ -3149,7 +3144,7 @@ t6_L364:
 t6_LFE49:
 
 	.p2align 4,,15
-	.globl	test_6
+
 
 test_6:
 t6_LFB50:
@@ -3954,20 +3949,20 @@ sbox:
 	.byte	84
 	.byte	-69
 	.byte	22
-	.globl	output_len
+
 	.data
 	.align 8
 
 
 output_len:
 	.quad	700
-	.globl	input_len
+
 	.align 8
 
 
 input_len:
 	.quad	376
-	.globl	input_data
+
 	.section	.rodata
 	.align 32
 
@@ -4351,7 +4346,7 @@ input_data:
 	.byte	0
 	.byte	-13
 	.comm	output_data,700,32
-	.globl	target_list
+
 	.data
 	.align 32
 
@@ -4383,20 +4378,20 @@ target_list:
 	.quad	targeta
 	.quad	targetb
 	.quad	0
-	.globl	t3
+
 	.align 4
 
 
 t3:
 	.long	1088421888
-	.globl	t2
+
 	.align 8
 
 
 t2:
 	.long	0
 	.long	1075314688
-	.globl	t1
+
 	.align 16
 
 
@@ -4405,25 +4400,25 @@ t1:
 	.long	2684354560
 	.long	16385
 	.long	0
-	.globl	x2
+
 	.align 4
 
 
 x2:
 	.long	4
-	.globl	x1
+
 	.align 4
 
 
 x1:
 	.long	3
-	.globl	below
+
 	.align 8
 
 
 below:
 	.quad	2
-	.globl	above
+
 	.align 8
 
 
