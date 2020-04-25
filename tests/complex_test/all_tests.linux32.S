@@ -4764,14 +4764,14 @@ rsbox:
 	.byte	33
 	.byte	12
 	.byte	125
-	.section	.rodata.cst4,"aM",@progbits,4
+	.section	.rodata.cst4
 	.align 4
 t6_LC0:
 	.long	1593835520
 	.align 4
 t6_LC1:
 	.long	1065353216
-	.section	.rodata.cst8,"aM",@progbits,8
+	.section	.rodata.cst8
 	.align 8
 t6_LC3:
 	.long	-1683627180

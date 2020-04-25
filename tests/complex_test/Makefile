@@ -20,12 +20,14 @@ ctest.$(PLATFORM)$(EXE): main.c all_tests.$(PLATFORM).S
 	$(CC) -o $@ $(CFLAGS) $(ASFLAGS) \
       all_tests.$(PLATFORM).S main.c $(LDFLAGS)
 
+maintainer_rebuild:
+	make ALLOW_REBUILD=1 PLATFORM=linux64 all_tests.linux64.S ctest.linux64.ref -B
+	make ALLOW_REBUILD=1 PLATFORM=linux32 all_tests.linux32.S ctest.linux32.ref -B
+
 ifeq ($(ALLOW_REBUILD),1)
 
 # These rules are only used when the test is created.
-# Do this on Linux.
-#  make ALLOW_REBUILD=1 PLATFORM=linux64 all_tests.linux64.S ctest.linux64.ref -B
-#  make ALLOW_REBUILD=1 PLATFORM=linux32 all_tests.linux32.S ctest.linux32.ref -B
+# Do this on Linux. "make maintainer_rebuild". Recreates reference files.
 
 ASM=t0.S t1.$(PLATFORM).S t2.S t3.S t4.S t5.S t6.$(PLATFORM).S
 
@@ -43,7 +45,7 @@ all_tests.$(PLATFORM).S: $(ASM)
 	sed -i 's/[.]section.*note[.].*/.text/g' $@
 	sed -i 's/[.]section.*text[.].*/.text/g' $@
 	sed -i 's/^.*[.]\(size\|type\|local\).*//' $@
-	sed -i 's/^\(.*[.]section *[.].*\),".*".*/\1/' $@
+	sed -i 's/^\(.*[.]section.*\),".*".*/\1/' $@
 	echo '.global all_tests' >> $@
 	echo '.global _all_tests' >> $@
 
@@ -75,6 +77,7 @@ all_tests.linux%.S:
 
 all_tests.win%.S: all_tests.linux%.S
 	cp $< $@
+	echo '__udivdi3 = ___udivdi3' >> $@
 
 ctest.win%.ref: ctest.linux%.ref
 	cp $< $@
