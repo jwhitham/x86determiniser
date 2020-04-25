@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import subprocess, os, time, sys, shutil
 
@@ -93,6 +93,12 @@ def args_test(use_loader):
             " // will you destroy this EARTH? ",
             "@LATER", "%1", "like to play with things a while",
             "\"\"BEFORE ANNIHILATION\"\"", "%TEMP%", "$SHELL" ])
+
+def red_zone_test():
+   clean()
+   rc = subprocess.call([LOADER, "--branch-trace", TMP_FILE, "--", "red_zone" + SUFFIX])
+   if rc != 0:
+      raise Exception("red_zone should have rc = 0, rc = %d" % rc)
 
 def outs_test(args):
    clean()
@@ -319,6 +325,9 @@ if __name__ == "__main__":
    os.mkdir(TMPDIR)
    os.environ["TMPDIR"] = TMPDIR    # Linux
    os.environ["TMP"] = TMPDIR       # Windows
+
+   if PLATFORM.endswith("64"):
+      red_zone_test()
 
    help_test([], False)
    help_test(["-?"], True)
