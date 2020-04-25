@@ -1,4 +1,4 @@
-
+.text
 .global test_5
 .global _test_5
 

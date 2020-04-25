@@ -12,8 +12,9 @@ clean:
 
 
 ctest.$(PLATFORM).ok: $(LOADER_EXE) ctest.$(PLATFORM)$(EXE)
-	$(LOADER_EXE) --branch-trace ctest.$(PLATFORM).trace ctest.$(PLATFORM)$(EXE)
-	python tests.py $(PLATFORM)
+	$(LOADER_EXE) --branch-trace ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM)$(EXE)
+	python normalise_trace.py ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM).trace
+	diff -q ctest.$(PLATFORM).trace ctest.$(PLATFORM).ref
 
 ctest.$(PLATFORM)$(EXE): main.c all_tests.$(PLATFORM).S
 	$(CC) -o $@ $(CFLAGS) $(ASFLAGS) \
@@ -55,7 +56,11 @@ else
 
 all_tests.linux%.S:
 	@echo all_tests.$(PLATFORM).S should already be present
+
 all_tests.win%.S: all_tests.linux%.S
+	cp $< $@
+
+ctest.win%.ref: ctest.linux%.ref
 	cp $< $@
 
 endif

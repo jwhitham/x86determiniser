@@ -1,3 +1,4 @@
+.text
 .global quirky2
 quirky2: ret
 

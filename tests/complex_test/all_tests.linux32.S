@@ -3,14 +3,10 @@
 .align 4096
 
 
-all_tests:
-_all_tests:
 
-   /* start test */
-   inl      $0x30, %eax    /* reset the instruction counter to zero */
-   mov      $1, %eax       /* indicate start of trace */
-   outl     %eax, $0x30
-
+trace_zero:
+   /* normalise_trace.py will cause this location to appear as offset 0;
+    * a jump to this point will also be the first event in the trace, at time 0 */
    call     test_1
    call     test_3
    call     test_4
@@ -21,6 +17,17 @@ _all_tests:
    mov      $252, %eax     /* indicate end of trace */
    outl     %eax, $0x30
    ret
+
+
+all_tests:
+_all_tests:
+
+   /* start test */
+   inl      $0x30, %eax    /* reset the instruction counter to zero */
+   mov      $1, %eax       /* indicate start of trace */
+   outl     %eax, $0x30
+   jmp      trace_zero
+
 
 	.file	"t1.c"
 	.text
@@ -494,6 +501,7 @@ t1_LFE10:
 	.comm	fptr,4,4
 	.ident	"GCC: (GNU) 4.7.4 20140401 for GNAT GPL gpl-2014 (20140405)"
 	.text
+.text
 
 quirky2: ret
 
@@ -592,6 +600,7 @@ _tail_recurse_1:
 
 #endif
 
+.text
 /* On x86 the sequence "call 1f; 1: pop <something>" may be used to implement
  * position independent code (PIC). Some compilers will generate a "thunk"
  * for this, but others directly inline the call/pop sequence, which
@@ -693,7 +702,7 @@ k:
 target:
     .space  40
 
-
+.text
 
 
 

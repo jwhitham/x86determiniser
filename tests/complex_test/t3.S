@@ -1,3 +1,4 @@
+.text
 /* On x86 the sequence "call 1f; 1: pop <something>" may be used to implement
  * position independent code (PIC). Some compilers will generate a "thunk"
  * for this, but others directly inline the call/pop sequence, which
