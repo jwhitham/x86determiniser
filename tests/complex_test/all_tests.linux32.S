@@ -34,7 +34,7 @@ _all_tests:
 	.align 2
 	.p2align 4,,15
 	.globl	one_tick
-	.type	one_tick, @function
+
 one_tick:
 t1_LFB2:
 	.cfi_startproc
@@ -47,11 +47,11 @@ t1_LFB2:
 	ret
 	.cfi_endproc
 t1_LFE2:
-	.size	one_tick, .-one_tick
+
 	.align 2
 	.p2align 4,,15
 	.globl	quirky
-	.type	quirky, @function
+
 quirky:
 t1_LFB0:
 	.cfi_startproc
@@ -59,11 +59,11 @@ t1_LFB0:
 	ret
 	.cfi_endproc
 t1_LFE0:
-	.size	quirky, .-quirky
+
 	.align 2
 	.p2align 4,,15
 	.globl	zero_ticks
-	.type	zero_ticks, @function
+
 zero_ticks:
 t1_LFB1:
 	.cfi_startproc
@@ -88,11 +88,11 @@ t1_L3:
 	ret
 	.cfi_endproc
 t1_LFE1:
-	.size	zero_ticks, .-zero_ticks
+
 	.align 2
 	.p2align 4,,15
 	.globl	two_ticks
-	.type	two_ticks, @function
+
 two_ticks:
 t1_LFB3:
 	.cfi_startproc
@@ -108,11 +108,11 @@ t1_LFB3:
 	ret
 	.cfi_endproc
 t1_LFE3:
-	.size	two_ticks, .-two_ticks
+
 	.align 2
 	.p2align 4,,15
 	.globl	four_ticks
-	.type	four_ticks, @function
+
 four_ticks:
 t1_LFB4:
 	.cfi_startproc
@@ -149,11 +149,11 @@ t1_L13:
 	ret
 	.cfi_endproc
 t1_LFE4:
-	.size	four_ticks, .-four_ticks
+
 	.align 2
 	.p2align 4,,15
 	.globl	five_ticks
-	.type	five_ticks, @function
+
 five_ticks:
 t1_LFB5:
 	.cfi_startproc
@@ -193,11 +193,11 @@ t1_L20:
 	ret
 	.cfi_endproc
 t1_LFE5:
-	.size	five_ticks, .-five_ticks
+
 	.align 2
 	.p2align 4,,15
 	.globl	x_ticks
-	.type	x_ticks, @function
+
 x_ticks:
 t1_LFB6:
 	.cfi_startproc
@@ -234,11 +234,11 @@ t1_L25:
 	ret
 	.cfi_endproc
 t1_LFE6:
-	.size	x_ticks, .-x_ticks
+
 	.align 2
 	.p2align 4,,15
 	.globl	nineteen_ticks
-	.type	nineteen_ticks, @function
+
 nineteen_ticks:
 t1_LFB7:
 	.cfi_startproc
@@ -391,11 +391,11 @@ t1_L36:
 	ret
 	.cfi_endproc
 t1_LFE7:
-	.size	nineteen_ticks, .-nineteen_ticks
+
 	.align 2
 	.p2align 4,,15
 	.globl	runme_root1
-	.type	runme_root1, @function
+
 runme_root1:
 t1_LFB8:
 	.cfi_startproc
@@ -463,11 +463,11 @@ t1_L72:
 	jmp	t1_L73
 	.cfi_endproc
 t1_LFE8:
-	.size	runme_root1, .-runme_root1
+
 	.align 2
 	.p2align 4,,15
 	.globl	call_site_2
-	.type	call_site_2, @function
+
 call_site_2:
 t1_LFB9:
 	.cfi_startproc
@@ -480,11 +480,11 @@ t1_LFB9:
 	ret
 	.cfi_endproc
 t1_LFE9:
-	.size	call_site_2, .-call_site_2
+
 	.align 2
 	.p2align 4,,15
 	.globl	test_1
-	.type	test_1, @function
+
 test_1:
 t1_LFB10:
 	.cfi_startproc
@@ -497,7 +497,7 @@ t1_LFB10:
 	jmp	call_site_2
 	.cfi_endproc
 t1_LFE10:
-	.size	test_1, .-test_1
+
 	.comm	fptr,4,4
 	.ident	"GCC: (GNU) 4.7.4 20140401 for GNAT GPL gpl-2014 (20140405)"
 	.text
@@ -769,7 +769,7 @@ memset_scratch_area:
 	.align 2
 	.p2align 4,,15
 	.globl	target1
-	.type	target1, @function
+
 target1:
 t6_LFB0:
 	.cfi_startproc
@@ -828,11 +828,11 @@ t6_L2:
 	jmp	t6_L3
 	.cfi_endproc
 t6_LFE0:
-	.size	target1, .-target1
+
 	.align 2
 	.p2align 4,,15
 	.globl	target2
-	.type	target2, @function
+
 target2:
 t6_LFB1:
 	.cfi_startproc
@@ -851,11 +851,11 @@ t6_LFB1:
 	ret
 	.cfi_endproc
 t6_LFE1:
-	.size	target2, .-target2
+
 	.align 2
 	.p2align 4,,15
 	.globl	target3
-	.type	target3, @function
+
 target3:
 t6_LFB2:
 	.cfi_startproc
@@ -914,11 +914,11 @@ t6_L8:
 	jmp	t6_L9
 	.cfi_endproc
 t6_LFE2:
-	.size	target3, .-target3
+
 	.align 2
 	.p2align 4,,15
 	.globl	target4
-	.type	target4, @function
+
 target4:
 t6_LFB3:
 	.cfi_startproc
@@ -977,12 +977,12 @@ t6_L12:
 	jmp	t6_L13
 	.cfi_endproc
 t6_LFE3:
-	.size	target4, .-target4
+
 	.globl	__udivdi3
 	.align 2
 	.p2align 4,,15
 	.globl	target5
-	.type	target5, @function
+
 target5:
 t6_LFB4:
 	.cfi_startproc
@@ -1004,11 +1004,11 @@ t6_LFB4:
 	ret
 	.cfi_endproc
 t6_LFE4:
-	.size	target5, .-target5
+
 	.align 2
 	.p2align 4,,15
 	.globl	target6
-	.type	target6, @function
+
 target6:
 t6_LFB5:
 	.cfi_startproc
@@ -1077,11 +1077,11 @@ t6_L22:
 	jmp	t6_L20
 	.cfi_endproc
 t6_LFE5:
-	.size	target6, .-target6
+
 	.align 2
 	.p2align 4,,15
 	.globl	target7
-	.type	target7, @function
+
 target7:
 t6_LFB6:
 	.cfi_startproc
@@ -1102,11 +1102,11 @@ t6_LFB6:
 	ret
 	.cfi_endproc
 t6_LFE6:
-	.size	target7, .-target7
+
 	.align 2
 	.p2align 4,,15
 	.globl	target8
-	.type	target8, @function
+
 target8:
 t6_LFB7:
 	.cfi_startproc
@@ -1115,11 +1115,11 @@ t6_LFB7:
 	ret
 	.cfi_endproc
 t6_LFE7:
-	.size	target8, .-target8
+
 	.align 2
 	.p2align 4,,15
 	.globl	target9
-	.type	target9, @function
+
 target9:
 t6_LFB8:
 	.cfi_startproc
@@ -1134,11 +1134,11 @@ t6_LFB8:
 	ret
 	.cfi_endproc
 t6_LFE8:
-	.size	target9, .-target9
+
 	.align 2
 	.p2align 4,,15
 	.globl	targeta
-	.type	targeta, @function
+
 targeta:
 t6_LFB9:
 	.cfi_startproc
@@ -1149,11 +1149,11 @@ t6_LFB9:
 	ret
 	.cfi_endproc
 t6_LFE9:
-	.size	targeta, .-targeta
+
 	.align 2
 	.p2align 4,,15
 	.globl	targetb
-	.type	targetb, @function
+
 targetb:
 t6_LFB10:
 	.cfi_startproc
@@ -1177,10 +1177,10 @@ t6_LFB10:
 	ret
 	.cfi_endproc
 t6_LFE10:
-	.size	targetb, .-targetb
+
 	.align 2
 	.p2align 4,,15
-	.type	bits, @function
+
 bits:
 t6_LFB21:
 	.cfi_startproc
@@ -1263,10 +1263,10 @@ t6_L39:
 	jmp	t6_L39
 	.cfi_endproc
 t6_LFE21:
-	.size	bits, .-bits
+
 	.align 2
 	.p2align 4,,15
-	.type	decode, @function
+
 decode:
 t6_LFB23:
 	.cfi_startproc
@@ -1390,10 +1390,10 @@ t6_L55:
 	ret
 	.cfi_endproc
 t6_LFE23:
-	.size	decode, .-decode
+
 	.align 2
 	.p2align 4,,15
-	.type	construct, @function
+
 construct:
 t6_LFB24:
 	.cfi_startproc
@@ -1520,10 +1520,10 @@ t6_L67:
 	ret
 	.cfi_endproc
 t6_LFE24:
-	.size	construct, .-construct
+
 	.align 2
 	.p2align 4,,15
-	.type	codes, @function
+
 codes:
 t6_LFB25:
 	.cfi_startproc
@@ -1664,10 +1664,10 @@ t6_L95:
 	jmp	t6_L82
 	.cfi_endproc
 t6_LFE25:
-	.size	codes, .-codes
+
 	.align 2
 	.p2align 4,,15
-	.type	fixed, @function
+
 fixed:
 t6_LFB26:
 	.cfi_startproc
@@ -1755,10 +1755,10 @@ t6_L114:
 	ret
 	.cfi_endproc
 t6_LFE26:
-	.size	fixed, .-fixed
+
 	.align 2
 	.p2align 4,,15
-	.type	dynamic, @function
+
 dynamic:
 t6_LFB27:
 	.cfi_startproc
@@ -2028,10 +2028,10 @@ t6_L175:
 	jmp	t6_L125
 	.cfi_endproc
 t6_LFE27:
-	.size	dynamic, .-dynamic
+
 	.align 2
 	.p2align 4,,15
-	.type	KeyExpansion, @function
+
 KeyExpansion:
 t6_LFB30:
 	.cfi_startproc
@@ -2120,10 +2120,10 @@ t6_L182:
 	ret
 	.cfi_endproc
 t6_LFE30:
-	.size	KeyExpansion, .-KeyExpansion
+
 	.align 2
 	.p2align 4,,15
-	.type	Cipher, @function
+
 Cipher:
 t6_LFB42:
 	.cfi_startproc
@@ -2370,10 +2370,10 @@ t6_L202:
 	ret
 	.cfi_endproc
 t6_LFE42:
-	.size	Cipher, .-Cipher
+
 	.align 2
 	.p2align 4,,15
-	.type	InvCipher, @function
+
 InvCipher:
 t6_LFB43:
 	.cfi_startproc
@@ -2722,11 +2722,11 @@ t6_L226:
 	ret
 	.cfi_endproc
 t6_LFE43:
-	.size	InvCipher, .-InvCipher
+
 	.align 2
 	.p2align 4,,15
 	.globl	f3
-	.type	f3, @function
+
 f3:
 t6_LFB13:
 	.cfi_startproc
@@ -2734,11 +2734,11 @@ t6_LFB13:
 	ret
 	.cfi_endproc
 t6_LFE13:
-	.size	f3, .-f3
+
 	.align 2
 	.p2align 4,,15
 	.globl	f5
-	.type	f5, @function
+
 f5:
 t6_LFB15:
 	.cfi_startproc
@@ -2756,11 +2756,11 @@ t6_L243:
 	jmp	t6_L242
 	.cfi_endproc
 t6_LFE15:
-	.size	f5, .-f5
+
 	.align 2
 	.p2align 4,,15
 	.globl	f4
-	.type	f4, @function
+
 f4:
 t6_LFB14:
 	.cfi_startproc
@@ -2768,11 +2768,11 @@ t6_LFB14:
 	ret
 	.cfi_endproc
 t6_LFE14:
-	.size	f4, .-f4
+
 	.align 2
 	.p2align 4,,15
 	.globl	f2
-	.type	f2, @function
+
 f2:
 t6_LFB12:
 	.cfi_startproc
@@ -2780,11 +2780,11 @@ t6_LFB12:
 	ret
 	.cfi_endproc
 t6_LFE12:
-	.size	f2, .-f2
+
 	.align 2
 	.p2align 4,,15
 	.globl	f1
-	.type	f1, @function
+
 f1:
 t6_LFB11:
 	.cfi_startproc
@@ -2792,11 +2792,11 @@ t6_LFB11:
 	ret
 	.cfi_endproc
 t6_LFE11:
-	.size	f1, .-f1
+
 	.align 2
 	.p2align 4,,15
 	.globl	f6
-	.type	f6, @function
+
 f6:
 t6_LFB16:
 	.cfi_startproc
@@ -2804,11 +2804,11 @@ t6_LFB16:
 	ret
 	.cfi_endproc
 t6_LFE16:
-	.size	f6, .-f6
+
 	.align 2
 	.p2align 4,,15
 	.globl	f7
-	.type	f7, @function
+
 f7:
 t6_LFB17:
 	.cfi_startproc
@@ -2816,11 +2816,11 @@ t6_LFB17:
 	ret
 	.cfi_endproc
 t6_LFE17:
-	.size	f7, .-f7
+
 	.align 2
 	.p2align 4,,15
 	.globl	f8
-	.type	f8, @function
+
 f8:
 t6_LFB18:
 	.cfi_startproc
@@ -2828,11 +2828,11 @@ t6_LFB18:
 	ret
 	.cfi_endproc
 t6_LFE18:
-	.size	f8, .-f8
+
 	.align 2
 	.p2align 4,,15
 	.globl	f9
-	.type	f9, @function
+
 f9:
 t6_LFB19:
 	.cfi_startproc
@@ -2855,11 +2855,11 @@ t6_L251:
 	jmp	t6_L254
 	.cfi_endproc
 t6_LFE19:
-	.size	f9, .-f9
+
 	.align 2
 	.p2align 4,,15
 	.globl	crash_longjmp
-	.type	crash_longjmp, @function
+
 crash_longjmp:
 t6_LFB20:
 	.cfi_startproc
@@ -2869,11 +2869,11 @@ t6_L258:
 	jmp	t6_L258
 	.cfi_endproc
 t6_LFE20:
-	.size	crash_longjmp, .-crash_longjmp
+
 	.align 2
 	.p2align 4,,15
 	.globl	puff
-	.type	puff, @function
+
 puff:
 t6_LFB28:
 	.cfi_startproc
@@ -3093,11 +3093,11 @@ t6_L272:
 	jmp	t6_L271
 	.cfi_endproc
 t6_LFE28:
-	.size	puff, .-puff
+
 	.align 2
 	.p2align 4,,15
 	.globl	my_memcpy
-	.type	my_memcpy, @function
+
 my_memcpy:
 t6_LFB29:
 	.cfi_startproc
@@ -3131,11 +3131,11 @@ t6_L290:
 	ret
 	.cfi_endproc
 t6_LFE29:
-	.size	my_memcpy, .-my_memcpy
+
 	.align 2
 	.p2align 4,,15
 	.globl	AES_init_ctx
-	.type	AES_init_ctx, @function
+
 AES_init_ctx:
 t6_LFB31:
 	.cfi_startproc
@@ -3144,11 +3144,11 @@ t6_LFB31:
 	jmp	KeyExpansion
 	.cfi_endproc
 t6_LFE31:
-	.size	AES_init_ctx, .-AES_init_ctx
+
 	.align 2
 	.p2align 4,,15
 	.globl	AES_init_ctx_iv
-	.type	AES_init_ctx_iv, @function
+
 AES_init_ctx_iv:
 t6_LFB32:
 	.cfi_startproc
@@ -3181,11 +3181,11 @@ t6_L299:
 	ret
 	.cfi_endproc
 t6_LFE32:
-	.size	AES_init_ctx_iv, .-AES_init_ctx_iv
+
 	.align 2
 	.p2align 4,,15
 	.globl	AES_ctx_set_iv
-	.type	AES_ctx_set_iv, @function
+
 AES_ctx_set_iv:
 t6_LFB33:
 	.cfi_startproc
@@ -3209,11 +3209,11 @@ t6_L303:
 	ret
 	.cfi_endproc
 t6_LFE33:
-	.size	AES_ctx_set_iv, .-AES_ctx_set_iv
+
 	.align 2
 	.p2align 4,,15
 	.globl	AES_ECB_encrypt
-	.type	AES_ECB_encrypt, @function
+
 AES_ECB_encrypt:
 t6_LFB44:
 	.cfi_startproc
@@ -3222,11 +3222,11 @@ t6_LFB44:
 	jmp	Cipher
 	.cfi_endproc
 t6_LFE44:
-	.size	AES_ECB_encrypt, .-AES_ECB_encrypt
+
 	.align 2
 	.p2align 4,,15
 	.globl	AES_ECB_decrypt
-	.type	AES_ECB_decrypt, @function
+
 AES_ECB_decrypt:
 t6_LFB45:
 	.cfi_startproc
@@ -3235,11 +3235,11 @@ t6_LFB45:
 	jmp	InvCipher
 	.cfi_endproc
 t6_LFE45:
-	.size	AES_ECB_decrypt, .-AES_ECB_decrypt
+
 	.align 2
 	.p2align 4,,15
 	.globl	AES_CBC_encrypt_buffer
-	.type	AES_CBC_encrypt_buffer, @function
+
 AES_CBC_encrypt_buffer:
 t6_LFB47:
 	.cfi_startproc
@@ -3310,11 +3310,11 @@ t6_L313:
 	ret
 	.cfi_endproc
 t6_LFE47:
-	.size	AES_CBC_encrypt_buffer, .-AES_CBC_encrypt_buffer
+
 	.align 2
 	.p2align 4,,15
 	.globl	AES_CBC_decrypt_buffer
-	.type	AES_CBC_decrypt_buffer, @function
+
 AES_CBC_decrypt_buffer:
 t6_LFB48:
 	.cfi_startproc
@@ -3393,11 +3393,11 @@ t6_L320:
 	ret
 	.cfi_endproc
 t6_LFE48:
-	.size	AES_CBC_decrypt_buffer, .-AES_CBC_decrypt_buffer
+
 	.align 2
 	.p2align 4,,15
 	.globl	AES_CTR_xcrypt_buffer
-	.type	AES_CTR_xcrypt_buffer, @function
+
 AES_CTR_xcrypt_buffer:
 t6_LFB49:
 	.cfi_startproc
@@ -3485,11 +3485,11 @@ t6_L348:
 	jmp	t6_L346
 	.cfi_endproc
 t6_LFE49:
-	.size	AES_CTR_xcrypt_buffer, .-AES_CTR_xcrypt_buffer
+
 	.align 2
 	.p2align 4,,15
 	.globl	test_6
-	.type	test_6, @function
+
 test_6:
 t6_LFB50:
 	.cfi_startproc
@@ -3578,25 +3578,25 @@ t6_L369:
 	jmp	t6_L369
 	.cfi_endproc
 t6_LFE50:
-	.size	test_6, .-test_6
+
 	.globl	output_len
 	.data
 	.align 4
-	.type	output_len, @object
-	.size	output_len, 4
+
+
 output_len:
 	.long	700
 	.globl	input_len
 	.align 4
-	.type	input_len, @object
-	.size	input_len, 4
+
+
 input_len:
 	.long	376
 	.globl	input_data
 	.section	.rodata
 	.align 32
-	.type	input_data, @object
-	.size	input_data, 377
+
+
 input_data:
 	.byte	85
 	.byte	82
@@ -3979,8 +3979,8 @@ input_data:
 	.globl	target_list
 	.data
 	.align 32
-	.type	target_list, @object
-	.size	target_list, 104
+
+
 target_list:
 	.long	target1
 	.long	target2
@@ -4010,72 +4010,72 @@ target_list:
 	.long	0
 	.globl	t3
 	.align 4
-	.type	t3, @object
-	.size	t3, 4
+
+
 t3:
 	.long	1088421888
 	.globl	t2
 	.align 8
-	.type	t2, @object
-	.size	t2, 8
+
+
 t2:
 	.long	0
 	.long	1075314688
 	.globl	t1
 	.align 16
-	.type	t1, @object
-	.size	t1, 12
+
+
 t1:
 	.long	0
 	.long	-1610612736
 	.long	16385
 	.globl	x2
 	.align 4
-	.type	x2, @object
-	.size	x2, 4
+
+
 x2:
 	.long	4
 	.globl	x1
 	.align 4
-	.type	x1, @object
-	.size	x1, 4
+
+
 x1:
 	.long	3
 	.globl	below
 	.align 8
-	.type	below, @object
-	.size	below, 8
+
+
 below:
 	.long	2
 	.long	0
 	.globl	above
 	.align 8
-	.type	above, @object
-	.size	above, 8
+
+
 above:
 	.long	1
 	.long	0
 	.align 4
-	.type	virgin.1576, @object
-	.size	virgin.1576, 4
+
+
 virgin.1576:
 	.long	1
-	.local	lencode.1581
+
 	.comm	lencode.1581,8,4
-	.local	lencnt.1577
+
 	.comm	lencnt.1577,32,32
-	.local	lensym.1578
+
 	.comm	lensym.1578,576,32
-	.local	distcode.1582
+
 	.comm	distcode.1582,8,4
-	.local	distcnt.1579
+
 	.comm	distcnt.1579,32,32
-	.local	distsym.1580
+
 	.comm	distsym.1580,60,32
 	.section	.rodata
 	.align 32
-	.type	lens.1564, @object
-	.size	lens.1564, 58
+
+
 lens.1564:
 	.value	3
 	.value	4
@@ -4107,8 +4107,8 @@ lens.1564:
 	.value	227
 	.value	258
 	.align 32
-	.type	lext.1565, @object
-	.size	lext.1565, 58
+
+
 lext.1565:
 	.value	0
 	.value	0
@@ -4140,8 +4140,8 @@ lext.1565:
 	.value	5
 	.value	0
 	.align 32
-	.type	dists.1566, @object
-	.size	dists.1566, 60
+
+
 dists.1566:
 	.value	1
 	.value	2
@@ -4174,8 +4174,8 @@ dists.1566:
 	.value	16385
 	.value	24577
 	.align 32
-	.type	dext.1567, @object
-	.size	dext.1567, 60
+
+
 dext.1567:
 	.value	0
 	.value	0
@@ -4208,8 +4208,8 @@ dext.1567:
 	.value	13
 	.value	13
 	.align 32
-	.type	order.1615, @object
-	.size	order.1615, 38
+
+
 order.1615:
 	.value	16
 	.value	17
@@ -4231,8 +4231,8 @@ order.1615:
 	.value	1
 	.value	15
 	.align 32
-	.type	sbox, @object
-	.size	sbox, 256
+
+
 sbox:
 	.byte	99
 	.byte	124
@@ -4490,8 +4490,8 @@ sbox:
 	.byte	84
 	.byte	-69
 	.byte	22
-	.type	Rcon, @object
-	.size	Rcon, 11
+
+
 Rcon:
 	.byte	-115
 	.byte	1
@@ -4505,8 +4505,8 @@ Rcon:
 	.byte	27
 	.byte	54
 	.align 32
-	.type	rsbox, @object
-	.size	rsbox, 256
+
+
 rsbox:
 	.byte	82
 	.byte	9

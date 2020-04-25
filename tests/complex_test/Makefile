@@ -13,17 +13,19 @@ clean:
 
 ctest.$(PLATFORM).ok: $(LOADER_EXE) ctest.$(PLATFORM)$(EXE)
 	$(LOADER_EXE) --branch-trace ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM)$(EXE)
-	python normalise_trace.py ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM).trace
+	python3 normalise_trace.py ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM).trace
 	diff -q ctest.$(PLATFORM).trace ctest.$(PLATFORM).ref
 
 ctest.$(PLATFORM)$(EXE): main.c all_tests.$(PLATFORM).S
 	$(CC) -o $@ $(CFLAGS) $(ASFLAGS) \
-      all_tests.$(PLATFORM).S main.c -ldl $(ASFLAGS)
+      all_tests.$(PLATFORM).S main.c $(LDFLAGS)
 
 ifeq ($(ALLOW_REBUILD),1)
 
 # These rules are only used when the test is created.
 # Do this on Linux.
+#  make ALLOW_REBUILD=1 PLATFORM=linux64 all_tests.linux64.S ctest.linux64.ref -B
+#  make ALLOW_REBUILD=1 PLATFORM=linux32 all_tests.linux32.S ctest.linux32.ref -B
 
 ASM=t0.S t1.$(PLATFORM).S t2.S t3.S t4.S t5.S t6.$(PLATFORM).S
 
@@ -40,17 +42,31 @@ all_tests.$(PLATFORM).S: $(ASM)
 	sed -i 's/^[.]glob.*//g' $@
 	sed -i 's/[.]section.*note[.].*/.text/g' $@
 	sed -i 's/[.]section.*text[.].*/.text/g' $@
+	sed -i 's/^.*[.]\(size\|type\|local\).*//' $@
+	sed -i 's/^\(.*[.]section *[.].*\),".*".*/\1/' $@
 	echo '.global all_tests' >> $@
 	echo '.global _all_tests' >> $@
+
+
+ifeq ($(PLATFORM),linux32)
 
 # Here is a reference file made with the old version.
 # Only possible with 32-bit Linux.
 
-ctest.$(PLATFORM).ref: ctest.$(PLATFORM)$(EXE)
+ctest.$(PLATFORM).ref: main.c all_tests.$(PLATFORM).S
 	cp /tmp/x86determiniser/libx86determiniser$(DLL) .
-	X86D_BRANCH_TRACE=tmp.txt \
-      ./ctest.$(PLATFORM)$(EXE) ./libx86determiniser$(DLL)
+	$(CC) -o tmp$(EXE) $(CFLAGS) $(ASFLAGS) \
+      all_tests.$(PLATFORM).S main.c \
+      -L. -lx86determiniser -DUSE_OLD_VERSION_TO_MAKE_A_REFERENCE_FILE
+	LD_LIBRARY_PATH=$(PWD) X86D_BRANCH_TRACE=tmp.txt ./tmp$(EXE)
 	python3 normalise_trace.py tmp.txt ctest.$(PLATFORM).ref
+
+else
+ctest.$(PLATFORM).ref: $(LOADER_EXE) ctest.$(PLATFORM)$(EXE)
+	$(LOADER_EXE) --branch-trace tmp.txt ctest.$(PLATFORM)$(EXE)
+	python3 normalise_trace.py tmp.txt ctest.$(PLATFORM).ref
+
+endif
 
 else
 
