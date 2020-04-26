@@ -26,7 +26,7 @@ A program is built within the `bin` directory and then tested as part of the bui
 If the tests complete successfully, you will see a message such as
 `simple_tests completed ok for win64`.
 
-## Ubuntu 18.04 64-bit
+## Ubuntu 18.04 64-bit (64-bit build)
 
 Use the package manager to install the required build tools:
 
@@ -43,12 +43,27 @@ Edit `paths.cfg` to set the location of the compiler, and set the
 ```
    
 (Ubuntu's GCC produces position-independent executables by default,
-but two test cases don't support this.) Having done this, you can build the
-64-bit version with `make linux64`.
+but two test cases don't support this.)
 
+Having done this, you can build the 64-bit version with `make linux64`.
 A program is built within the `bin` directory and then tested as part of the build process.
 If the tests complete successfully, you will see a message such as
 `simple_tests completed ok for linux64`.
+
+## Ubuntu 18.04 64-bit (32-bit build)
+
+If you want to build the 32-bit version on Ubuntu 18.04, you will need 32-bit compatibility
+libraries, i.e. `sudo apt install gcc-multilib libc6-dev:i386`.
+I recommend you do a 64-bit build first.
+
+The 32-bit compatibility libraries do not install a 32-bit version of GCC, they just enable
+32-bit support in the 64-bit version of GCC, so I found it easiest to install a
+32-bit only version of GCC (GNAT GPL 2014). I also needed to delete the `ld` program from 
+`gnat-gpl-2014-x86-linux-bin/libexec/gcc/i686-pc-linux-gnu/4.7.4/ld` as it
+appears to be incompatible with Ubuntu's (newer) libraries. `-no-pie` is not required for
+this compiler, but you must still set the compiler location in `paths.cfg` before
+running `make linux32`.
+
 
 ## Generic Linux
 
