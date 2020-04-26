@@ -507,6 +507,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    uintptr_t   enterSSContext_xss = 0;
    uintptr_t   pcsInChild = 0;
    siginfo_t   siginfo;
+   ssize_t     elfHeaderOk;
 
    memset (&context, 0, sizeof (LINUX_CONTEXT));
    memset (&siginfo, 0, sizeof (siginfo_t));
@@ -524,11 +525,11 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
       exit (USER_ERROR);
    }
    // read errors here will be detected by memcmp below:
-   (void) fread (elfHeader, 1, sizeof (elfHeader), testFd);
+   elfHeaderOk = fread (elfHeader, 1, sizeof (elfHeader), testFd);
    fclose (testFd);
    dbg_fprintf (stderr, "INITIAL: program is '%s'\n", argv[0]);
 
-   if (memcmp (elfHeader, "\x7f" "ELF", 4) != 0) {
+   if ((elfHeaderOk <= 0) || (memcmp (elfHeader, "\x7f" "ELF", 4) != 0)) {
       // make ELF header check report an error below:
       elfHeader[4] = '\0';
    }
