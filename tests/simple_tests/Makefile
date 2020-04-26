@@ -23,7 +23,7 @@ outs.$(PLATFORM)$(EXE): outs.S
 	$(CC) -o $@ $(CFLAGS) $(ASFLAGS) $<
 
 red_zone.$(PLATFORM)$(EXE): red_zone.S
-	$(CC) -o $@ $(CFLAGS) $(ASFLAGS) $<
+	$(CC) -o $@ $(ADDITIONAL_GCC_FLAGS) $(ASFLAGS) $<
 
 ud.$(PLATFORM)$(EXE): ud.c
 	$(CC) -o $@ $(CFLAGS) $<

@@ -17,7 +17,7 @@ ctest.$(PLATFORM).ok: $(LOADER_EXE) ctest.$(PLATFORM)$(EXE) ctest.$(PLATFORM).re
 	diff -q ctest.$(PLATFORM).trace ctest.$(PLATFORM).ref
 
 ctest.$(PLATFORM)$(EXE): main.c all_tests.$(PLATFORM).S
-	$(CC) -o $@ $(CFLAGS) $(ASFLAGS) \
+	$(CC) -o $@ $(ASFLAGS) $(ADDITIONAL_GCC_FLAGS) \
       all_tests.$(PLATFORM).S main.c $(LDFLAGS)
 
 maintainer_rebuild:

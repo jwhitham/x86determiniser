@@ -10,30 +10,54 @@ The build requirements are:
 
 * [Git for Windows](https://gitforwindows.org/).
 * GNU make - you can install MSYS2, or find the 
-  [make package](http://repo.msys2.org/msys/x86_64/). Extract make.exe with `tar xf`
+  [make package](http://repo.msys2.org/msys/x86_64/). Extract `make.exe` with `tar xf`
   and put it somewhere on the PATH.
 * GCC - I have tested using the GCC versions
-  provided by [Adacore](https://www.adacore.com/): see below.
+  provided by [Adacore](https://www.adacore.com/) so I recommend you
+  [use those](https://www.adacore.com/download/more)
+  though there's no reason other GCC versions won't also work. See "Tested GCC versions" below.
 * [Python](https://www.python.org/) - needed for running test cases. Python 3 is
-  preferred but Python 2 should work too.
+  preferred. Make sure `python.exe` is on the PATH.
  
 When these requirements are installed, edit `paths.cfg` to configure the location of the
 compilers for the platforms you wish to build, then use `make win32` or `make win64`.
+
 A program is built within the `bin` directory and then tested as part of the build process.
 If the tests complete successfully, you will see a message such as
 `simple_tests completed ok for win64`.
 
-## Linux
+## Ubuntu 18.04 64-bit
 
-The build requirements are the same as Windows. Use your package manager to
-install them if they are not already present. `apt-get install build-essential git`
-will probably get everything you need.
+Use the package manager to install the required build tools:
 
-As for Windows, edit `paths.cfg` to configure the location of the
-compilers for the platforms you wish to build, then use `make linux32` or `make linux64`.
+```
+   sudo apt install git make build-essential
+```
+
+Edit `paths.cfg` to set the location of the compiler, and set the
+`-no-pie` flag where it's required:
+
+```
+   LINUX64_GCC_DIR=/usr/bin
+   ADDITIONAL_GCC_FLAGS=-no-pie
+```
+   
+(Ubuntu's GCC produces position-independent executables by default,
+but two test cases don't support this.) Having done this, you can build the
+64-bit version with `make linux64`.
+
 A program is built within the `bin` directory and then tested as part of the build process.
 If the tests complete successfully, you will see a message such as
 `simple_tests completed ok for linux64`.
+
+## Generic Linux
+
+The build requirements are the same as Windows. As for Windows, I suggest installing
+the GNAT compilers. Aside from those, you require Python (ideally Python 3),
+GNU make and Git.
+
+Edit `paths.cfg` to configure the location of the
+compilers for the platforms you wish to build, then use `make linux32` or `make linux64`.
 
 ## Tested GCC versions
 
@@ -52,7 +76,5 @@ You can install one of these compilers (they are
 whichever GCC you already have. There is no particular need to use an Adacore
 compiler, but I have used this configuration anyway in order to test x86determiniser
 with programs written in Ada.
-
-
 
 
