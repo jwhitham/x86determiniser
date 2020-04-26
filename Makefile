@@ -44,7 +44,7 @@ win.test:
 	make deepclean
 	make win32 win64
 	cd ..; zip -9r x86determiniser/x86determiniser-windows-$(VERSION).zip \
-            x86determiniser/bin/*determiniser \
+            x86determiniser/bin/*determiniser.exe \
             x86determiniser/doc/ \
             x86determiniser/README.md \
             x86determiniser/LICENSE
