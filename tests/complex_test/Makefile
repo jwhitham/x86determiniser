@@ -13,7 +13,7 @@ clean:
 
 ctest.$(PLATFORM).ok: $(LOADER_EXE) ctest.$(PLATFORM)$(EXE) ctest.$(PLATFORM).ref
 	$(LOADER_EXE) --branch-trace ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM)$(EXE)
-	python normalise_trace.py ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM).trace
+	$(PYTHON) normalise_trace.py ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM).trace
 	diff -q ctest.$(PLATFORM).trace ctest.$(PLATFORM).ref
 
 ctest.$(PLATFORM)$(EXE): main.c all_tests.$(PLATFORM).S
@@ -68,12 +68,12 @@ ctest.$(PLATFORM).ref: main.c all_tests.$(PLATFORM).S
       all_tests.$(PLATFORM).S main.c \
       -L. -lx86determiniser -DUSE_OLD_VERSION_TO_MAKE_A_REFERENCE_FILE
 	LD_LIBRARY_PATH=$(PWD) X86D_BRANCH_TRACE=tmp.txt ./tmp$(EXE)
-	python normalise_trace.py tmp.txt ctest.$(PLATFORM).ref
+	$(PYTHON) normalise_trace.py tmp.txt ctest.$(PLATFORM).ref
 
 else
 ctest.$(PLATFORM).ref: $(LOADER_EXE) ctest.$(PLATFORM)$(EXE)
 	$(LOADER_EXE) --branch-trace tmp.txt ctest.$(PLATFORM)$(EXE)
-	python normalise_trace.py tmp.txt ctest.$(PLATFORM).ref
+	$(PYTHON) normalise_trace.py tmp.txt ctest.$(PLATFORM).ref
 
 endif
 

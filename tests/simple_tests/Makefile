@@ -14,7 +14,7 @@ clean:
 tests.$(PLATFORM).ok: args.$(PLATFORM)$(EXE) outs.$(PLATFORM)$(EXE) \
       ud.$(PLATFORM)$(EXE) pipetest.$(PLATFORM)$(EXE) \
       red_zone.$(PLATFORM)$(EXE) example.$(PLATFORM)$(EXE)
-	python ./tests.py $(PLATFORM)
+	$(PYTHON) ./tests.py $(PLATFORM)
 
 args.$(PLATFORM)$(EXE): args.c
 	$(CC) -o $@ $(CFLAGS) $<
