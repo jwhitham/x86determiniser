@@ -3,7 +3,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <Windows.h>
-#include <Psapi.h>
+#include <psapi.h>
+#include <shlwapi.h>
 #include <stdint.h>
 
 #include "remote_loader.h"
@@ -655,6 +656,76 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      memcpy (&startContext, &context, sizeof (CONTEXT));
 
                      if (!kernel32Base) {
+                        // We haven't got a name, so let's enumerate
+                        HMODULE hMods[1024];
+                        DWORD cbNeeded;
+                        unsigned int i;
+                        if( EnumProcessModules(processInformation.hProcess, hMods, sizeof(hMods), &cbNeeded)) {
+                           for ( i = 0; i < (cbNeeded / sizeof(HMODULE)); i++ ) {
+                              TCHAR szModName[MAX_PATH];
+                              // Get the full path to the module's file.
+                              GetModuleFileNameEx( processInformation.hProcess, hMods[i], szModName, sizeof(szModName) / sizeof(TCHAR));
+                              dbg_fprintf (stderr, "AWAIT_FIRST: enum DLL = %s base = %p\n", szModName, (void *) hMods[i]);
+
+                              if (StrStrI (szModName, "\\kernel32.dll") != NULL) {
+                                 // Determine offset of LoadLibrary and GetProcAddress
+                                 // within kernel32.dll
+                                 const char * kernel32_name = szModName;
+                                 HMODULE kernel32;
+                                 MODULEINFO modinfo;
+                                 LPVOID pa;
+
+                                 if (strncmp (kernel32_name, "\\\\?\\", 4) == 0) {
+                                    // remove prefix of path (not allowed for LoadLibrary)
+                                    kernel32_name += 4;
+                                 }
+                                 kernel32 = LoadLibraryA (kernel32_name);
+                                 if (!kernel32) {
+                                    if (GetLastError () == ERROR_BAD_EXE_FORMAT) {
+                                       err_wrong_architecture (argv[0]);
+                                       return 1;
+                                    }
+                                    err_printf (1, "LoadLibrary ('%s')", kernel32_name);
+                                    return 1;
+                                 }
+                                 if (!GetModuleInformation
+                                       (GetCurrentProcess(), kernel32, &modinfo, sizeof(MODULEINFO))) {
+                                    err_printf (1, "GetModuleInformation ('%s')", kernel32_name);
+                                    return 1;
+                                 }
+                                 dbg_fprintf (stderr, "AWAIT_FIRST: %s: base %p size %u\n", kernel32_name,
+                                       modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
+
+                                 pa = GetProcAddress (kernel32, "GetProcAddress");
+                                 if (!pa) {
+                                    err_printf (1, "GetProcAddress ('GetProcAddress') within '%s'", kernel32_name);
+                                    return 1;
+                                 }
+                                 getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+
+                                 pa = GetProcAddress (kernel32, "GetLastError");
+                                 if (!pa) {
+                                    err_printf (1, "GetProcAddress ('GetLastError') within '%s'", kernel32_name);
+                                    return 1;
+                                 }
+                                 getLastErrorOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+
+                                 pa = GetProcAddress (kernel32, "LoadLibraryA");
+                                 if (!pa) {
+                                    err_printf (1, "GetProcAddress ('LoadLibraryA') within '%s'", kernel32_name);
+                                    return 1;
+                                 }
+                                 loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+
+                                 // We also have the load address of the the DLL
+                                 kernel32Base = hMods[i];
+                                 dbg_fprintf (stderr, "AWAIT_FIRST: kernel32base = %p\n", (void *) kernel32Base);
+                              }
+                           }
+                        }
+                     }
+
+                     if (!kernel32Base) {
                         err_printf (0, "REMOTE_LOADER: don't know the kernel32.dll base address");
                         exit (INTERNAL_ERROR);
                      }
@@ -1156,4 +1227,3 @@ static DWORD DefaultHandler (
    }
    return todo;
 }
-
