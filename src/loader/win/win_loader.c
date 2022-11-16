@@ -23,6 +23,15 @@ static DWORD DefaultHandler (
       const char * state, DEBUG_EVENT * pDebugEvent,
       PROCESS_INFORMATION * pProcessInformation);
 
+typedef struct DetermineOffsetsStruct {
+   uintptr_t getProcAddressOffset;
+   uintptr_t loadLibraryOffset;
+   uintptr_t getLastErrorOffset;
+   LPVOID kernel32Base;
+   CommStruct * pcs;
+   const char * argv0;
+} DetermineOffsetsStruct;
+
 typedef struct SingleStepStruct {
    void * unused;
    PCONTEXT pcontext;
@@ -196,10 +205,7 @@ static void StartSingleStepProc
 
 void StartRemoteLoader
   (CommStruct * pcs,
-   uintptr_t getProcAddressOffset,
-   uintptr_t loadLibraryOffset,
-   uintptr_t getLastErrorOffset,
-   void * kernel32Base,
+   DetermineOffsetsStruct * dos,
    uintptr_t startAddress,
    HANDLE hProcess,
    PCONTEXT context)
@@ -254,11 +260,11 @@ void StartRemoteLoader
    pcs->myself = (void *) new_sp;
    strncpy (pcs->procName, "X86DeterminiserStartup", MAX_PROC_NAME_SIZE);
    pcs->loadLibraryProc =
-      (void *) ((char *) kernel32Base + loadLibraryOffset);
+      (void *) ((char *) dos->kernel32Base + dos->loadLibraryOffset);
    pcs->getProcAddressProc =
-      (void *) ((char *) kernel32Base + getProcAddressOffset);
+      (void *) ((char *) dos->kernel32Base + dos->getProcAddressOffset);
    pcs->getLastErrorProc =
-      (void *) ((char *) kernel32Base + getLastErrorOffset);
+      (void *) ((char *) dos->kernel32Base + dos->getLastErrorOffset);
    pcs->startAddress = startAddress;
 
    // fill remote stack
@@ -483,6 +489,65 @@ static void SetupLibrary (CommStruct * pcs)
    dbg_fprintf (stderr, "INITIAL: library is '%s'\n", pcs->libraryName);
 }
 
+static int DetermineOffsets(DetermineOffsetsStruct * dos,
+                            const char * kernel32_name,
+                            LPVOID load_address)
+{
+   // Determine offset of LoadLibrary and GetProcAddress
+   // within kernel32.dll, and the load address of the DLL
+   HMODULE kernel32;
+   MODULEINFO modinfo;
+   LPVOID pa;
+   CommStruct * pcs = dos->pcs;
+  
+   if (strncmp (kernel32_name, "\\\\?\\", 4) == 0) {
+      // remove prefix of path (not allowed for LoadLibrary)
+      kernel32_name += 4;
+   }
+   kernel32 = LoadLibraryA (kernel32_name);
+   if (!kernel32) {
+      if (GetLastError () == ERROR_BAD_EXE_FORMAT) {
+         err_wrong_architecture (dos->argv0);
+         return 1;
+      }
+      err_printf (1, "LoadLibrary ('%s')", kernel32_name);
+      return 1;
+   }
+   if (!GetModuleInformation
+         (GetCurrentProcess(), kernel32, &modinfo, sizeof(MODULEINFO))) {
+      err_printf (1, "GetModuleInformation ('%s')", kernel32_name);
+      return 1;
+   }
+   dbg_fprintf (stderr, "AWAIT_FIRST: %s: base %p size %u\n", kernel32_name,
+         modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
+  
+   pa = GetProcAddress (kernel32, "GetProcAddress");
+   if (!pa) {
+      err_printf (1, "GetProcAddress ('GetProcAddress') within '%s'", kernel32_name);
+      return 1;
+   }
+   dos->getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+  
+   pa = GetProcAddress (kernel32, "GetLastError");
+   if (!pa) {
+      err_printf (1, "GetProcAddress ('GetLastError') within '%s'", kernel32_name);
+      return 1;
+   }
+   dos->getLastErrorOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+  
+   pa = GetProcAddress (kernel32, "LoadLibraryA");
+   if (!pa) {
+      err_printf (1, "GetProcAddress ('LoadLibraryA') within '%s'", kernel32_name);
+      return 1;
+   }
+   dos->loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
+  
+   // We also have the load address of the the DLL
+   dos->kernel32Base = load_address;
+   dbg_fprintf (stderr, "AWAIT_FIRST: kernel32base = %p\n", (void *) dos->kernel32Base);
+   return 0;
+}
+
 // Entry point from main
 // Args already parsed into CommStruct
 int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
@@ -495,14 +560,10 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    char buf[BUFSIZ];
    SIZE_T len, exeLen;
    CONTEXT startContext;
-   uintptr_t getProcAddressOffset = 0;
-   uintptr_t loadLibraryOffset = 0;
-   uintptr_t getLastErrorOffset = 0;
-   LPVOID kernel32Base = NULL;
    LPVOID startAddress = NULL;
+   DetermineOffsetsStruct dos[1];
    char startInstruction = 0;
    char *commandLine;
-   char *argv0;
    const char *exeText = ".exe";
    DWORD todo = DBG_CONTINUE;
 
@@ -510,22 +571,24 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    memset (&processInformation, 0, sizeof (processInformation));
    memset (&debugEvent, 0, sizeof (debugEvent));
    memset (&startContext, 0, sizeof (startContext));
+   memset (&dos, 0, sizeof (dos));
    startupInfo.cb = sizeof (startupInfo);
    pcs->singleStepHandlerAddress = 0;
+   dos->pcs = pcs;
 
    // add .exe extension if missing
-   argv0 = argv[0];
-   len = strlen (argv0);
+   dos->argv0 = argv[0];
+   len = strlen (dos->argv0);
    exeLen = strlen (exeText);
-   if ((len < exeLen) || (strcasecmp (&argv0[len - exeLen], exeText) != 0)) {
+   if ((len < exeLen) || (strcasecmp (&dos->argv0[len - exeLen], exeText) != 0)) {
       // No .exe extension present: add it
-      argv0 = calloc (1, len + exeLen + 1);
-      if (!argv0) {
+      dos->argv0 = calloc (1, len + exeLen + 1);
+      if (!dos->argv0) {
          err_printf (0, "Memory allocation error");
          exit (INTERNAL_ERROR);
       }
-      strcpy (argv0, argv[0]);
-      strcat (argv0, exeText);
+      strcpy (dos->argv0, argv[0]);
+      strcat (dos->argv0, exeText);
    }
 
    // Deploy .dll in temporary directory
@@ -535,7 +598,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
    commandLine = GenerateArgs (pcs, (size_t) argc, argv);
    dbg_fprintf (stderr, "[[%s]]\n", commandLine);
    rc = CreateProcess(
-     /* _In_opt_    LPCTSTR               */ argv0,
+     /* _In_opt_    LPCTSTR               */ dos->argv0,
      /* _Inout_opt_ LPTSTR                */ commandLine /* lpCommandLine */,
      /* _In_opt_    LPSECURITY_ATTRIBUTES */ NULL /* lpProcessAttributes */,
      /* _In_opt_    LPSECURITY_ATTRIBUTES */ NULL /* lpThreadAttributes */,
@@ -655,7 +718,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      // Inject code needed to load the DLL and run the loader
                      memcpy (&startContext, &context, sizeof (CONTEXT));
 
-                     if (!kernel32Base) {
+                     if (1) { //!dos->kernel32Base) {
                         // We haven't got a name, so let's enumerate
                         HMODULE hMods[1024];
                         DWORD cbNeeded;
@@ -669,63 +732,16 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
                               if (StrStrI (szModName, "\\kernel32.dll") != NULL) {
                                  // Determine offset of LoadLibrary and GetProcAddress
-                                 // within kernel32.dll
-                                 const char * kernel32_name = szModName;
-                                 HMODULE kernel32;
-                                 MODULEINFO modinfo;
-                                 LPVOID pa;
-
-                                 if (strncmp (kernel32_name, "\\\\?\\", 4) == 0) {
-                                    // remove prefix of path (not allowed for LoadLibrary)
-                                    kernel32_name += 4;
-                                 }
-                                 kernel32 = LoadLibraryA (kernel32_name);
-                                 if (!kernel32) {
-                                    if (GetLastError () == ERROR_BAD_EXE_FORMAT) {
-                                       err_wrong_architecture (argv[0]);
-                                       return 1;
-                                    }
-                                    err_printf (1, "LoadLibrary ('%s')", kernel32_name);
+                                 // within kernel32.dll, and the load address of the DLL
+                                 if (DetermineOffsets (dos, szModName, hMods[i])) {
                                     return 1;
                                  }
-                                 if (!GetModuleInformation
-                                       (GetCurrentProcess(), kernel32, &modinfo, sizeof(MODULEINFO))) {
-                                    err_printf (1, "GetModuleInformation ('%s')", kernel32_name);
-                                    return 1;
-                                 }
-                                 dbg_fprintf (stderr, "AWAIT_FIRST: %s: base %p size %u\n", kernel32_name,
-                                       modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
-
-                                 pa = GetProcAddress (kernel32, "GetProcAddress");
-                                 if (!pa) {
-                                    err_printf (1, "GetProcAddress ('GetProcAddress') within '%s'", kernel32_name);
-                                    return 1;
-                                 }
-                                 getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-
-                                 pa = GetProcAddress (kernel32, "GetLastError");
-                                 if (!pa) {
-                                    err_printf (1, "GetProcAddress ('GetLastError') within '%s'", kernel32_name);
-                                    return 1;
-                                 }
-                                 getLastErrorOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-
-                                 pa = GetProcAddress (kernel32, "LoadLibraryA");
-                                 if (!pa) {
-                                    err_printf (1, "GetProcAddress ('LoadLibraryA') within '%s'", kernel32_name);
-                                    return 1;
-                                 }
-                                 loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-
-                                 // We also have the load address of the the DLL
-                                 kernel32Base = hMods[i];
-                                 dbg_fprintf (stderr, "AWAIT_FIRST: kernel32base = %p\n", (void *) kernel32Base);
                               }
                            }
                         }
                      }
 
-                     if (!kernel32Base) {
+                     if (!dos->kernel32Base) {
                         err_printf (0, "REMOTE_LOADER: don't know the kernel32.dll base address");
                         exit (INTERNAL_ERROR);
                      }
@@ -744,10 +760,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
                      StartRemoteLoader
                        (pcs,
-                        getProcAddressOffset,
-                        loadLibraryOffset,
-                        getLastErrorOffset,
-                        kernel32Base,
+                        dos,
                         (uintptr_t) startAddress,
                         processInformation.hProcess,
                         &context);
@@ -782,57 +795,13 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
 
             if (strstr (buf, "\\kernel32.dll") != NULL) {
                // Determine offset of LoadLibrary and GetProcAddress
-               // within kernel32.dll
-               const char * kernel32_name = buf;
-               HMODULE kernel32;
-               MODULEINFO modinfo;
-               LPVOID pa;
-
-               if (strncmp (kernel32_name, "\\\\?\\", 4) == 0) {
-                  // remove prefix of path (not allowed for LoadLibrary)
-                  kernel32_name += 4;
-               }
-               kernel32 = LoadLibraryA (kernel32_name);
-               if (!kernel32) {
-                  if (GetLastError () == ERROR_BAD_EXE_FORMAT) {
-                     err_wrong_architecture (argv[0]);
-                     return 1;
-                  }
-                  err_printf (1, "LoadLibrary ('%s')", kernel32_name);
+               // within kernel32.dll, and the load address of the DLL
+               // Note: debugEvent.u.LoadDll.lpBaseOfDll may be NULL in some cases,
+               // see https://github.com/jwhitham/x86determiniser/issues/3 . In such cases
+               // we have a second chance to compute these offsets at the first breakpoint.
+               if (DetermineOffsets (dos, buf, debugEvent.u.LoadDll.lpBaseOfDll)) {
                   return 1;
                }
-               if (!GetModuleInformation
-                     (GetCurrentProcess(), kernel32, &modinfo, sizeof(MODULEINFO))) {
-                  err_printf (1, "GetModuleInformation ('%s')", kernel32_name);
-                  return 1;
-               }
-               dbg_fprintf (stderr, "AWAIT_FIRST: %s: base %p size %u\n", kernel32_name,
-                     modinfo.lpBaseOfDll, (unsigned) modinfo.SizeOfImage);
-
-               pa = GetProcAddress (kernel32, "GetProcAddress");
-               if (!pa) {
-                  err_printf (1, "GetProcAddress ('GetProcAddress') within '%s'", kernel32_name);
-                  return 1;
-               }
-               getProcAddressOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-
-               pa = GetProcAddress (kernel32, "GetLastError");
-               if (!pa) {
-                  err_printf (1, "GetProcAddress ('GetLastError') within '%s'", kernel32_name);
-                  return 1;
-               }
-               getLastErrorOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-
-               pa = GetProcAddress (kernel32, "LoadLibraryA");
-               if (!pa) {
-                  err_printf (1, "GetProcAddress ('LoadLibraryA') within '%s'", kernel32_name);
-                  return 1;
-               }
-               loadLibraryOffset = (char *) pa - (char *) modinfo.lpBaseOfDll;
-
-               // We also have the load address of the the DLL, since we saw it loading
-               kernel32Base = debugEvent.u.LoadDll.lpBaseOfDll;
-               dbg_fprintf (stderr, "AWAIT_FIRST: kernel32base = %p\n", (void *) kernel32Base);
             }
 
             break;
