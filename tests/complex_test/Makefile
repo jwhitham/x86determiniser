@@ -14,7 +14,7 @@ clean:
 ctest.$(PLATFORM).ok: $(LOADER_EXE) ctest.$(PLATFORM)$(EXE) ctest.$(PLATFORM).ref
 	$(LOADER_EXE) --branch-trace ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM)$(EXE)
 	$(PYTHON) normalise_trace.py ctest.$(PLATFORM).raw_trace ctest.$(PLATFORM).trace
-	diff -q ctest.$(PLATFORM).trace ctest.$(PLATFORM).ref
+	diff -qw ctest.$(PLATFORM).trace ctest.$(PLATFORM).ref
 
 ctest.$(PLATFORM)$(EXE): main.c all_tests.$(PLATFORM).S
 	$(CC) -o $@ $(ASFLAGS) $(ADDITIONAL_GCC_FLAGS) \

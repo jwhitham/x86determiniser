@@ -32,4 +32,12 @@
 *.dSYM/
 
 # Generated files
-src/generated*
+src/generated*/offsets.h
+src/generated*/x86d_version.h
+
+# test temporary files
+tests/complex_test/all_tests.*.S
+tests/complex_test/ctest.*.raw_trace
+tests/complex_test/ctest.*.ref
+tests/complex_test/ctest.*.trace
+tests/simple_tests/tests.*.ok

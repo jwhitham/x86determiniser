@@ -1,0 +1,12 @@
+*.py text eol=lf
+*.txt text eol=lf
+LICENSE text eol=lf
+*.S text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+*.ref text eol=lf
+Makefile text eol=lf
+*.adb text eol=lf
+*.ads text eol=lf
+*.cfg text eol=lf
+*.md text eol=lf
