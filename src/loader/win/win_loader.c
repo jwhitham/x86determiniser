@@ -29,7 +29,7 @@ typedef struct DetermineOffsetsStruct {
    uintptr_t getLastErrorOffset;
    LPVOID kernel32Base;
    CommStruct * pcs;
-   const char * argv0;
+   char * argv0;
 } DetermineOffsetsStruct;
 
 typedef struct SingleStepStruct {
@@ -718,7 +718,7 @@ int X86DeterminiserLoader(CommStruct * pcs, int argc, char ** argv)
                      // Inject code needed to load the DLL and run the loader
                      memcpy (&startContext, &context, sizeof (CONTEXT));
 
-                     if (1) { //!dos->kernel32Base) {
+                     if (!dos->kernel32Base) {
                         // We haven't got a name, so let's enumerate
                         HMODULE hMods[1024];
                         DWORD cbNeeded;
